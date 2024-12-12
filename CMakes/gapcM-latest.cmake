@@ -3,27 +3,27 @@ include(ExternalProject)
 set (GAPC_PREFIX ${CMAKE_BINARY_DIR}/gapc-prefix)
 
 if (${FLEX_LOCAL})
-    set (FLEX ${FLEX_PREFIX}/bin/flex)
+    set (FLEX_PATH ${FLEX_PREFIX}/bin/flex)
 else()
-    set (FLEX ${FLEX_EXECUTEABLE})
+    set (FLEX_PATH ${FLEX_EXECUTEABLE})
 endif()
 
 if (${BISON_LOCAL})
-    set (BISON ${BISON_PREFIX}/bin/bison)
+    set (BISON_PATH ${BISON_PREFIX}/bin/bison)
 else()
-    set (BISON ${BISON_EXECUTEABLE})
+    set (BISON_PATH ${BISON_EXECUTEABLE})
 endif()
 
 if (${GSL_LOCAL})
-    set (GSL ${GSL_PREFIX}/bin/gsl-config)
+    set (GSL_PATH ${GSL_PREFIX}/bin/gsl-config)
 else()
-    set (GSL ${GSL_LIBRARIES})
+    set (GSL_PATH ${GSL_LIBRARIES})
 endif()
 
 if (${BOOST_LOCAL})
-    set (BOOST ${Boost_ROOT})
+    set (BOOST_PATH ${Boost_ROOT})
 else()
-    set (BOOST ${BOOST_INCLUDE_DIRS})
+    set (BOOST_PATH ${BOOST_INCLUDE_DIRS})
 endif()
 
 
@@ -33,7 +33,7 @@ ExternalProject_Add(
     BUILD_IN_SOURCE 1
     DOWNLOAD_EXTRACT_TIMESTAMP true
     GIT_REPOSITORY "https://github.com/RNABioInfo/gapcM.git"
-    CONFIGURE_COMMAND ./configure --prefix=${GAPC_PREFIX} FLEX=${FLEX} BISON=${BISON} GSL_CONFIG=${GSL} GSL=${GSL} --with-boost=${BOOST}
+    CONFIGURE_COMMAND ./configure --prefix=${GAPC_PREFIX} FLEX=${FLEX_PATH} BISON=${BISON_PATH} GSL_CONFIG=${GSL} GSL=${GSL_PATH} --with-boost=${BOOST_PATH}
     BUILD_COMMAND make
     INSTALL_COMMAND make install
 )
