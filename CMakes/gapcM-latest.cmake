@@ -33,7 +33,7 @@ ExternalProject_Add(
     BUILD_IN_SOURCE 1
     DOWNLOAD_EXTRACT_TIMESTAMP true
     GIT_REPOSITORY "https://github.com/RNABioInfo/gapcM.git"
-    CONFIGURE_COMMAND ./configure --prefix=${GAPC_PREFIX} FLEX=${FLEX_PATH} BISON=${BISON_PATH} GSL_CONFIG=${GSL} GSL=${GSL_PATH} --with-boost=${BOOST_PATH}
+    CONFIGURE_COMMAND ./configure --prefix=${GAPC_PREFIX} FLEX=${FLEX_PATH} BISON=${BISON_PATH} GSL_CONFIG=${GSL_PATH} GSL=${GSL_PATH} --with-boost=${BOOST_PATH} --disable-gsltest
     BUILD_COMMAND make
     INSTALL_COMMAND make install
 )
