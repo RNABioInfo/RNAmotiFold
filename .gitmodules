@@ -1,0 +1,3 @@
+[submodule "RNALoops"]
+	path = /submodules/RNALoops
+	url = https://github.com/RNABioInfo/RNALoops.git
