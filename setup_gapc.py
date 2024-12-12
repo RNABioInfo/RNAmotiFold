@@ -114,18 +114,33 @@ def run_cmake():
     )
     BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
     BUILD_PATH.mkdir(exist_ok=True)
-    build_process = subprocess.run(
-        f"cd {BUILD_PATH} && cmake .. && cmake --buil .",
-        shell=True,
-        check=True,
-        stdout=sys.stdout,
-        stderr=sys.stdout,
-    )
+    try:
+        build_process = subprocess.run(
+            f"cmake ..",
+            shell=True,
+            check=True,
+            stdout=sys.stdout,
+            stderr=sys.stdout,
+            cwd=BUILD_PATH,
+        )
+    except subprocess.CalledProcessError as error:
+        print("Error during CMake configuration, exiting...")
+        raise error
+    try:
+        build_process = subprocess.run(
+            f"cmake --build .",
+            shell=True,
+            check=True,
+            stdout=sys.stdout,
+            stderr=sys.stdout,
+            cwd=BUILD_PATH,
+        )
+    except subprocess.CalledProcessError as error:
+        print("Error during CMake building, exiting...")
+        raise error
+
     if not build_process.returncode:
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
-    else:
-        print(build_process)
-        # raise build_process.stderr
 
 
 if __name__ == "__main__":

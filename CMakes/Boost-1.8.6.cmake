@@ -3,7 +3,7 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_DEBUG OFF)
 set(Boost_ROOT ${CMAKE_BINARY_DIR}/boost-prefix)
 
-set (BOOST_LOCAL True)
+set (BOOST_EXTERNAL True)
 
 ExternalProject_Add(
     Boost

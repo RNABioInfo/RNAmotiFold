@@ -1,7 +1,7 @@
 include(ExternalProject)
 
 set (FLEX_PREFIX ${CMAKE_BINARY_DIR}/FLEX-prefix)
-set (FLEX_LOCAL True)
+set (FLEX_EXTERNAL True)
 
 ExternalProject_Add(
     FLEX

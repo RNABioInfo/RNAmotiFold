@@ -1,7 +1,7 @@
 include(ExternalProject)
 
 set (BISON_PREFIX ${CMAKE_BINARY_DIR}/BISON-prefix)
-set (BISON_LOCAL True)
+set (BISON_EXTERNAL True)
 
 ExternalProject_Add(
     BISON
