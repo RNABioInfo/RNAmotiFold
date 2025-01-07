@@ -143,6 +143,19 @@ def run_cmake():
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
 
 
+def main():
+    preinstalled_gapc_path = _check_preinstalled_gapc()
+    if preinstalled_gapc_path is None:
+        auto_gapc_path = _detect_gapc()
+        if auto_gapc_path is None:
+            cmake_generated_gapc_path = run_cmake()
+            setup_algorithms(cmake_generated_gapc_path)
+        else:
+            setup_algorithms(auto_gapc_path)
+    else:
+        setup_algorithms(preinstalled_gapc_path)
+
+
 if __name__ == "__main__":
     preinstalled_gapc_path = _check_preinstalled_gapc()
     if preinstalled_gapc_path is None:

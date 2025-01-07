@@ -3,25 +3,43 @@ from dataclasses import dataclass
 
 
 class result:
-    separator: str = "\t"
+
+    separator: str = ","
+    algorithm: str = "motmfepretty"
+
+    def __str__(self):
+        return self.tsv
 
     def __init__(self, id: str, result_list: list) -> None:
         self.id = id
         self.cols = result_list
+        self.header = self.algorithm
 
     @property
     def tsv(self):
         """Returns tsv string of itself"""
-        return self.id + result.separator + result.separator.join(map(str, self.cols)) + "\n"
+        return self.id + self.separator + result.separator.join(map(str, self.cols)) + "\n"
 
     @property
     def header(self):
-        """Returns header string of itself"""
-        return (
-            "ID"
-            + self.separator
-            + self.separator.join([f"col{self.cols.index(x)}" for x in self.cols])
-        ) + "\n"
+        """Returns header string of itself, adapted to currently set algorithm"""
+        return self.separator.join(self._header) + "\n"
+
+    @header.setter
+    def header(self, algorithm):
+        match algorithm:
+            case "motmfepretty":
+                self._header = ["ID", "motifs", "mfe", "motBracket"]
+            case "mothishape_h" | "mothishape_m" | "mothishape_b":
+                self._header = ["ID", "motiCes", "mfe", "motBracket"]
+            case "motshapeX":
+                self._header = ["ID", "mosh", "mfe", "motBracket"]
+            case "mothishape_h_pfc" | "mothishape_b_pfc" | "mothishape_m_pfc":
+                self._header = ["ID", "motiCes", "pfc", "probability"]
+            case "motshapeX_pfc":
+                self._header = ["ID", "mosh", "pfc", "probability"]
+            case "motpfc":
+                self._header = ["ID", "motifs", "pfc", "probability"]
 
 
 @dataclass
@@ -37,6 +55,9 @@ class algorithm_output:
     # These get set with the _calibrate_results function during auto_run() in the main bgap_rna class
     pfc = False
     filtering = False
+
+    def __str__(self):
+        return self.results[0].header + "".join([str(x) for x in self.results])
 
     def __init__(self, name: str, result_str: str, time_str: str):
         self.id = name
@@ -57,6 +78,7 @@ class algorithm_output:
         else:
             self._time_str = time
 
+    # Formats results from the mgapc output formatting to a list of result objects
     def _format_results(self, result_str: str) -> list[result]:
         reslist = []
         split = result_str.strip().split("\n")
