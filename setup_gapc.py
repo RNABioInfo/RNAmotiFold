@@ -74,7 +74,7 @@ def setup_algorithms(gapc_path: str):
     PERL_PATH = Path.joinpath(RNALOOPS_PATH, "Misc", "Applications", "addRNAoptions.pl")
     compilation_list = []
     for algorithm in ["motmfepretty", "motshapeX", "mothishape_h", "mothishape_b", "mothishape_m"]:
-        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm}.cc -t --kbacktrace --kbest -i {algorithm} RNALoops.gap && perl {PERL_PATH} {algorithm}.mf 0 && make -f {algorithm}.mf && mv {algorithm} {RNAMOTIFOLD_BIN}"
+        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm}.cc -t --kbacktrace --kbest -i {algorithm} RNALoops.gap && perl {PERL_PATH} {algorithm}.mf 0 && make -f {algorithm}.mf && mv {algorithm} {RNAMOTIFOLD_BIN} && rm {algorithm}.o && rm {algorithm}.mf && rm {algorithm}.hh && rm {algorithm}.d && rm {algorithm}.cc && rm {algorithm}_main.o && rm {algorithm}_main.d && rm {algorithm}_main.cc"
         compilation_list.append(compilation)
     for algorithm_subopt_pfc in [
         "motmfepretty_subopt",
@@ -88,7 +88,7 @@ def setup_algorithms(gapc_path: str):
         "mothishape_b_pfc",
         "mothishape_m_pfc",
     ]:
-        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm_subopt_pfc}.cc -t -i {algorithm_subopt_pfc} RNALoops.gap && perl {PERL_PATH} {algorithm_subopt_pfc}.mf 0 && make -f {algorithm_subopt_pfc}.mf && mv {algorithm_subopt_pfc} {RNAMOTIFOLD_BIN}"
+        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm_subopt_pfc}.cc -t -i {algorithm_subopt_pfc} RNALoops.gap && perl {PERL_PATH} {algorithm_subopt_pfc}.mf 0 && make -f {algorithm_subopt_pfc}.mf && mv {algorithm_subopt_pfc} {RNAMOTIFOLD_BIN} && rm {algorithm_subopt_pfc}.o && rm {algorithm_subopt_pfc}.mf && rm {algorithm_subopt_pfc}.hh && rm {algorithm_subopt_pfc}.d && rm {algorithm_subopt_pfc}.cc && rm {algorithm_subopt_pfc}_main.o && rm {algorithm_subopt_pfc}_main.d && rm {algorithm_subopt_pfc}_main.cc"
         compilation_list.append(compilation)
     for comp in compilation_list:
         try:
@@ -167,10 +167,3 @@ if __name__ == "__main__":
             setup_algorithms(auto_gapc_path)
     else:
         setup_algorithms(preinstalled_gapc_path)
-
-# Installed = gapc_check()
-# print(Installed)
-# if Installed is not None:
-#    pass
-# else:
-#    run_cmake()
