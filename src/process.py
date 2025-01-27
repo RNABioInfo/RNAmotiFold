@@ -33,7 +33,7 @@ class bgap_rna:
     def _get_cmd_arguments() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             prog="bgap_rna class",
-            description="Argument parser for the bgap_rna class, allowing construction through runtime arguments of your script. Arguments have no defaults to keep in line with the idea that only set parameters are considered.",
+            description="Argument parser for the bgap_rna class, allowing construction through runtime arguments of your script.",
             epilog="The helpline is currently at capacity, please hold...",
         )
         parser.add_argument(
@@ -61,7 +61,7 @@ class bgap_rna:
             "--path",
             help="Specify folder where your algorithm is compiled. Default is parent of the folder where this file is located.",
             type=Path,
-            default=Path(__file__).resolve().parents[1],
+            default=Path(__file__).resolve().parents[1].joinpath("Build", "bin"),
             dest="algorithm_folder",
             required=True,
         )
@@ -75,39 +75,39 @@ class bgap_rna:
         parser.add_argument(
             "-Q",
             "--motif_source",
-            help="Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both. Default is 3",
-            choices=[1, 2, 3],
-            type=int,
+            help="Specify from which database motifs should be used, 1 = RNA3D Motif Atlas, 2 = Rfam, 3 = both, 4 = Custom Motifs. Default is 1",
+            choices=["1", "2", "3", "4"],
+            type=str,
             dest="motif_source",
         )
         parser.add_argument(
             "-b",
             "--orientation",
-            help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 3",
-            choices=[1, 2, 3],
-            type=int,
+            help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 1",
+            choices=["1", "2", "3"],
+            type=str,
             dest="motif_orientation",
         )
         parser.add_argument(
             "-k",
             "--kvalue",
-            help="Specify k for k-best classes get classified. Default is k = 5",
-            type=int,
+            help="Specify k for k-best classes get classified. Default is 5",
+            type=str,
             dest="kvalue",
         )
         parser.add_argument(
             "-q",
             "--shape_level",
             help="Set shape abstraction level. Default is 3",
-            choices=[1, 2, 3, 4, 5],
-            type=int,
+            choices=["1", "2", "3", "4", "5"],
+            type=str,
             dest="shape_level",
         )
         parser.add_argument(
             "-e",
             "--energy",
             help="Set energy range in kcal/mol. Default is 10.0",
-            type=float,
+            type=str,
             dest="energy",
         )
         parser.add_argument(
@@ -122,13 +122,13 @@ class bgap_rna:
             "-t",
             "--temperature",
             help="Scale energy parameters for folding to given temperature in Celsius. Default is 37",
-            type=float | int,
+            type=str,
             dest="temperature",
         )
         parser.add_argument(
             "-c",
-            help="Set energy range in %. Is overwritten if -e is set. Default is 10.0",
-            type=float | int,
+            help="Set energy range in %. Is overwritten if -e is set. Default is 5.0",
+            type=str,
             dest="energy_percent",
         )
         parser.add_argument(
@@ -188,7 +188,7 @@ class bgap_rna:
     def check_motif_versions(installed: str) -> bool:
         try:
             current = bgap_rna.get_current_motif_version()
-        except ConnectionError as error:
+        except ConnectionError:
             raise ConnectionError(
                 "Could not connect to RNA 3D Motif Atlas server to check for current motif versions."
             )
@@ -198,81 +198,71 @@ class bgap_rna:
             return True
 
     @classmethod
-    def from_argparse(cls, cmd_args: Optional[argparse.Namespace] = None):
+    def from_argparse(cls, cmd_args: argparse.Namespace):
         """argparse alternative constructor."""
-        if cmd_args is None:
-            cmd_args = bgap_rna._get_cmd_arguments()
-        return cls(
-            cmd_args.input,
-            cmd_args.algorithm,
-            cmd_args.algorithm_folder,
-            cmd_args.motif_source,
-            cmd_args.motif_orientation,
-            cmd_args.kvalue,
-            cmd_args.shape_level,
-            cmd_args.energy,
-            cmd_args.hishape_mode,
-            cmd_args.temperature,
-            cmd_args.energy_percent,
-            cmd_args.basepairs,
-            cmd_args.subopt,
-            cmd_args.time,
-        )
+        if cmd_args.input is not None:
+            return cls(
+                input=cmd_args.input,
+                algorithm=cmd_args.algorithm,
+                motif_source=cmd_args.motif_source,
+                motif_orientation=cmd_args.motif_orientation,
+                kvalue=cmd_args.kvalue,
+                shape_level=cmd_args.shape_level,
+                energy=cmd_args.energy,
+                hishape_mode=cmd_args.hishape_mode,
+                temperature=cmd_args.temperature,
+                energy_percent=cmd_args.energy_percent,
+                allowLonelyBasepairs=cmd_args.basepairs,
+                subopt=cmd_args.subopt,
+                time=cmd_args.time,
+            )
+        else:
+            return cls(
+                algorithm=cmd_args.algorithm,
+                motif_source=cmd_args.motif_source,
+                motif_orientation=cmd_args.motif_orientation,
+                kvalue=cmd_args.kvalue,
+                shape_level=cmd_args.shape_level,
+                energy=cmd_args.energy,
+                hishape_mode=cmd_args.hishape_mode,
+                temperature=cmd_args.temperature,
+                energy_percent=cmd_args.energy_percent,
+                allowLonelyBasepairs=cmd_args.basepairs,
+                subopt=cmd_args.subopt,
+                time=cmd_args.time,
+            )
 
     @classmethod
-    def from_config(cls, config_path: str | Path | configparser.ConfigParser):
+    def from_config(cls, config: configparser.ConfigParser):
         """ConfigParse alternative constructor. Accepts a string/path to a config file or a ConfigParser. Unused parameters should be left empty or be set to None."""
-        if isinstance(config_path, str) or isinstance(config_path, Path):
-            config = configparser.ConfigParser(allow_no_value=True)
-            config.read_file(open(config_path))
-            return cls(
-                config["PROCESS"]["input"],
-                config["PROCESS"]["algorithm"],
-                config["PROCESS"]["algorithm_folder"],
-                config.getint("PROCESS", "motif_source"),
-                config.getint("PROCESS", "motif_orientation"),
-                config.getint("PROCESS", "kvalue"),
-                config.getint("PROCESS", "shape_level"),
-                config.getfloat("PROCESS", "energy"),
-                config["PROCESS"]["hishape_mode"],
-                config.getfloat("PROCESS", "temperature"),
-                config.getfloat("PROCESS", "energy_percent"),
-                config.getint("PROCESS", "basepairs"),
-                config.getboolean("PROCESS", "subopt"),
-                config.getboolean("PROCESS", "time"),
-            )
-        elif isinstance(config_path, configparser.ConfigParser):
-            config_path.allow_no_value = True
-            return cls(
-                config_path["PROCESS"]["input"],
-                config_path["PROCESS"]["algorithm"],
-                config_path["PROCESS"]["algorithm_folder"],
-                config_path.getint("PROCESS", "motif_source"),
-                config_path.getint("PROCESS", "motif_orientation"),
-                config_path.getint("PROCESS", "kvalue"),
-                config_path.getint("PROCESS", "shape_level"),
-                config_path.getfloat("PROCESS", "energy"),
-                config_path["PROCESS"]["hishape_mode"],
-                config_path.getfloat("PROCESS", "temperature"),
-                config_path.getfloat("PROCESS", "energy_percent"),
-                config_path.getint("PROCESS", "basepairs"),
-                config_path.getboolean("PROCESS", "subopt"),
-                config_path.getboolean("PROCESS", "time"),
-            )
+        return cls(
+            input=config["VARIABLES"]["input"],
+            algorithm=config.get("VARIABLES", "algorithm"),
+            motif_source=config.getint("VARIABLES", "motif_source"),
+            motif_orientation=config.getint("VARIABLES", "motif_orientation"),
+            kvalue=config.getint("VARIABLES", "kvalue"),
+            shape_level=config.getint("VARIABLES", "shape_level"),
+            energy=config.get("VARIABLES", "energy"),
+            hishape_mode=config.get("VARIABLES", "hishape_mode"),
+            temperature=config.getfloat("VARIABLES", "temperature"),
+            energy_percent=config.getfloat("VARIABLES", "energy_percent"),
+            allowLonelyBasepairs=config.getint("VARIABLES", "basepairs"),
+            subopt=config.getboolean("VARIABLES", "subopt"),
+            time=config.getboolean("VARIABLES", "time"),
+        )
 
     def __init__(
         self,
-        input: str | SeqRecord | list[str | SeqRecord],
-        algorithm: str,
-        algorithm_folder: str | Path,
+        input: Optional[str | SeqRecord | list[str | SeqRecord]] = None,
+        algorithm: Optional[str] = None,
         motif_source: Optional[int] = None,
         motif_orientation: Optional[int] = None,
         kvalue: Optional[int] = None,
         shape_level: Optional[int] = None,
-        energy: Optional[float] = None,
+        energy: Optional[str] = None,
         hishape_mode: Optional[str] = None,
-        temperature: Optional[float | int] = None,
-        energy_percent: Optional[float | int] = None,
+        temperature: Optional[float] = None,
+        energy_percent: Optional[float] = None,
         allowLonelyBasepairs: Optional[int] = None,
         subopt: bool = False,
         time: bool = False,
@@ -292,8 +282,7 @@ class bgap_rna:
         self.allowLonelyBasepairs = allowLonelyBasepairs
         self.input = (
             input
-        )  # type: SeqIO.FastaIO.FastaIterator | SeqIO.QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | Iterator[list]
-        self.algorithm_path = algorithm_folder  # Checks for the algorithm in the given folder, if it isn't there attempts to compile the algorithm
+        )  # type: SeqIO.FastaIO.FastaIterator | SeqIO.QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | Iterator[list] | SeqRecord
         self.pfc_filtering = pfc_filtering  # Set this to enable/disable filtering of partition function outputs to only return results with a probability over 0.0001
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
@@ -316,21 +305,27 @@ class bgap_rna:
 
     @temperature.setter
     def temperature(self, temp: Optional[float]):
-        if temp is None or float or int:
-            self._temperature = temp
+        if temp is not None:
+            if -273 < temp < 100:
+                self._temperature = temp
+            else:
+                raise ValueError("Temperature can only be between -273°C and 100°C")
         else:
-            raise ValueError("Temperature can only be None or a Float Value.")
+            self._temperature = temp
 
     @property
     def energy_percent(self):
         return self._energy_perc
 
     @energy_percent.setter
-    def energy_percent(self, range):
-        if range is None or float or int:
+    def energy_percent(self, range: Optional[float]):
+        if range is not None:
+            if range > 0:
+                self._energy_perc = range
+            else:
+                raise ValueError("Energy range cannot be below 0.")
+        elif range is None:
             self._energy_perc = range
-        else:
-            raise ValueError("Energy range can only be a float or int.")
 
     @property
     def allowLonelyBasepairs(self):
@@ -350,11 +345,11 @@ class bgap_rna:
 
     @motif_source.setter
     def motif_source(self, Q: Optional[int]):
-        if Q is None or Q in [1, 2, 3]:
+        if Q is None or Q in [1, 2, 3, 4]:
             self._motif_source = Q
         else:
             raise ValueError(
-                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both."
+                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both, 4 = Custom"
             )
 
     # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
@@ -401,13 +396,16 @@ class bgap_rna:
         return self._energy
 
     @energy.setter
-    def energy(self, e: Optional[float | int]):
-        if e is not None and e > 0:
-            self._energy = float(e)
-        elif e is None:
-            self._energy = e
+    def energy(self, e: Optional[str]):
+        if e == "":
+            e = None
+        if e is not None:
+            if float(e) > 0:
+                self._energy = e
+            else:
+                raise ValueError("Energy range cannot be lower than 0.")
         else:
-            raise ValueError("Energy range cannot be lower than 0.")
+            self._energy = e
 
     # Set kvalue fpr kbest and kbacktracing
     @property
@@ -415,9 +413,10 @@ class bgap_rna:
         return self._kvalue
 
     @kvalue.setter
-    def kvalue(self, k):
-        if k is not None and k > 0:
-            self._kvalue = k
+    def kvalue(self, k: Optional[int]):
+        if k is not None:
+            if k > 0:
+                self._kvalue = k
         elif k is None:
             self._kvalue = k
         else:
@@ -426,11 +425,9 @@ class bgap_rna:
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
-        return self._algorithm_path
-
-    @algorithm_path.setter
-    def algorithm_path(self, home_folder: str | Path):
-        self._algorithm_path = str(Path(home_folder).joinpath(self.algorithm))
+        return str(
+            Path(__file__).resolve().parents[1].joinpath("Build", "bin").joinpath(self.algorithm)
+        )
 
     # Builds the algorithm name string, checks for _pfc at the end and builds hishape name and adds _subopt
     @property
@@ -438,21 +435,24 @@ class bgap_rna:
         return self._algorithm
 
     @algorithm.setter
-    def algorithm(self, alg):
-        if alg == "mothishape":
-            try:
-                alg = alg + "_" + self.hishape_mode
-            except TypeError:
-                raise TypeError("Specify a hishape mode with -q if you want to use hishapes.")
-        if self.subopt:
-            alg = alg + "_subopt"
-        if alg[-3:] == "pfc":
-            self.pfc = True
-            if self.subopt:
-                raise ValueError("Partition function can't be used with subopt")
+    def algorithm(self, alg: Optional[str]):
+        if alg is None:
+            self._algorithm = None
         else:
-            self.pfc = False
-        self._algorithm = alg
+            if alg == "mothishape":
+                try:
+                    alg = alg + "_" + self.hishape_mode
+                except TypeError:
+                    raise TypeError("Specify a hishape mode with -q if you want to use hishapes.")
+            if self.subopt:
+                alg = alg + "_subopt"
+            if alg[-3:] == "pfc":
+                self.pfc = True
+                if self.subopt:
+                    raise ValueError("Partition function can't be used with subopt")
+            else:
+                self.pfc = False
+            self._algorithm = alg
 
     # Checks if input is a single sequence or a file with multiple sequences and creates either a SeqRecord or an iterator
     @property
@@ -461,40 +461,47 @@ class bgap_rna:
 
     # Input setter function, accepts a Path, string, SeqRecord or List and always returns an Iterator over SeqRecord objects (even if the length is 1)
     @input.setter
-    def input(self, input: Path | str | SeqRecord | list[str | SeqRecord]):
-        match input:
-            case Path():
-                if input.is_file():
-                    self._input = self._read_input_file(input)
-                else:
-                    raise LookupError("Could not find input file.")
-            case str():
-                if Path(input).is_file():
-                    self._input = self._read_input_file(input)
-                else:
-                    if any(c not in "AUCGTaucgt" for c in set(input)):
-                        raise ValueError(
-                            "Input string was neither a viable file path nor a viable RNA or DNA sequence"
-                        )
+    def input(self, input: Optional[Path | str | SeqRecord | list[str | SeqRecord]]):
+        if input is None:
+            self._input = input
+        else:
+            match input:
+                case Path():
+                    if input.is_file():
+                        self._input = self._read_input_file(input)
                     else:
-                        self._input = SeqRecord(seq=Seq(input), id="N/A")
+                        raise LookupError("Could not find input file.")
+                case str():
+                    if Path(input).is_file():
+                        self._input = self._read_input_file(input)
+                    else:
+                        if any(c not in "AUCGTaucgt" for c in set(input)):
+                            raise ValueError(
+                                "Input string was neither a viable file path nor a viable RNA or DNA sequence"
+                            )
+                        else:
+                            self._input = SeqRecord(seq=Seq(input), id="N/A")
 
-            case SeqRecord() | SeqIO.FastaIO.FastaIterator() | SeqIO.QualityIO.FastqPhredIterator():
-                self._input = input
-            case list():
-                if any(type(candidate) is not SeqRecord for candidate in input):
-                    raise ValueError("At least one of your list items is not a SeqRecords")
+                case (
+                    SeqRecord()
+                    | SeqIO.FastaIO.FastaIterator()
+                    | SeqIO.QualityIO.FastqPhredIterator()
+                ):
+                    self._input = input
+                case list():
+                    if any(type(candidate) is not SeqRecord for candidate in input):
+                        raise ValueError("At least one of your list items is not a SeqRecords")
 
-                else:
-                    self._input = iter(input)
-            case _:
-                raise TypeError(
-                    "Did not recognize input type, only path, str, SeqRecord, List of Strings or List of SeqRecords is allowed."
-                )
+                    else:
+                        self._input = iter(input)
+                case _:
+                    raise TypeError(
+                        "Did not recognize input type, only path, str, SeqRecord, List of Strings or List of SeqRecords is allowed."
+                    )
 
     @property
     def call(self):
-        """Automatic call setter, if a custom_call is set this will always return the custom_call aswell. The function checks all set runtime arguments in builds a call string"""
+        """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
         runtime_dictionary = {
@@ -521,13 +528,17 @@ class bgap_rna:
             call = "time " + call
         return call
 
+    @call.setter
+    def call(self):
+        raise ValueError("Please use the custom_call property so set a custom call.")
+
     # Finds File type based on file ending
     def _find_filetype(self, file_path: Path) -> None:
-        if str(file_path).split(".")[-1] == "gz" or str(file_path).split(".")[-1] == "zip":
-            file_extension = str(file_path).split(".")[-2]
+        if file_path.suffixes[-1] == "gz" or file_path.suffixes[-1] == "zip":
+            file_extension = file_path.suffixes[-2]
             input_zipped = True
         else:
-            file_extension = str(file_path).split(".")[-1]
+            file_extension = file_path.suffixes[-1]
             input_zipped = False
 
         match file_extension:
@@ -561,10 +572,10 @@ class bgap_rna:
                 return SeqIO.parse(handle, filetype)
 
     # Calibrate results.algorithm objects based on the current status of the bgap_rna class instance
-    def _calibrate_result_objects(self, sep):
+    def _calibrate_result_objects(self, sep: str = "\t"):
         """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
-        results.result.separator = sep
-        results.result.algorithm = self.algorithm
+        results.result._separator = sep
+        results.result._algorithm = self.algorithm
         results.algorithm_output.pfc = self.pfc
         results.algorithm_output.filtering = self.pfc_filtering
 
@@ -621,10 +632,10 @@ class bgap_rna:
         else:
             if subproc_out.returncode == 137:
                 print(
-                    "Your prediction could not be computed due to insufficient memory capacity, please download more RAM."
+                    "Your prediction could not be computed due to insufficient memory capacity on your computer, please download more RAM."
                 )
             else:
-                raise subproc_out.stderr
+                print(subproc_out.stderr)
 
     # multiprocessing function, which utilizes a worker pool to run the specified algorithm on each sequences in the input iterable
     def _run_multi_process(
@@ -635,14 +646,13 @@ class bgap_rna:
 
         Manager = multiprocessing.Manager()  # Spawn multiprocessing Manager object
         # Start with setting up the input and output Queues
-        input_q = Manager.Queue(maxsize=workers * 2)  # type:multiprocessing.Queue[SeqIO.SeqRecord]
+        input_q = Manager.Queue()  # type:multiprocessing.Queue[SeqIO.SeqRecord]
         for record in self.input:
             input_q.put(record)
 
         # Check for the size of the input Q, if it is below workers we have less sequences than workers
         if input_q.qsize() < workers:
             workers = input_q.qsize()
-
         output_q = Manager.Queue()  # type:multiprocessing.Queue[tuple]
         # Start worker Pool and the listener subprocess, which takes in the worker outputs and formats them
         Pool = multiprocessing.Pool(processes=workers)

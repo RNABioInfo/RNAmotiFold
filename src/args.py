@@ -2,8 +2,38 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from src.scirpt_parameters import script_parameters as sp
-from os import cpu_count
+from typing import Optional
+from os import cpu_count, access, W_OK
+from dataclasses import dataclass
+
+
+def is_path_creatable(pathname: str) -> bool:
+    """
+    `True` if the current user has sufficient permissions to create the passed
+    pathname; `False` otherwise.
+    """
+    # Parent directory of the passed path. If empty, we substitute the current
+    # working directory (CWD) instead.
+    dirname = Path(pathname).resolve().parent or Path.cwd()
+    return access(dirname, W_OK)
+
+
+def is_path_exists_or_creatable(pathname: str) -> bool:
+    """
+    `True` if the passed pathname is a valid pathname for the current OS _and_
+    either currently exists or is hypothetically creatable; `False` otherwise.
+
+    This function is guaranteed to _never_ raise exceptions.
+    """
+    try:
+        # To prevent "os" module calls from raising undesirable exceptions on
+        # invalid pathnames, is_pathname_valid() is explicitly called first.
+        return Path(pathname).resolve().exists() and is_path_creatable(pathname)
+    except OSError:
+        print(
+            f"Given output file path is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
+        )
+        return False
 
 
 class LogCheck(argparse.Action):
@@ -23,34 +53,57 @@ class WorkerCheck(argparse.Action):
 
     def __call__(self, parser, namespace, value: int, option_string):
         if value > cpu_count():
-            print("Given worker number exceeds detected cpu count, setting workers to cpu_count -2")
-            setattr(namespace, self.dest, cpu_count() - 2)
+            print("Given worker number exceeds detected cpu count, setting workers to cpu_count -1")
+            setattr(namespace, self.dest, cpu_count() - 1)
         else:
             setattr(namespace, self.dest, value)
 
 
-class FileCheck(argparse.Action):
+class ConfigCheck(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, value: str, option_string=None):
+        if value == "":
+            print(f"Using default config: {script_parameters.default_config_path}")
+            setattr(namespace, self.dest, value)
+
+        elif Path(value).is_file():
+            print(f"Using user config: {value}.")
+            setattr(namespace, self.dest, Path(value))
+        else:
+            raise FileNotFoundError(f"Could not find specified config file {value}")
+
+
+class OutputFileCheck(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: str, option_string):
-        try:
-            if Path(value).exists():
+        if value == "":
+            print("-o is set but no output file specified, defaulting to stdout")
+            setattr(namespace, self.dest, None)
+        elif is_path_exists_or_creatable(value):
+            if Path(value).resolve().is_file():
                 print("Output file already exists, results will be appended.")
-                setattr(namespace, self.dest, Path(value))
             else:
                 with open(Path(value), "a+") as file:
                     pass
-                setattr(namespace, self.dest, Path(value))
-        except FileNotFoundError as error:
-            print(
-                "Could not identify valid path to specified output file, please check the output file path."
-            )
-            raise error
+            setattr(namespace, self.dest, Path(value))
+        else:
+            raise FileNotFoundError("Given path is not a valid path.")
+
+
+@dataclass
+class script_parameters:
+    default_config_path = Path(__file__).resolve().parent.joinpath("data", "defaults.ini")
+    user_config_path = Path(__file__).resolve().parent.joinpath("config.ini")
+    RNAmotiFold_path = Path(__file__).resolve().parents[1]
 
 
 def get_cmdarguments() -> argparse.Namespace:
-    config_data = get_config(sp.get_conf_path())
+    config = configparser.ConfigParser(allow_no_value=True)
+    config.read_file(open(script_parameters.default_config_path))
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
@@ -62,23 +115,30 @@ def get_cmdarguments() -> argparse.Namespace:
         "--input",
         help="Set input for algorithm. Running RNAmotiFold with a predefined input will not start an interactive session. Input can be a filepath, an RNA sequence or a DNA sequence. DNA sequences are silently converted to RNA.",
         type=str,
-        default=None,
-        const=None,
+        default="",
         nargs="?",
         dest="input",
     )
     parser.add_argument(
         "-o",
         "--output",
-        help="Set file to write results to. Results will be appended to file if it already exists!",
-        type=Path,
-        default=None,
-        const=None,
-        action=FileCheck,
-        dest="output",
+        help="Set file to write results to. Results will be appended to file if it already exists! Default is no file, outputs are written to stdout",
+        type=str,
+        default=config.get(config.default_section, "output"),
+        action=OutputFileCheck,
         nargs="?",
+        const="",
+        dest="output",
     )
-
+    parser.add_argument(
+        "--conf",
+        help="Specify a config file path, if no path is given this defaults to RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. Other commandline arguments will be ignored.",
+        type=str,
+        action=ConfigCheck,
+        const=script_parameters.user_config_path,
+        nargs="?",
+        dest="config",
+    )
     # Command line arguments that control which algorithm is called with which options.
     # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
     parser.add_argument(
@@ -96,7 +156,7 @@ def get_cmdarguments() -> argparse.Namespace:
             "mothishape_b_pfc",
             "mothishape_m_pfc",
         ],
-        default=config_data["DEFAULTS"]["algorithm"],
+        default=config.get(config.default_section, "algorithm"),
         nargs="?",
         dest="algorithm",
     )
@@ -105,7 +165,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "--subopt",
         help="Specify if subopt folding should be used. Not useable with partition function implementations. Default is off",
         action="store_true",
-        default=config_data.getboolean("DEFAULTS", "subopt"),
+        default=config.getboolean(config.default_section, "subopt"),
         dest="subopt",
     )
     parser.add_argument(
@@ -116,9 +176,10 @@ def get_cmdarguments() -> argparse.Namespace:
             1,
             2,
             3,
+            4,
         ],
         type=int,
-        default=config_data.getint("DEFAULTS", "motif_source"),
+        default=config.getint(config.default_section, "motif_source"),
         dest="motif_source",
     )
     parser.add_argument(
@@ -131,7 +192,7 @@ def get_cmdarguments() -> argparse.Namespace:
             3,
         ],
         type=int,
-        default=config_data.getint("DEFAULTS", "motif_orientation"),
+        default=config.getint(config.default_section, "motif_orientation"),
         dest="motif_orientation",
     )
     parser.add_argument(
@@ -139,7 +200,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "--kvalue",
         help="Specify k for k-best classes get classified. Default is k = 5",
         type=int,
-        default=config_data.getint("DEFAULTS", "kvalue"),
+        default=config.getint(config.default_section, "kvalue"),
         dest="kvalue",
     )
     parser.add_argument(
@@ -152,7 +213,7 @@ def get_cmdarguments() -> argparse.Namespace:
             "b",
         ],
         type=str,
-        default=config_data["DEFAULTS"]["hishape_mode"],
+        default=config.get(config.default_section, "hishape_mode"),
         dest="hishape_mode",
     )
     parser.add_argument(
@@ -167,22 +228,23 @@ def get_cmdarguments() -> argparse.Namespace:
             5,
         ],
         type=int,
-        default=config_data.getint("DEFAULTS", "shape_level"),
+        default=config.getint(config.default_section, "shape_level"),
         dest="shape_level",
     )
+    # Energy has to be implemented with  string since it is possibly empty and configparse can't handle it being an integer cause allow_no_value sets things to an empty string instead of None for some fucking reason.
     parser.add_argument(
         "-e",
         "--energy",
-        help="Specify energy range if subopt is used. Default is 1.0",
-        type=float,
-        default=config_data.getfloat("DEFAULTS", "energy"),
+        help="Specify energy range if subopt is used. Default is None (so you can actually use the -c parameters).",
+        type=str,
+        default=config.get(config.default_section, "energy"),
         dest="energy",
     )
     parser.add_argument(
         "--time",
         help="Activate time logging, activating this will run predictions with unix time utility. Default is off",
         action="store_true",
-        default=config_data.getboolean("DEFAULTS", "time"),
+        default=config.getboolean(config.default_section, "time"),
         dest="time",
     )
     parser.add_argument(
@@ -190,23 +252,25 @@ def get_cmdarguments() -> argparse.Namespace:
         "--temperature",
         help="Scale energy parameters for folding to given temperature in Celsius. Default is 37",
         type=float,
-        default=config_data.getfloat("DEFAULTS", "temperature"),
+        default=config.getfloat(config.default_section, "temperature"),
         dest="temperature",
     )
     parser.add_argument(
         "-u",
         help="Allow lonely base pairs, 1 = yes, 0 = no. Default is 0",
         type=int,
+        choices=[0, 1],
         dest="basepairs",
-        default=config_data.getint("DEFAULTS", "basepairs"),
+        default=config.getint(config.default_section, "basepairs"),
     )
     parser.add_argument(
         "-c",
         help="Set energy range in %%. Is overwritten if -e is set. Default is 10.0",
         type=float,
         dest="energy_percent",
-        default=config_data.getfloat("DEFAULTS", "energy_percent"),
+        default=config.getfloat(config.default_section, "energy_percent"),
     )
+
     ##############The line between script arguments and class args######
     parser.add_argument(
         "-w",
@@ -214,7 +278,7 @@ def get_cmdarguments() -> argparse.Namespace:
         help="Specify how many predictions should be done in parallel for file input. Default is os.cpu_count()-2",
         type=int,
         action=WorkerCheck,
-        default=config_data.getint("DEFAULTS", "workers"),
+        default=config.getint(config.default_section, "workers"),
         dest="workers",
     )
     parser.add_argument(
@@ -223,7 +287,7 @@ def get_cmdarguments() -> argparse.Namespace:
         help="Set log level. Default is Info",
         action=LogCheck,
         type=str,
-        default=config_data["DEFAULTS"]["loglevel"],
+        default=config[config.default_section]["loglevel"],
         dest="loglevel",
     )
     parser.add_argument(
@@ -231,47 +295,35 @@ def get_cmdarguments() -> argparse.Namespace:
         "--sep",
         help="Specify separation character for output. Default is tab for human readability.",
         type=str,
-        default=config_data.get("DEFAULTS", "separator"),
+        default=config.get(config.default_section, "separator"),
         dest="separator",
     )
-    # Arguments for updating motif catalogue, -r activates removal of sequences from catalogue, which ones have to be specified in Motif_collection.py update function.
-    parser.add_argument(
-        "-fu",
-        "--force_update",
-        help="Force update of sequence catalogue, gets overwritten by no_update. Default is False",
-        action="store_true",
-        default=config_data.getboolean("DEFAULTS", "force_update"),
-        dest="force_update",
-    )
+    # Arguments for updating motifs
     parser.add_argument(
         "-nu",
         "--no_update",
-        help="Block sequence updating, overwrites force_update. Default is False",
-        default=config_data.getboolean("DEFAULTS", "no_update"),
+        help="Blocks sequence updating, overwrites update_algorithms. Default is False",
+        default=config.getboolean(config.default_section, "no_update"),
         action="store_true",
         dest="no_update",
     )
     parser.add_argument(
-        "-r",
-        "--remove_seq",
-        help="When specified you can remove specific sequences from motifs if you do not want them to be recognized. These need to be specified in Motif_collection.py update function in the for-loop. THIS IS PERMANENT UNTIL YOU UPDATE THE SEQUENCES AGAIN (with -fu or naturally through a bgsu update). By default removes UUCAA and UACG from GNRA, GUGA from UNCG. ",
-        action="store_true",
-        default=config_data.getboolean("DEFAULTS", "remove_bool"),
-        dest="remove_bool",
-    )
-    parser.add_argument(
         "--low_prob_filter",
-        help="If set classes with a probability below 0.0001 are shown in the output when using a partition function. Default is off",
+        help="If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is off.",
         action="store_true",
         dest="pfc_filtering_bool",
-        default=config_data.getboolean("DEFAULTS", "pfc_filtering_bool"),
+        default=config.getboolean(config.default_section, "pfc_filtering_bool"),
     )
-
+    parser.add_argument(
+        "--update_algorithms",
+        help="If set algorithms are updated to use newest motif sequence versions. Can be used when manually editing motif sequence files (adding customs for example). Gets overwritten by --no_update. Default is False.",
+        action="store_true",
+        dest="update_algorithms",
+        default=config.getboolean(config.default_section, "update_algorithms"),
+    )
     args = parser.parse_args()
-    return args
-
-
-def get_config(path):
-    conf = configparser.ConfigParser(allow_no_value=True)
-    conf.read_file(open(path))
-    return conf
+    if args.config is not None:
+        config.read_file(open(args.config))
+        return config
+    else:
+        return args

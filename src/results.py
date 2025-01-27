@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 class result:
 
-    separator: str = ","
-    algorithm: str = "motmfepretty"
+    _separator: str = ","
+    _algorithm: str = "motmfepretty"
 
     def __str__(self):
         return self.tsv
@@ -13,33 +13,40 @@ class result:
     def __init__(self, id: str, result_list: list) -> None:
         self.id = id
         self.cols = result_list
-        self.header = self.algorithm
 
     @property
     def tsv(self):
         """Returns tsv string of itself"""
-        return self.id + self.separator + result.separator.join(map(str, self.cols)) + "\n"
+        return self.id + result._separator + result._separator.join(map(str, self.cols)) + "\n"
+
+    @property
+    def separator(self):
+        return self._separator
 
     @property
     def header(self):
         """Returns header string of itself, adapted to currently set algorithm"""
-        return self.separator.join(self._header) + "\n"
-
-    @header.setter
-    def header(self, algorithm):
-        match algorithm:
-            case "motmfepretty":
+        match self._algorithm:
+            case "motmfepretty" | "motmfepretty_subopt":
                 self._header = ["ID", "motifs", "mfe", "motBracket"]
-            case "mothishape_h" | "mothishape_m" | "mothishape_b":
+            case (
+                "mothishape_h"
+                | "mothishape_m"
+                | "mothishape_b"
+                | "mothishape_h_subopt"
+                | "mothishape_m_subopt"
+                | "mothishape_b_subopt"
+            ):
                 self._header = ["ID", "motiCes", "mfe", "motBracket"]
-            case "motshapeX":
+            case "motshapeX" | "motshapeX_subopt":
                 self._header = ["ID", "mosh", "mfe", "motBracket"]
             case "mothishape_h_pfc" | "mothishape_b_pfc" | "mothishape_m_pfc":
-                self._header = ["ID", "motiCes", "pfc", "probability"]
+                self._header = ["ID", "MotiCes", "pfc", "probability"]
             case "motshapeX_pfc":
                 self._header = ["ID", "mosh", "pfc", "probability"]
             case "motpfc":
                 self._header = ["ID", "motifs", "pfc", "probability"]
+        return result._separator.join(self._header) + "\n"
 
 
 @dataclass
@@ -56,6 +63,17 @@ class algorithm_output:
     pfc = False
     filtering = False
 
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> result:
+        if self._index < len(self.results):
+            item = self.results[self._index]
+            self._index += 1
+            return item
+        else:
+            raise StopIteration
+
     def __str__(self):
         return self.results[0].header + "".join([str(x) for x in self.results])
 
@@ -63,9 +81,11 @@ class algorithm_output:
         self.id = name
         self.results = self._format_results(result_str)  # type:list[result]
         self.time_str = time_str
+        self._index = 0
         if algorithm_output.pfc:
             self.calculate_pfc_probabilities()
-            self._filter_out_low_probability()
+            if algorithm_output.filtering:
+                self._filter_out_low_probability()
 
     @property
     def time_str(self):
