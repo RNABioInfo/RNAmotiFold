@@ -2,12 +2,19 @@ import json
 from pathlib import Path
 import requests
 from os import scandir, remove
+from dataclasses import dataclass
 import json
 
 non_listed_conversions = {"MAD": "A"}
 
 motifs_folder_path = Path(__file__).resolve().parent.joinpath("data", "motifs")
 duplicates_json_path = Path(__file__).resolve().parent.joinpath("data", "duplicates.json")
+
+
+@dataclass
+class MotifSequence:
+    sequence: str
+    abbreviation: str
 
 
 class rna3d_motif:
@@ -60,7 +67,7 @@ class rna3d_motif:
         return rev_list
 
     @staticmethod
-    def get_break(nucleotide_list: list) -> int | None:
+    def get_break(nucleotide_list: list) -> int:
         numbers = [rna3d_motif.get_nucleotide_element(x, 4) for x in nucleotide_list]
         chains = [rna3d_motif.get_nucleotide_element(x, 2) for x in nucleotide_list]
         for i in range(len(chains) - 1):
@@ -68,7 +75,7 @@ class rna3d_motif:
                 return i
             else:
                 pass
-        return None
+        return -1
 
     @staticmethod
     def FUSION(a: str, b: str) -> str:
@@ -108,7 +115,11 @@ class rna3d_motif:
     @property
     def bulge_sequences(self):
         if self.loop_type == "internal":
-            return [(x, self.abbreviation) for x in set(self.rna3d_fw) if "$" not in x]
+            return [
+                MotifSequence(sequence=x, abbreviation=self.abbreviation)
+                for x in set(self.rna3d_fw)
+                if "$" not in x
+            ]
         else:
             raise LookupError(
                 "This motif does not have bulge sequences because it is not an internal loop"
@@ -117,7 +128,11 @@ class rna3d_motif:
     @property
     def internal_sequences(self):
         if self.loop_type == "internal":
-            return [(x, self.abbreviation) for x in set(self.rna3d_fw) if "$" in x]
+            return [
+                MotifSequence(sequence=x, abbreviation=self.abbreviation)
+                for x in set(self.rna3d_fw)
+                if "$" in x
+            ]
         else:
             raise LookupError(
                 "This motif does not have internal sequences because it is not an internal loop"
@@ -125,7 +140,9 @@ class rna3d_motif:
 
     @property
     def seq_abb_tpls(self):
-        return [(x, self.abbreviation) for x in set(self.rna3d_fw)]
+        return [
+            MotifSequence(sequence=x, abbreviation=self.abbreviation) for x in set(self.rna3d_fw)
+        ]
 
     def load_current_rna3datlas_instances(self):
         match self.loop_type:
@@ -151,9 +168,8 @@ class rna3d_motif:
     def motifs2csv(self, mot_list):
         return "\n".join([x + f",{self.abbreviation}" for x in set(mot_list)]) + "\n"
 
-    def sequence_from_nucleotide_list(
-        self, alignment_nucleotide_list
-    ):  # Takes in a list of RNA3DAtlas nucleotide sequences and extracts sequences
+    # Takes a list of RNA3DAtlas nucleotide sequences and extracts sequences
+    def sequence_from_nucleotide_list(self, alignment_nucleotide_list):
         match self.loop_type:
             case "hairpin":
                 for alignment in alignment_nucleotide_list:
@@ -166,10 +182,9 @@ class rna3d_motif:
                         # print(alignment)
             case "internal":
                 for alignment in alignment_nucleotide_list:
-                    sequence_break = rna3d_motif.get_break(
-                        alignment
-                    )  # Sequence break is set to none if there wasn't any seq break found or it was below 5
-                    if sequence_break is not None:
+                    sequence_break = rna3d_motif.get_break(alignment)
+                    # Sequence break is set to -1 if no seq break was found, leading to the sequence being discarded
+                    if sequence_break > 0:
                         front = alignment[1:sequence_break]
                         back = alignment[sequence_break + 2 : -1]
                         self.rna3d_fw = rna3d_motif.FUSION(
@@ -178,7 +193,7 @@ class rna3d_motif:
                         )
                     else:
                         pass
-                        # print(alignment)
+                        # print(alignment) #Debugging print statement
 
     def get_rna3d_json_sequences(self):  # Extracts json sequences from the
         for instance in self.motifs:
@@ -215,39 +230,49 @@ class rna3d_motif:
         with open(hexdumb_file, "a+") as writefile:
             writefile.write("\n".join(out) + "\n")
 
-    @staticmethod  # collects the rfam_hairpins_fw and rfam_internals_fw
-    def get_rfam_sequences():
+    @staticmethod  # collects the rfam_hairpins_fw and rfam_internals_fw, these are pre-written so it just has to read the csv files. Both are turned into lists made up of (sequence, motif abbreviation) tuples.
+    def get_rfam_sequences() -> tuple[list[MotifSequence], list[MotifSequence]]:
         rfam_hairpins = motifs_folder_path.joinpath("rfam_hairpins_fw.csv")
         rfam_internals = motifs_folder_path.joinpath("rfam_internals_fw.csv")
         with open(rfam_hairpins) as file:
             hairpins_read = file.readlines()  # type:list[str]
         hairpins = [
-            (hairpin.split(",")[0], hairpin.strip().split(",")[1]) for hairpin in hairpins_read
+            MotifSequence(
+                sequence=hairpin.split(",")[0], abbreviation=hairpin.strip().split(",")[1]
+            )
+            for hairpin in hairpins_read
         ]
         with open(rfam_internals) as file2:
             internals_read = file2.readlines()
         internals = [
-            (internal.split(",")[0], internal.strip().split(",")[1]) for internal in internals_read
+            MotifSequence(
+                sequence=internal.split(",")[0], abbreviation=internal.strip().split(",")[1]
+            )
+            for internal in internals_read
         ]
         return (hairpins, internals)
 
 
-# Function that takes an input list of tuples(seq,motif abbreviation), checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. Dupes are collected in a .json file.
-def dupe_check_write_csv(input_list: list[tuple], filename: str, write_csv: bool = False):
+# Function that takes an input list of tuples(seq,motif abbreviation), checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. All duplicates present in the list are put into a dictionary that is then returned.
+# AFTER THIS IS RUN ONCE YOU NEED TO UPDATE THE SEQUENCE CATALOG BECAUSE THE FUNCTION CHANGES THE ABBREVIATIONS SO ON A SECOND RUN THERE WONT BE ANY DUPLICATES ANYMORE
+def dupe_check_write_csv(input_list: list[MotifSequence], filename: str, write_csv: bool = True):
     seen = {}  # type: dict[str,str]
     dupes = {"motif_mode": filename}  # type: dict[str,str|list]
-    for tpl in input_list:
-        if tpl[0] not in seen.keys():
-            seen[tpl[0]] = tpl[1]
+    for MotSeq in input_list:
+        if MotSeq.sequence not in seen.keys():
+            seen[MotSeq.sequence] = MotSeq.abbreviation
         else:
-            if seen[tpl[0]] == tpl[1]:
+            if (
+                seen[MotSeq.sequence] == MotSeq.abbreviation
+                or seen[MotSeq.sequence] == MotSeq.abbreviation.lower()
+            ):
                 pass
             else:
-                seen[tpl[0]] = seen[tpl[0]].lower()
-                if tpl[1] not in dupes.keys():
-                    dupes[seen[tpl[0]]] = [tpl[1]]
+                seen[MotSeq.sequence] = seen[MotSeq.sequence].lower()
+                if MotSeq.abbreviation not in dupes.keys():
+                    dupes[seen[MotSeq.sequence]] = [MotSeq.abbreviation]
                 else:
-                    dupes[seen[tpl[0]]].append(tpl[1])
+                    dupes[seen[MotSeq.sequence]].append(MotSeq.abbreviation)
     if write_csv:
         with open(motifs_folder_path.joinpath(filename), mode="w+") as file:
             file.write("\n".join([x + f",{seen[x]}" for x in seen]))
@@ -258,10 +283,11 @@ def flatten(xss):  # Makes a list of lists into a single list with all the items
     return [x for xs in xss for x in xs]
 
 
-def sequence_reverser(
-    seq_abb_tpls: list[tuple[str, str]]
-):  # Takes a list of tuples and creates a new list of tuples where the first entry is reversed
-    return [(x[0][::-1], x[1]) for x in seq_abb_tpls]
+# Takes a list of tuples and creates a new list of tuples where the first entry is reversed
+def sequence_reverser(seq_abb_tpls: list[MotifSequence]) -> list[MotifSequence]:
+    return [
+        MotifSequence(sequence=x.sequence[::-1], abbreviation=x.abbreviation) for x in seq_abb_tpls
+    ]
 
 
 def update_hexdumbs():  # Function iterates of motifs csv files and writes all their hexdums to submodules/RNALoops/Extensions/mot_header.hh
@@ -334,8 +360,6 @@ def main():
     # THERE ARE NO EXTRA BULGE SETS TO MAKE SINCE THERE ARE NO BULGES NOTED IN THE RFAM
     # SHOULD THIS EVER CHANGE I WILL NEED TO ADD THEM ABOVE AND CHANGE THE BULGES DUPE_CHECK_WRITE_CSV CALLS
     ################
-    if Path.is_file(duplicates_json_path):
-        remove(duplicates_json_path)
     duplicates = []  # type:list[dict]
     duplicates.append(dupe_check_write_csv(rna3d_hairpins_fw, "rna3d_hairpins_fw.csv"))
     duplicates.append(dupe_check_write_csv(rna3d_hairpins_rv, "rna3d_hairpins_rv.csv"))
@@ -364,6 +388,8 @@ def main():
     duplicates.append(dupe_check_write_csv(rna3d_bulges_rv, "both_bulges_rv.csv"))
     duplicates.append(dupe_check_write_csv(rna3d_bulges_both, "both_bulges_both.csv"))
 
+    if Path.is_file(duplicates_json_path):
+        remove(duplicates_json_path)
     with open(duplicates_json_path, "w+") as file:
         file.write(json.dumps(duplicates))
 
