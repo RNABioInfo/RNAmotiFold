@@ -27,26 +27,26 @@ class result:
     def header(self):
         """Returns header string of itself, adapted to currently set algorithm"""
         match self._algorithm:
-            case "motmfepretty" | "motmfepretty_subopt":
-                self._header = ["ID", "motifs", "mfe", "motBracket"]
+            case "RNAmotiFold" | "RNAmotiFold_subopt":
+                _header = ["ID", "motifs", "mfe", "motBracket"]
             case (
-                "mothishape_h"
-                | "mothishape_m"
-                | "mothishape_b"
-                | "mothishape_h_subopt"
-                | "mothishape_m_subopt"
-                | "mothishape_b_subopt"
+                "RNAmotiCes_h"
+                | "RNAmotiCes_m"
+                | "RNAmotiCes_b"
+                | "RNAmotiCes_h_subopt"
+                | "RNAmotiCes_m_subopt"
+                | "RNAmotiCes_b_subopt"
             ):
-                self._header = ["ID", "motiCes", "mfe", "motBracket"]
-            case "motshapeX" | "motshapeX_subopt":
-                self._header = ["ID", "mosh", "mfe", "motBracket"]
-            case "mothishape_h_pfc" | "mothishape_b_pfc" | "mothishape_m_pfc":
-                self._header = ["ID", "MotiCes", "pfc", "probability"]
-            case "motshapeX_pfc":
-                self._header = ["ID", "mosh", "pfc", "probability"]
-            case "motpfc":
-                self._header = ["ID", "motifs", "pfc", "probability"]
-        return result._separator.join(self._header) + "\n"
+                _header = ["ID", "motiCes", "mfe", "motBracket"]
+            case "RNAmoSh" | "RNAmoSh_subopt":
+                _header = ["ID", "mosh", "mfe", "motBracket"]
+            case "RNAmotiCes_h_pfc" | "RNAmotiCes_b_pfc" | "RNAmotiCes_m_pfc":
+                _header = ["ID", "MotiCes", "pfc", "probability"]
+            case "RNAmoSh_pfc":
+                _header = ["ID", "mosh", "pfc", "probability"]
+            case "RNAmotiFold_pfc":
+                _header = ["ID", "motifs", "pfc", "probability"]
+        return result._separator.join(_header) + "\n"
 
 
 @dataclass

@@ -2,7 +2,6 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from typing import Optional
 from os import cpu_count, access, W_OK
 from dataclasses import dataclass
 
@@ -107,15 +106,24 @@ def get_cmdarguments() -> argparse.Namespace:
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
-        description="A RNA secondary structure prediction programm with multiple functionalities for your convenience",
+        description="A RNA secondary structure prediction programm with multiple functionalities for your convenience. Starting the algorithm without an input starts an interactive session, which can be ended by inputting Exit. No interactive session will be started if you specify a RNA/DNA sequence or filepath with -i",
         epilog="GONDOR CALLS FOR AID! AND ROHAN WILL ANSWER!",
+    )
+    pfc_or_subopt = parser.add_mutually_exclusive_group()
+    parser.add_argument(
+        "-n",
+        "--name",
+        help="For interactive sessions or with single sequence as input set an ID for the output. Default is N/A.",
+        dest="id",
+        type=str,
+        default=config.get(config.default_section, "name"),
     )
     parser.add_argument(
         "-i",
         "--input",
         help="Set input for algorithm. Running RNAmotiFold with a predefined input will not start an interactive session. Input can be a filepath, an RNA sequence or a DNA sequence. DNA sequences are silently converted to RNA.",
         type=str,
-        default="",
+        default=config.get(config.default_section, "input"),
         nargs="?",
         dest="input",
     )
@@ -132,7 +140,7 @@ def get_cmdarguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--conf",
-        help="Specify a config file path, if no path is given this defaults to RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. Other commandline arguments will be ignored.",
+        help="Specify a config file path, if no path is given this defaults to RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
         type=str,
         action=ConfigCheck,
         const=script_parameters.user_config_path,
@@ -144,23 +152,18 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-a",
         "--algorithm",
-        help="Specify which algorithm should be used, prebuild choices are: motmfepretty, motpfc, motshapeX, motshapeX_pfc, mothishape, mothishape_h_pfc, mothishape_b_pfc, mothishape_m_pfc. If you want to run a mothishape you need to specify the mode with -p, if you run mothishape with pfc enter the full name (e.g. mothishape_h_pfc). Paritition function instances should be marked with pfc at the end.",
+        help="Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5] and RNAmotiCes mode with -p [h,b,m]. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is RNAmotiFold",
         type=str,
         choices=[
-            "motmfepretty",
-            "motpfc",
-            "motshapeX",
-            "motshapeX_pfc",
-            "mothishape",
-            "mothishape_h_pfc",
-            "mothishape_b_pfc",
-            "mothishape_m_pfc",
+            "RNAmotiFold",
+            "RNAmoSh",
+            "RNAmotiCes",
         ],
         default=config.get(config.default_section, "algorithm"),
         nargs="?",
         dest="algorithm",
     )
-    parser.add_argument(
+    pfc_or_subopt.add_argument(
         "-s",
         "--subopt",
         help="Specify if subopt folding should be used. Not useable with partition function implementations. Default is off",
@@ -171,7 +174,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-Q",
         "--motif_source",
-        help="Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both. Default is 3",
+        help="Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both, 4  = custom motifs. Default is 1",
         choices=[
             1,
             2,
@@ -185,7 +188,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-b",
         "--orientation",
-        help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 3",
+        help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 1. ",
         choices=[
             1,
             2,
@@ -270,6 +273,20 @@ def get_cmdarguments() -> argparse.Namespace:
         dest="energy_percent",
         default=config.getfloat(config.default_section, "energy_percent"),
     )
+    pfc_or_subopt.add_argument(
+        "--pfc",
+        help="If set, calculates cumulative partition function value for each class instead of default minimum free energy predictions. Can lead to long runtimes. Default is off.",
+        dest="pfc",
+        action="store_true",
+        default=config.getboolean(config.default_section, "pfc"),
+    )
+    parser.add_argument(
+        "--low_prob_filter",
+        help="If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is off.",
+        action="store_true",
+        dest="pfc_filtering",
+        default=config.getboolean(config.default_section, "pfc_filtering"),
+    )
 
     ##############The line between script arguments and class args######
     parser.add_argument(
@@ -284,7 +301,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-l",
         "--loglevel",
-        help="Set log level. Default is Info",
+        help="Set log level. Default is Info. Currently nothing is getting logged to be honest, this will (hopefully) change in the future.",
         action=LogCheck,
         type=str,
         default=config[config.default_section]["loglevel"],
@@ -307,13 +324,7 @@ def get_cmdarguments() -> argparse.Namespace:
         action="store_true",
         dest="no_update",
     )
-    parser.add_argument(
-        "--low_prob_filter",
-        help="If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is off.",
-        action="store_true",
-        dest="pfc_filtering_bool",
-        default=config.getboolean(config.default_section, "pfc_filtering_bool"),
-    )
+
     parser.add_argument(
         "--update_algorithms",
         help="If set algorithms are updated to use newest motif sequence versions. Can be used when manually editing motif sequence files (adding customs for example). Gets overwritten by --no_update. Default is False.",

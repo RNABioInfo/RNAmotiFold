@@ -24,134 +24,13 @@ from contextlib import redirect_stdout
 class bgap_rna:
 
     def __repr__(self) -> str:
-        return f"bgap_rna call {self.call}"
+        return f"bgap_rna({" , ".join([str(x)+"="+str(self.__dict__[x]) for x in self.__dict__ if x != "_input"])})"
 
     def __str__(self) -> str:
-        return f"{self.algorithm}:{self.__dict__}"
+        return " ".join([self.call, str(self._input_str)])
 
     @staticmethod
-    def _get_cmd_arguments() -> argparse.Namespace:
-        parser = argparse.ArgumentParser(
-            prog="bgap_rna class",
-            description="Argument parser for the bgap_rna class, allowing construction through runtime arguments of your script.",
-            epilog="The helpline is currently at capacity, please hold...",
-        )
-        parser.add_argument(
-            "-i",
-            "--input",
-            help="Set input path or input sequence. File formats fasta, fastq and stockholm are supported. File compression .zip and .gzip are also supported.",
-            type=str,
-            dest="input",
-            nargs="?",
-            required=True,
-        )
-        # Command line arguments that control which algorithm is called with which options.
-        # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
-        parser.add_argument(
-            "-a",
-            "--algorithm",
-            help="Specify which algorithm should be used, prebuild choices are: motmfepretty, motpfc, motshapeX, motshapeX_pfc, mothishape, mothishape_h_pfc, mothishape_b_pfc, mothishape_m_pfc. If you want to run a mothishape you need to specify the mode with -p, if you run mothishape with pfc enter the full name (e.g. mothishape_h_pfc). Paritition function instances should be marked with pfc at the end.",
-            type=str,
-            nargs="?",
-            dest="algorithm",
-            required=True,
-        )
-        parser.add_argument(
-            "-pa",
-            "--path",
-            help="Specify folder where your algorithm is compiled. Default is parent of the folder where this file is located.",
-            type=Path,
-            default=Path(__file__).resolve().parents[1].joinpath("Build", "bin"),
-            dest="algorithm_folder",
-            required=True,
-        )
-        parser.add_argument(
-            "-s",
-            "--subopt",
-            help="Specify if subopt folding should be used. Not useable with partition function implementations. Default is off",
-            action="store_true",
-            dest="subopt",
-        )
-        parser.add_argument(
-            "-Q",
-            "--motif_source",
-            help="Specify from which database motifs should be used, 1 = RNA3D Motif Atlas, 2 = Rfam, 3 = both, 4 = Custom Motifs. Default is 1",
-            choices=["1", "2", "3", "4"],
-            type=str,
-            dest="motif_source",
-        )
-        parser.add_argument(
-            "-b",
-            "--orientation",
-            help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 1",
-            choices=["1", "2", "3"],
-            type=str,
-            dest="motif_orientation",
-        )
-        parser.add_argument(
-            "-k",
-            "--kvalue",
-            help="Specify k for k-best classes get classified. Default is 5",
-            type=str,
-            dest="kvalue",
-        )
-        parser.add_argument(
-            "-q",
-            "--shape_level",
-            help="Set shape abstraction level. Default is 3",
-            choices=["1", "2", "3", "4", "5"],
-            type=str,
-            dest="shape_level",
-        )
-        parser.add_argument(
-            "-e",
-            "--energy",
-            help="Set energy range in kcal/mol. Default is 10.0",
-            type=str,
-            dest="energy",
-        )
-        parser.add_argument(
-            "-p",
-            "--hishape",
-            help="Set hishape mode, default is h",
-            choices=["h", "m", "b"],
-            type=str,
-            dest="hishape_mode",
-        )
-        parser.add_argument(
-            "-t",
-            "--temperature",
-            help="Scale energy parameters for folding to given temperature in Celsius. Default is 37",
-            type=str,
-            dest="temperature",
-        )
-        parser.add_argument(
-            "-c",
-            help="Set energy range in %. Is overwritten if -e is set. Default is 5.0",
-            type=str,
-            dest="energy_percent",
-        )
-        parser.add_argument(
-            "-u",
-            help="Allow lonely base pairs, 1 = yes, 0 = no. Default is 0",
-            type=int,
-            dest="basepairs",
-        )
-        parser.add_argument(
-            "--time",
-            help="Activate time logging, activating this will run predictions with unix time utility. Default is off",
-            action="store_true",
-            dest="time",
-        )
-        args = parser.parse_args()
-        return args
-
-    @staticmethod
-    def _worker_funct(
-        call: str,
-        iq: multiprocessing.Queue,
-        oq: multiprocessing.Queue,
-    ) -> list:
+    def _worker_funct(call: str, iq: multiprocessing.Queue, oq: multiprocessing.Queue) -> list:
         while True:
             record = iq.get()  # type:Optional[SeqIO.SeqRecord]
             if record is None:
@@ -200,37 +79,24 @@ class bgap_rna:
     @classmethod
     def from_argparse(cls, cmd_args: argparse.Namespace):
         """argparse alternative constructor."""
-        if cmd_args.input is not None:
-            return cls(
-                input=cmd_args.input,
-                algorithm=cmd_args.algorithm,
-                motif_source=cmd_args.motif_source,
-                motif_orientation=cmd_args.motif_orientation,
-                kvalue=cmd_args.kvalue,
-                shape_level=cmd_args.shape_level,
-                energy=cmd_args.energy,
-                hishape_mode=cmd_args.hishape_mode,
-                temperature=cmd_args.temperature,
-                energy_percent=cmd_args.energy_percent,
-                allowLonelyBasepairs=cmd_args.basepairs,
-                subopt=cmd_args.subopt,
-                time=cmd_args.time,
-            )
-        else:
-            return cls(
-                algorithm=cmd_args.algorithm,
-                motif_source=cmd_args.motif_source,
-                motif_orientation=cmd_args.motif_orientation,
-                kvalue=cmd_args.kvalue,
-                shape_level=cmd_args.shape_level,
-                energy=cmd_args.energy,
-                hishape_mode=cmd_args.hishape_mode,
-                temperature=cmd_args.temperature,
-                energy_percent=cmd_args.energy_percent,
-                allowLonelyBasepairs=cmd_args.basepairs,
-                subopt=cmd_args.subopt,
-                time=cmd_args.time,
-            )
+        return cls(
+            input=cmd_args.input,
+            algorithm=cmd_args.algorithm,
+            motif_source=cmd_args.motif_source,
+            motif_orientation=cmd_args.motif_orientation,
+            kvalue=cmd_args.kvalue,
+            shape_level=cmd_args.shape_level,
+            energy=cmd_args.energy,
+            hishape_mode=cmd_args.hishape_mode,
+            temperature=cmd_args.temperature,
+            energy_percent=cmd_args.energy_percent,
+            allowLonelyBasepairs=cmd_args.basepairs,
+            subopt=cmd_args.subopt,
+            time=cmd_args.time,
+            pfc=cmd_args.pfc,
+            pfc_filtering=cmd_args.pfc_filtering,
+            session_id=cmd_args.id,
+        )
 
     @classmethod
     def from_config(cls, config: configparser.ConfigParser):
@@ -249,6 +115,9 @@ class bgap_rna:
             allowLonelyBasepairs=config.getint("VARIABLES", "basepairs"),
             subopt=config.getboolean("VARIABLES", "subopt"),
             time=config.getboolean("VARIABLES", "time"),
+            pfc=config.getboolean("VARIABLES", "pfc"),
+            pfc_filtering=config.getboolean("VARIABLES", "pfc_filtering"),
+            session_id=config.get("VARIABLES", "ID"),
         )
 
     def __init__(
@@ -266,9 +135,13 @@ class bgap_rna:
         allowLonelyBasepairs: Optional[int] = None,
         subopt: bool = False,
         time: bool = False,
+        pfc: bool = False,
         pfc_filtering: bool = False,
+        session_id: str = "N/A",
     ):
+        self.id = session_id
         self.subopt = subopt
+        self.pfc = pfc
         self.time = time
         self.motif_source = motif_source
         self.motif_orientation = motif_orientation
@@ -439,19 +312,17 @@ class bgap_rna:
         if alg is None:
             self._algorithm = None
         else:
-            if alg == "mothishape":
+            if alg == "RNAmotiCes":
                 try:
                     alg = alg + "_" + self.hishape_mode
                 except TypeError:
                     raise TypeError("Specify a hishape mode with -q if you want to use hishapes.")
             if self.subopt:
                 alg = alg + "_subopt"
-            if alg[-3:] == "pfc":
-                self.pfc = True
+            elif self.pfc:
+                alg = alg + "_pfc"
                 if self.subopt:
                     raise ValueError("Partition function can't be used with subopt")
-            else:
-                self.pfc = False
             self._algorithm = alg
 
     # Checks if input is a single sequence or a file with multiple sequences and creates either a SeqRecord or an iterator
@@ -462,6 +333,7 @@ class bgap_rna:
     # Input setter function, accepts a Path, string, SeqRecord or List and always returns an Iterator over SeqRecord objects (even if the length is 1)
     @input.setter
     def input(self, input: Optional[Path | str | SeqRecord | list[str | SeqRecord]]):
+        self._input_str = str(input)
         if input is None:
             self._input = input
         else:
@@ -474,13 +346,14 @@ class bgap_rna:
                 case str():
                     if Path(input).is_file():
                         self._input = self._read_input_file(input)
+
                     else:
                         if any(c not in "AUCGTaucgt" for c in set(input)):
                             raise ValueError(
                                 "Input string was neither a viable file path nor a viable RNA or DNA sequence"
                             )
                         else:
-                            self._input = SeqRecord(seq=Seq(input), id="N/A")
+                            self._input = SeqRecord(seq=Seq(input), id=self.id)
 
                 case (
                     SeqRecord()
@@ -552,7 +425,7 @@ class bgap_rna:
                 filetype = "stockholm"
             case _:
                 raise TypeError(
-                    "Filetype was not recognized as fasta, fastq or stockholm format. Or file could not be unpacked, please ensure it is zipped with either .gz or .zip or unzipped"
+                    "Filetype was not recognized as fasta, fastq or stockholm format. Or file could not be unpacked, please ensure it is zipped with either .gz or .zip or not zipped at all."
                 )
         return (input_zipped, filetype)
 

@@ -93,6 +93,12 @@ def _interactive_session(
         if user_input in ["exit", "Exit", "Eixt", "Exi", "eixt"]:
             print("Exiting, thank you for using RNAmotiFold!")
             break
+        if user_input in ["status", "Status", "state"]:
+            print(proc_obj)
+        if user_input in ["h", "help", "-h"]:
+            print(
+                f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta,fastq or stockholm formatted sequence file."
+            )
         else:
             proc_obj.input = user_input
             result = proc_obj.auto_run(
