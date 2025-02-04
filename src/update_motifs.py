@@ -7,6 +7,7 @@ import json
 
 non_listed_conversions = {"MAD": "A"}
 
+conversion_json_path = Path(__file__).resolve().parent.joinpath("data","nucleotide_conversion.json")
 motifs_folder_path = Path(__file__).resolve().parent.joinpath("data", "motifs")
 duplicates_json_path = Path(__file__).resolve().parent.joinpath("data", "duplicates.json")
 
@@ -55,7 +56,7 @@ class rna3d_motif:
     def nucleotide_conversion(nucleotide):
         if nucleotide in non_listed_conversions.keys():
             return non_listed_conversions[nucleotide]
-        with open("/home/ubuntu/RNAmotiFold/src/data/nucleotide_conversion.json", "r") as file:
+        with open(conversion_json_path, "r") as file:
             conversion_json = json.load(file)
         return conversion_json[nucleotide]["standard_base"][0]
 
