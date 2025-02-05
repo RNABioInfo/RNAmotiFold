@@ -27,7 +27,7 @@ def is_path_exists_or_creatable(pathname: str) -> bool:
     try:
         # To prevent "os" module calls from raising undesirable exceptions on
         # invalid pathnames, is_pathname_valid() is explicitly called first.
-        return Path(pathname).resolve().exists() and is_path_creatable(pathname)
+        return Path(pathname).resolve().parent.exists() and is_path_creatable(pathname)
     except OSError:
         print(
             f"Given output file path is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
@@ -116,7 +116,7 @@ def get_cmdarguments() -> argparse.Namespace:
         help="For interactive sessions or with single sequence as input set an ID for the output. Default is N/A.",
         dest="id",
         type=str,
-        default=config.get(config.default_section, "name"),
+        default=config.get(config.default_section, "ID"),
     )
     parser.add_argument(
         "-i",

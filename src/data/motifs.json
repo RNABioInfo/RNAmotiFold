@@ -7,7 +7,8 @@
             "HL_23932",
             "HL_45820"
         ],
-        "loop_type": "hairpin"
+        "loop_type": "hairpin",
+        "include_unbulged":"True"
     },
     {
         "motif_name": "GNRA",
@@ -15,7 +16,8 @@
         "rna3d_atlas_motif_ids": [
             "HL_85603"
         ],
-        "loop_type": "hairpin"
+        "loop_type": "hairpin",
+        "include_unbulged":"False"
     },
     {
         "motif_name": "UNCG",
@@ -23,7 +25,8 @@
         "rna3d_atlas_motif_ids": [
             "HL_29960"
         ],
-        "loop_type": "hairpin"
+        "loop_type": "hairpin",
+        "include_unbulged":"False"
     },
     {
         "motif_name": "tRNA anticodon loop",
@@ -31,7 +34,8 @@
         "rna3d_atlas_motif_ids": [
             "HL_36427"
         ],
-        "loop_type": "hairpin"
+        "loop_type": "hairpin",
+        "include_unbulged":"True"
     },
     {
         "motif_name": "UAA/GAN",
@@ -39,7 +43,8 @@
         "rna3d_atlas_motif_ids": [
             "IL_89002"
         ],
-        "loop_type": "internal"
+        "loop_type": "internal",
+        "include_unbulged":"False"
     },
     {
         "motif_name": "Tandem non-canoncial cWW pairs",
@@ -52,7 +57,8 @@
             "IL_35199",
             "IL_58179"
         ],
-        "loop_type": "internal"
+        "loop_type": "internal",
+        "include_unbulged":"True"
     },
     {
         "motif_name": "C-Loop",
@@ -61,10 +67,10 @@
             "IL_63596",
             "IL_75255",
             "IL_02509",
-            "IL_37712",
-            "IL_46284"
+            "IL_37712"
         ],
-        "loop_type": "internal"
+        "loop_type": "internal",
+        "include_unbulged":"False"
     },
     {
         "motif_name": "Sarcin-Ricin Loop",
@@ -85,7 +91,8 @@
             "IL_20463",
             "IL_59724"
         ],
-        "loop_type": "internal"
+        "loop_type": "internal",
+        "include_unbulged":"True"
     },
     {
         "motif_name": "Kink-Turn",
@@ -104,6 +111,7 @@
             "IL_34780",
             "IL_51880"
         ],
-        "loop_type": "internal"
+        "loop_type": "internal",
+        "include_unbulged":"True"
     }
 ]

@@ -7,7 +7,9 @@ import json
 
 non_listed_conversions = {"MAD": "A"}
 
-conversion_json_path = Path(__file__).resolve().parent.joinpath("data","nucleotide_conversion.json")
+conversion_json_path = (
+    Path(__file__).resolve().parent.joinpath("data", "nucleotide_conversion.json")
+)
 motifs_folder_path = Path(__file__).resolve().parent.joinpath("data", "motifs")
 duplicates_json_path = Path(__file__).resolve().parent.joinpath("data", "duplicates.json")
 
@@ -161,10 +163,26 @@ class rna3d_motif:
             if item["motif_id"].split(".")[0] in self.rna_3d_atlas_ids
         ]
 
+    @property
+    def include_json(self):
+        return self._include_json
+
+    @include_json.setter
+    def include_json(self, motif_json_val):
+        if motif_json_val in ["True", "true", "yes", "y"]:
+            self._include_json = True
+        elif motif_json_val in ["False", "false", "no", "n"]:
+            self._include_json = False
+        else:
+            raise ValueError(
+                "Include bulged not set to True or False, please decide to include sequences from the downloadable json or not."
+            )
+
     def __init__(self, motif_json: dict):
         self.abbreviation = motif_json["abbreviation"]
         self.rna_3d_atlas_ids = motif_json["rna3d_atlas_motif_ids"]
         self.loop_type = motif_json["loop_type"]
+        self.include_json = motif_json["include_unbulged"]
 
     def motifs2csv(self, mot_list):
         return "\n".join([x + f",{self.abbreviation}" for x in set(mot_list)]) + "\n"
@@ -322,8 +340,9 @@ def main():
     motifs = rna3d_motif.load_motif_json()
     for motif in motifs:
         motif.load_current_rna3datlas_instances()
-        motif.get_rna3d_json_sequences()
         motif.get_rna3d_api_sequences()
+        if motif.include_json:
+            motif.get_rna3d_json_sequences()
 
     rna3d_hairpins_fw = flatten([x.seq_abb_tpls for x in motifs if x.loop_type == "hairpin"])
     rna3d_hairpins_rv = sequence_reverser(rna3d_hairpins_fw)

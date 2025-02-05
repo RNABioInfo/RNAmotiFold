@@ -45,7 +45,7 @@ def _version_checks(force_alg_update: bool):
                 return True
             elif answer in ["n", "no", "N", "No", "NO"]:
                 print(
-                    f"Update aborted, continuing with motif sequence version {defaults_config["VERSIONS"]['motifs']}"
+                    f"Update aborted, continuing with motif sequence version {defaults_config['VERSIONS']['motifs']}"
                 )
                 if force_alg_update:
                     print("Update algorithms is set, updating algorithms...")
@@ -79,7 +79,7 @@ def _interactive_session(
     elif isinstance(runtime_arguments, configparser.ConfigParser):
         for argument in (x for x in runtime_arguments.default_section if x == ""):
             runtime_arguments.set(runtime_arguments.default_section, argument, None)
-        proc_obj = proc.bgap_rna.from_config(runtime_arguments)
+        proc_obj = proc.bgap_rna.from_config(runtime_arguments, "VARIABLES")
         output_file = runtime_arguments.get("VARIABLES", "output")
         pool_boys = runtime_arguments.getint("VARIABLES", "workers")
         csv_separator = runtime_arguments.get("VARIABLES", "separator")
@@ -128,9 +128,8 @@ def _uninteractive_session(
         pool_workers=pool_boys,
         output_csv_separator=csv_seaparator,
     )
-    return (
-        result  # Added result outputting just in case I wanna do something with that down the line.
-    )
+    # Added result outputting just in case I wanna do something with that down the line.
+    return result
 
 
 def updates(no_update: bool, update_algorithms: bool):
@@ -153,7 +152,7 @@ def _duplicate_warning(mot_source: int, mot_orient: int) -> list[dict]:
             for key in motif_set.keys():
                 if key != "motif_mode":
                     print(
-                        f"Warning possibles duplicates: {key}: {"".join(motif_set[key])}/{key.upper()}"
+                        f"Warning possibles duplicates: {key}: {''.join(motif_set[key])}/{key.upper()}"
                     )
     else:
         print(

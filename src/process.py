@@ -24,7 +24,7 @@ from contextlib import redirect_stdout
 class bgap_rna:
 
     def __repr__(self) -> str:
-        return f"bgap_rna({" , ".join([str(x)+"="+str(self.__dict__[x]) for x in self.__dict__ if x != "_input"])})"
+        return f"bgap_rna({' , '.join([str(x)+'='+str(self.__dict__[x]) for x in self.__dict__ if x != '_input'])})"
 
     def __str__(self) -> str:
         return " ".join([self.call, str(self._input_str)])
@@ -99,25 +99,25 @@ class bgap_rna:
         )
 
     @classmethod
-    def from_config(cls, config: configparser.ConfigParser):
+    def from_config(cls, config: configparser.ConfigParser, section_name: str):
         """ConfigParse alternative constructor. Accepts a string/path to a config file or a ConfigParser. Unused parameters should be left empty or be set to None."""
         return cls(
-            input=config["VARIABLES"]["input"],
-            algorithm=config.get("VARIABLES", "algorithm"),
-            motif_source=config.getint("VARIABLES", "motif_source"),
-            motif_orientation=config.getint("VARIABLES", "motif_orientation"),
-            kvalue=config.getint("VARIABLES", "kvalue"),
-            shape_level=config.getint("VARIABLES", "shape_level"),
-            energy=config.get("VARIABLES", "energy"),
-            hishape_mode=config.get("VARIABLES", "hishape_mode"),
-            temperature=config.getfloat("VARIABLES", "temperature"),
-            energy_percent=config.getfloat("VARIABLES", "energy_percent"),
-            allowLonelyBasepairs=config.getint("VARIABLES", "basepairs"),
-            subopt=config.getboolean("VARIABLES", "subopt"),
-            time=config.getboolean("VARIABLES", "time"),
-            pfc=config.getboolean("VARIABLES", "pfc"),
-            pfc_filtering=config.getboolean("VARIABLES", "pfc_filtering"),
-            session_id=config.get("VARIABLES", "ID"),
+            input=config[section_name]["input"],
+            algorithm=config.get(section_name, "algorithm"),
+            motif_source=config.getint(section_name, "motif_source"),
+            motif_orientation=config.getint(section_name, "motif_orientation"),
+            kvalue=config.getint(section_name, "kvalue"),
+            shape_level=config.getint(section_name, "shape_level"),
+            energy=config.get(section_name, "energy"),
+            hishape_mode=config.get(section_name, "hishape_mode"),
+            temperature=config.getfloat(section_name, "temperature"),
+            energy_percent=config.getfloat(section_name, "energy_percent"),
+            allowLonelyBasepairs=config.getint(section_name, "basepairs"),
+            subopt=config.getboolean(section_name, "subopt"),
+            time=config.getboolean(section_name, "time"),
+            pfc=config.getboolean(section_name, "pfc"),
+            pfc_filtering=config.getboolean(section_name, "pfc_filtering"),
+            session_id=config.get(section_name, "ID"),
         )
 
     def __init__(
@@ -345,7 +345,7 @@ class bgap_rna:
                         raise LookupError("Could not find input file.")
                 case str():
                     if Path(input).is_file():
-                        self._input = self._read_input_file(input)
+                        self._input = self._read_input_file(Path(input))
 
                     else:
                         if any(c not in "AUCGTaucgt" for c in set(input)):
@@ -407,7 +407,7 @@ class bgap_rna:
 
     # Finds File type based on file ending
     def _find_filetype(self, file_path: Path) -> None:
-        if file_path.suffixes[-1] == "gz" or file_path.suffixes[-1] == "zip":
+        if file_path.suffixes[-1] == ".gz" or file_path.suffixes[-1] == ".zip":
             file_extension = file_path.suffixes[-2]
             input_zipped = True
         else:
@@ -415,13 +415,24 @@ class bgap_rna:
             input_zipped = False
 
         match file_extension:
-            case "fasta" | "fas" | "fa" | "fna" | "ffn" | "faa" | "mpfa" | "frn" | "txt" | "fsa":
+            case (
+                ".fasta"
+                | ".fas"
+                | ".fa"
+                | ".fna"
+                | ".ffn"
+                | ".faa"
+                | ".mpfa"
+                | ".frn"
+                | ".txt"
+                | ".fsa"
+            ):
                 filetype = "fasta"
 
-            case "fastq" | "fq":
+            case ".fastq" | ".fq":
                 filetype = "fastq"
 
-            case "stk" | "stockholm" | "sto":
+            case ".stk" | ".stockholm" | ".sto":
                 filetype = "stockholm"
             case _:
                 raise TypeError(
