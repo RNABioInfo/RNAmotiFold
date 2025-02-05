@@ -19,6 +19,9 @@ class MotifSequence:
     sequence: str
     abbreviation: str
 
+    def __str__(self):
+        return ",".join([self.sequence, self.abbreviation])
+
 
 class rna3d_motif:
 
@@ -272,11 +275,11 @@ class rna3d_motif:
         return (hairpins, internals)
 
 
-# Function that takes an input list of tuples(seq,motif abbreviation), checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. All duplicates present in the list are put into a dictionary that is then returned.
+# Function that takes an input list of MotifSequence Objects, checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. All duplicates present in the list are put into a dictionary that is then returned.
 # AFTER THIS IS RUN ONCE YOU NEED TO UPDATE THE SEQUENCE CATALOG BECAUSE THE FUNCTION CHANGES THE ABBREVIATIONS SO ON A SECOND RUN THERE WONT BE ANY DUPLICATES ANYMORE
 def dupe_check_write_csv(input_list: list[MotifSequence], filename: str, write_csv: bool = True):
     seen = {}  # type: dict[str,str]
-    dupes = {"motif_mode": filename}  # type: dict[str,str|list]
+    dupes = {"motif_mode": filename, "duplicate sequences": []}  # type: dict[str,str|list]
     for MotSeq in input_list:
         if MotSeq.sequence not in seen.keys():
             seen[MotSeq.sequence] = MotSeq.abbreviation
@@ -292,6 +295,9 @@ def dupe_check_write_csv(input_list: list[MotifSequence], filename: str, write_c
                     dupes[seen[MotSeq.sequence]] = [MotSeq.abbreviation]
                 else:
                     dupes[seen[MotSeq.sequence]].append(MotSeq.abbreviation)
+                dupes["duplicate sequences"].append(
+                    str(MotSeq) + "/" + seen[MotSeq.sequence].upper()
+                )
     if write_csv:
         with open(motifs_folder_path.joinpath(filename), mode="w+") as file:
             file.write("\n".join([x + f",{seen[x]}" for x in seen]))
@@ -302,7 +308,7 @@ def flatten(xss):  # Makes a list of lists into a single list with all the items
     return [x for xs in xss for x in xs]
 
 
-# Takes a list of tuples and creates a new list of tuples where the first entry is reversed
+# Takes a list of MotifSequence Objects and creates a new list of MotifSequence Objects with reversed sequences
 def sequence_reverser(seq_abb_tpls: list[MotifSequence]) -> list[MotifSequence]:
     return [
         MotifSequence(sequence=x.sequence[::-1], abbreviation=x.abbreviation) for x in seq_abb_tpls

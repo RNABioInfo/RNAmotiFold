@@ -34,7 +34,7 @@ def _version_checks(force_alg_update: bool):
     try:
         update_needed = proc.bgap_rna.check_motif_versions(defaults_config["VERSIONS"]["motifs"])
         if update_needed:
-            print("There is a new set of RNA 3D Motif sequences available, update ? [y/n]")
+            print("There is a new set of RNA 3D Motif sequences available, update ? [y/n]", end=" ")
             answer = input()
             if answer in ["y", "yes", "Y", "Yes", "YEs", "YES"]:
                 print("Updating...")
@@ -93,9 +93,9 @@ def _interactive_session(
         if user_input in ["exit", "Exit", "Eixt", "Exi", "eixt"]:
             print("Exiting, thank you for using RNAmotiFold!")
             break
-        if user_input in ["status", "Status", "state"]:
+        elif user_input in ["status", "Status", "state"]:
             print(proc_obj)
-        if user_input in ["h", "help", "-h"]:
+        elif user_input in ["h", "help", "-h"]:
             print(
                 f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta,fastq or stockholm formatted sequence file."
             )
@@ -150,7 +150,7 @@ def _duplicate_warning(mot_source: int, mot_orient: int) -> list[dict]:
         motif_set_in_use = get_current_set(mot_source, mot_orient)
         for motif_set in motif_set_in_use:
             for key in motif_set.keys():
-                if key != "motif_mode":
+                if len(key) == 1:
                     print(
                         f"Warning possibles duplicates: {key}: {''.join(motif_set[key])}/{key.upper()}"
                     )
