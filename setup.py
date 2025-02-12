@@ -142,15 +142,17 @@ def run_cmake():
 
 
 def update_sequences_algorithms():
-    """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (motif, MoSh, MotiCes)"""
-    print("Setting up RNAmotiFold, updating RNA 3D Motif sequences...")
+    """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
+    print("Updating RNA 3D Motif sequences...")
     src.update_motifs.main()  # fetches latest motif versions
-    print("Update finished.\n Checking for commandline arguments for preinstalled gap compiler...")
+    print(
+        "Sequences updated.\n Checking for commandline arguments for preinstalled gap compiler..."
+    )
     preinstalled_gapc_path = _check_preinstalled_gapc()
 
     if preinstalled_gapc_path is None:
         print(
-            "No preinstalled gap compiler set in commandline, checking with which and globbing RNAmotiFold folder..."
+            "No preinstalled gap compiler set in commandline, checking with which and searching RNAmotiFold folder..."
         )
         auto_gapc_path = _detect_gapc()
         if auto_gapc_path is None:

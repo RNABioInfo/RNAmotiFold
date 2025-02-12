@@ -8,6 +8,8 @@ import configparser
 import setup
 import json
 import logging
+from time import sleep
+from multiprocessing import Process
 
 
 def make_new_logger(
@@ -28,37 +30,53 @@ def make_new_logger(
     return logger
 
 
+def update_wheel():
+    sleep(0.1)  # Prevents race condition on printing "Updating..."
+    for frame in r"-\|/-\|/":
+        print("\r", frame, sep="", end="", flush=True)
+        sleep(0.2)
+
+
 def _version_checks(force_alg_update: bool):
     defaults_config = configparser.ConfigParser(allow_no_value=True)
-    defaults_config.read_file(open(args.script_parameters.default_config_path))
+    defaults_config.read_file(open(args.script_parameters.defaults_config_path))
     try:
         update_needed = proc.bgap_rna.check_motif_versions(defaults_config["VERSIONS"]["motifs"])
         if update_needed:
-            print("There is a new set of RNA 3D Motif sequences available, update ? [y/n]", end=" ")
+            print(
+                "There is a new set of RNA 3D Motif sequences available. You may need to update the motif.json file manually. Update RNAmotiFold ? [y/n]",
+                end=" ",
+            )
             answer = input()
-            if answer in ["y", "yes", "Y", "Yes", "YEs", "YES"]:
-                print("Updating...")
-                setup.update_sequences_algorithms()  # Fetch newest sequences and update algorithms
+            if answer.lower() in ["y", "ye", "yes"]:
+                p = Process(target=setup.update_sequences_algorithms)
+                p.start()
+                while True:
+                    update_wheel()
+                    if not p.is_alive():
+                        break
+                p.join()
                 defaults_config.set("VERSIONS", "motifs", proc.bgap_rna.get_current_motif_version())
-                with open(args.script_parameters.default_config_path, "w") as cf_file:
-                    defaults_config.write(cf_file)
+                with open(args.script_parameters.defaults_config_path, "w") as file:
+                    defaults_config.write(file)
                 return True
-            elif answer in ["n", "no", "N", "No", "NO"]:
+
+            elif answer.lower() in ["n", "no"]:
                 print(
-                    f"Update aborted, continuing with motif sequence version {defaults_config['VERSIONS']['motifs']}"
+                    f"Skipping update, continuing with motif sequence version {defaults_config['VERSIONS']['motifs']}"
                 )
                 if force_alg_update:
-                    print("Update algorithms is set, updating algorithms...")
+                    print("Update algorithms is set, updating algorithms...")  # make log
                     setup.update_algorithms()
                 return True
             else:
-                raise ValueError(
-                    "Ineliglbe input, please answer the question with Yes/Y/yes/y or No/N/no/n."
-                )
+                raise ValueError("Please answer the question with yes or no")
         else:
-            print("RNA 3D motif sequences are up to date")
+            print("RNA 3D motif sequences are up to date")  # make log
             if force_alg_update:
-                print("Update algorithms is set, loading new motif sequences into algorithms...")
+                print(
+                    "Update algorithms is set, loading new motif sequences into algorithms..."
+                )  # make log
                 setup.update_algorithms()
             return True
     except ValueError as error:
@@ -77,8 +95,6 @@ def _interactive_session(
         pool_boys = runtime_arguments.workers
         csv_separator = runtime_arguments.separator
     elif isinstance(runtime_arguments, configparser.ConfigParser):
-        for argument in (x for x in runtime_arguments.default_section if x == ""):
-            runtime_arguments.set(runtime_arguments.default_section, argument, None)
         proc_obj = proc.bgap_rna.from_config(runtime_arguments, "VARIABLES")
         output_file = runtime_arguments.get("VARIABLES", "output")
         pool_boys = runtime_arguments.getint("VARIABLES", "workers")
@@ -90,7 +106,7 @@ def _interactive_session(
     while True:
         print("Awaiting input...")
         user_input = input()
-        if user_input in ["exit", "Exit", "Eixt", "Exi", "eixt"]:
+        if user_input.strip() in ["exit", "Exit", "Eixt", "Exi", "eixt"]:
             print("Exiting, thank you for using RNAmotiFold!")
             break
         elif user_input in ["status", "Status", "state"]:
@@ -100,7 +116,7 @@ def _interactive_session(
                 f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta,fastq or stockholm formatted sequence file."
             )
         else:
-            proc_obj.input = user_input
+            proc_obj.input = user_input.strip()
             result = proc_obj.auto_run(
                 o_file=output_file, pool_workers=pool_boys, output_csv_separator=csv_separator
             )
@@ -113,16 +129,14 @@ def _uninteractive_session(
 ) -> list[algorithm_output]:
     if isinstance(runtime_arguments, Namespace):
         proc_obj = proc.bgap_rna.from_argparse(runtime_arguments)
-        output_file = runtime_arguments.output
-        pool_boys = runtime_arguments.workers
-        csv_seaparator = runtime_arguments.separator
+        output_file = runtime_arguments.output  # type:str
+        pool_boys = runtime_arguments.workers  # type: int
+        csv_seaparator = runtime_arguments.separator  # type:str
     elif isinstance(runtime_arguments, configparser.ConfigParser):
-        for argument in (x for x in runtime_arguments.default_section if x == ""):
-            runtime_arguments.set(runtime_arguments.default_section, argument, None)
         proc_obj = proc.bgap_rna.from_config(runtime_arguments)
-        output_file = runtime_arguments.get("VARIABLES", "output")
+        output_file = runtime_arguments.get("VARIABLES", "output")  # type:str
         pool_boys = runtime_arguments.getint("VARIABLES", "workers")
-        csv_seaparator = runtime_arguments.get("VARIABLES", "separator")
+        csv_seaparator = runtime_arguments.get("VARIABLES", "separator")  # type:str
     result = proc_obj.auto_run(
         o_file=output_file,
         pool_workers=pool_boys,
@@ -141,7 +155,9 @@ def updates(no_update: bool, update_algorithms: bool):
             except ValueError as error:
                 raise error
     else:
-        print("Motif sequence updating disabled, continuing without update....")
+        print(
+            "Motif sequence updating disabled, continuing without update..."
+        )  # make into a log entry
 
 
 def _duplicate_warning(mot_source: int, mot_orient: int) -> list[dict]:
@@ -153,7 +169,7 @@ def _duplicate_warning(mot_source: int, mot_orient: int) -> list[dict]:
                 if len(key) == 1:
                     print(
                         f"Warning possibles duplicates: {key}: {''.join(motif_set[key])}/{key.upper()}"
-                    )
+                    )  # Also log this for uninteractive sessions.
     else:
         print(
             "Duplicate warnings are disabled for custom motif sets, I trust you know what you're doing."
@@ -187,9 +203,6 @@ def get_current_set(mot_src: int, mot_ori: int) -> list[dict]:
 
 
 if __name__ == "__main__":
-    print(
-        "Starting RNAmotiFold, loading data from /src/data/config.ini and checking RNA 3D motif sequence versions ..."
-    )
     rt_args = args.get_cmdarguments()
     try:
         if isinstance(rt_args, configparser.ConfigParser):
@@ -209,7 +222,7 @@ if __name__ == "__main__":
     except ValueError as error:
         raise error
 
-    if len(user_input) > 0:
+    if user_input is not None:
         out = _uninteractive_session(rt_args)
 
     else:

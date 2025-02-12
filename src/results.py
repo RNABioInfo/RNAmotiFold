@@ -46,6 +46,9 @@ class result:
                 _header = ["ID", "mosh", "pfc", "probability"]
             case "RNAmotiFold_pfc":
                 _header = ["ID", "motifs", "pfc", "probability"]
+            case _:
+                _header = [f"col{self.cols.index(x)}" for x in self.cols]
+                _header.insert(0, "ID")
         return result._separator.join(_header) + "\n"
 
 

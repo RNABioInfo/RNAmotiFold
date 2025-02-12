@@ -5,9 +5,7 @@ import subprocess
 import configparser
 import multiprocessing
 from pathlib import Path
-from typing import Iterator
-from typing import Optional
-from typing import Generator
+from typing import Iterator, Optional, Generator
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -344,11 +342,11 @@ class bgap_rna:
                     else:
                         raise LookupError("Could not find input file.")
                 case str():
-                    if Path(input).is_file():
-                        self._input = self._read_input_file(Path(input))
+                    if Path(input).resolve().is_file():
+                        self._input = self._read_input_file(Path(input).resolve())
 
                     else:
-                        if any(c not in "AUCGTaucgt" for c in set(input)):
+                        if any(c not in "AUCGTaucgt+" for c in set(input)):
                             raise ValueError(
                                 "Input string was neither a viable file path nor a viable RNA or DNA sequence"
                             )
@@ -490,7 +488,7 @@ class bgap_rna:
             )
 
     # single process function utilizing subprocess to run a single prediction and return the output
-    def _run_single_process(self, output_f: Path = None) -> results.algorithm_output:
+    def _run_single_process(self, output_f: Path | None = None) -> results.algorithm_output:
         """Single sequence input running function, silently transcribes DNA to RNA"""
         if "T" in str(self.input.seq):
             self.input.seq = self.input.seq.transcribe()
@@ -570,7 +568,7 @@ class bgap_rna:
                 break
             else:
                 if isinstance(output, results.algorithm_output):
-                    if output_f is not None:
+                    if isinstance(output_f, Path):
                         with open(output_f, "a+") as file:
                             with redirect_stdout(file):
                                 writing_started = output.write_results(writing_started)

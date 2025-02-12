@@ -3,9 +3,12 @@
         "motif_name": "T-Loop",
         "abbreviation": "T",
         "rna3d_atlas_motif_ids": [
-            "HL_15422",
-            "HL_23932",
-            "HL_45820"
+            "HL_43993",
+            "HL_58705",
+            "HL_08002",
+            "HL_02887",
+            "HL_98864",
+            "H_86012"
         ],
         "loop_type": "hairpin",
         "include_unbulged":"True"
@@ -14,7 +17,7 @@
         "motif_name": "GNRA",
         "abbreviation": "G",
         "rna3d_atlas_motif_ids": [
-            "HL_85603"
+            "HL_37824"
         ],
         "loop_type": "hairpin",
         "include_unbulged":"False"
@@ -23,7 +26,7 @@
         "motif_name": "UNCG",
         "abbreviation": "U",
         "rna3d_atlas_motif_ids": [
-            "HL_29960"
+            "HL_34617"
         ],
         "loop_type": "hairpin",
         "include_unbulged":"False"
@@ -32,7 +35,8 @@
         "motif_name": "tRNA anticodon loop",
         "abbreviation": "L",
         "rna3d_atlas_motif_ids": [
-            "HL_36427"
+            "HL_06059",
+            "HL_83632"
         ],
         "loop_type": "hairpin",
         "include_unbulged":"True"
@@ -41,7 +45,10 @@
         "motif_name": "UAA/GAN",
         "abbreviation": "A",
         "rna3d_atlas_motif_ids": [
-            "IL_89002"
+            "IL_89002",
+            "IL_49767",
+            "IL_89201",
+            "IL_"
         ],
         "loop_type": "internal",
         "include_unbulged":"False"
@@ -50,12 +57,11 @@
         "motif_name": "Tandem non-canoncial cWW pairs",
         "abbreviation": "M",
         "rna3d_atlas_motif_ids": [
-            "IL_86432",
-            "IL_73915",
-            "IL_32955",
-            "IL_71110",
-            "IL_35199",
-            "IL_58179"
+            "IL_67085",
+            "IL_36174",
+            "IL_62742",
+            "IL_13404",
+            "IL_96332"
         ],
         "loop_type": "internal",
         "include_unbulged":"True"
@@ -65,10 +71,11 @@
         "abbreviation": "C",
         "rna3d_atlas_motif_ids": [
             "IL_63596",
-            "IL_75255",
+            "IL_31461",
             "IL_02509",
-            "IL_37712"
-        ],
+            "IL_11347",
+            "IL_04395"
+                ],
         "loop_type": "internal",
         "include_unbulged":"False"
     },
@@ -78,18 +85,18 @@
         "rna3d_atlas_motif_ids": [
             "IL_04346",
             "IL_76042",
+            "IL_41756",
             "IL_16458",
-            "IL_88269",
-            "IL_74733",
-            "IL_93830",
             "IL_38862",
+            "IL_93830",
+            "IL_88269",
             "IL_02349",
-            "IL_34470",
             "IL_35728",
             "IL_26785",
-            "IL_14135",
-            "IL_20463",
-            "IL_59724"
+            "IL_34470",
+            "IL_61286",
+            "IL_59724",
+            "IL_24254"
         ],
         "loop_type": "internal",
         "include_unbulged":"True"
@@ -100,16 +107,19 @@
         "rna3d_atlas_motif_ids": [
             "IL_70923",
             "IL_45067",
+            "IL_69229",
             "IL_51265",
             "IL_90538",
-            "IL_69229",
-            "IL_64900",
+            "IL_24134",
             "IL_60192",
             "IL_74051",
+            "IL_64900",
+            "IL_94910",
             "IL_37722",
-            "IL_93699",
+            "IL_33886",
             "IL_34780",
-            "IL_51880"
+            "IL_77045",
+            "IL_93094"
         ],
         "loop_type": "internal",
         "include_unbulged":"True"

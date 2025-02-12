@@ -2,6 +2,7 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
+from typing import Optional
 from os import cpu_count, access, W_OK
 from dataclasses import dataclass
 
@@ -40,10 +41,14 @@ class LogCheck(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: str, option_string):
-        if not isinstance(getattr(logging, value.upper(), None), int):
-            raise ValueError(f"Invalid log level: {value}")
-        else:
-            setattr(namespace, self.dest, value)
+        setattr(namespace, self.dest, LogCheckFunction(value))
+
+
+def LogCheckFunction(value: str):
+    if not isinstance(getattr(logging, value.upper(), None), int):
+        raise ValueError(f"Invalid log level: {value}")
+    else:
+        return value
 
 
 class WorkerCheck(argparse.Action):
@@ -51,11 +56,18 @@ class WorkerCheck(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: int, option_string):
-        if value > cpu_count():
-            print("Given worker number exceeds detected cpu count, setting workers to cpu_count -1")
-            setattr(namespace, self.dest, cpu_count() - 1)
+        setattr(namespace, self.dest, WorkerCheckFunction(value))
+
+
+def WorkerCheckFunction(value: int | str):
+    if int(value) > cpu_count():
+        print("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
+        if isinstance(value, str):
+            return str(cpu_count() - 1)
         else:
-            setattr(namespace, self.dest, value)
+            return cpu_count() - 1
+    else:
+        return value
 
 
 class ConfigCheck(argparse.Action):
@@ -64,11 +76,15 @@ class ConfigCheck(argparse.Action):
 
     def __call__(self, parser, namespace, value: str, option_string=None):
         if value == "":
-            print(f"Using default config: {script_parameters.default_config_path}")
+            print(
+                f"Using default config: {script_parameters.defaults_config_path}"
+            )  # Make this into a log, no need to print
             setattr(namespace, self.dest, value)
 
         elif Path(value).is_file():
-            print(f"Using user config: {value}.")
+            print(
+                f"Using user config: {value}."
+            )  # Make into log, no need to print. Program will complain if something didn't work out.
             setattr(namespace, self.dest, Path(value))
         else:
             raise FileNotFoundError(f"Could not find specified config file {value}")
@@ -79,30 +95,67 @@ class OutputFileCheck(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: str, option_string):
-        if value == "":
-            print("-o is set but no output file specified, defaulting to stdout")
-            setattr(namespace, self.dest, None)
-        elif is_path_exists_or_creatable(value):
-            if Path(value).resolve().is_file():
-                print("Output file already exists, results will be appended.")
-            else:
-                with open(Path(value), "a+") as file:
-                    pass
-            setattr(namespace, self.dest, Path(value))
+        setattr(namespace, self.dest, OutputFileCheckFunction(value))
+
+
+def OutputFileCheckFunction(value):
+    if value is None:
+        return None
+    elif is_path_exists_or_creatable(value):
+        if Path(value).resolve().is_file():
+            print("Output file already exists, results will be appended.")
         else:
-            raise FileNotFoundError("Given path is not a valid path.")
+            with open(Path(value), "a+") as file:
+                pass
+        return Path(value)
+    else:
+        raise FileNotFoundError("Given path is not a valid path.")
+
+
+class AlgorithmMatching(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, value: str, option_string):
+        setattr(namespace, self.dest, AlgorithmMatchingFunction(value))
+
+
+def AlgorithmMatchingFunction(value: str):
+    match value.strip().lower():
+        case "rnamosh":
+            return "RNAmoSh"
+        case "rnamotices":
+            return "RNAmotiCes"
+        case "rnamotifold":
+            return "RNAmotiFold"
+        case _:
+            return value
+
+
+def config_check(parser: configparser.ConfigParser, section_name: str = "VARIABLES"):
+    parser.set(
+        section_name, "algorithm", AlgorithmMatchingFunction(parser.get(section_name, "algorithm"))
+    )
+    parser.set(section_name, "output", OutputFileCheckFunction(parser.get(section_name, "output")))
+    parser.set(section_name, "workers", WorkerCheckFunction(parser.get(section_name, "workers")))
+    return True
 
 
 @dataclass
 class script_parameters:
-    default_config_path = Path(__file__).resolve().parent.joinpath("data", "defaults.ini")
+    defaults_config_path = Path(__file__).resolve().parent.joinpath("data", "defaults.ini")
     user_config_path = Path(__file__).resolve().parent.joinpath("config.ini")
     RNAmotiFold_path = Path(__file__).resolve().parents[1]
 
 
 def get_cmdarguments() -> argparse.Namespace:
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(open(script_parameters.default_config_path))
+    config.read_file(open(script_parameters.defaults_config_path))
+    ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
+    for option in [
+        x for x in config[config.default_section] if config[config.default_section][x] == ""
+    ]:
+        config.set(config.default_section, option, None)
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
@@ -130,17 +183,16 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-o",
         "--output",
-        help="Set file to write results to. Results will be appended to file if it already exists! Default is no file, outputs are written to stdout",
+        help="Set file to write results to. Results will be appended to file if it already exists! Default is stdout.",
         type=str,
         default=config.get(config.default_section, "output"),
         action=OutputFileCheck,
         nargs="?",
-        const="",
         dest="output",
     )
     parser.add_argument(
         "--conf",
-        help="Specify a config file path, if no path is given this defaults to RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
+        help="Specify a config file path, if no path is given this defaults to the prewritten config file in RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
         type=str,
         action=ConfigCheck,
         const=script_parameters.user_config_path,
@@ -154,11 +206,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "--algorithm",
         help="Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5] and RNAmotiCes mode with -p [h,b,m]. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is RNAmotiFold",
         type=str,
-        choices=[
-            "RNAmotiFold",
-            "RNAmoSh",
-            "RNAmotiCes",
-        ],
+        action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
         nargs="?",
         dest="algorithm",
@@ -201,7 +249,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-k",
         "--kvalue",
-        help="Specify k for k-best classes get classified. Default is k = 5",
+        help="Specify k to classify only the k lowest free energy classes. Default is k = 5",
         type=int,
         default=config.getint(config.default_section, "kvalue"),
         dest="kvalue",
@@ -234,7 +282,7 @@ def get_cmdarguments() -> argparse.Namespace:
         default=config.getint(config.default_section, "shape_level"),
         dest="shape_level",
     )
-    # Energy has to be implemented with  string since it is possibly empty and configparse can't handle it being an integer cause allow_no_value sets things to an empty string instead of None for some fucking reason.
+    # Energy has to be implemented with  string since it is possibly empty and configparse can't handle it being an integer cause allow_no_value sets things to an empty string.
     parser.add_argument(
         "-e",
         "--energy",
@@ -326,8 +374,9 @@ def get_cmdarguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--ua",
         "--update_algorithms",
-        help="If set algorithms are updated to use newest motif sequence versions. Can be used when manually editing motif sequence files (adding customs for example). Gets overwritten by --no_update. Default is False.",
+        help="If set algorithms are updated to use currently set motif sequences. Recommended to use when manually editing motif sequence files (adding custom motifs for example) in /RNAmotiFold/src/data/motifs/. Gets overwritten by --no_update. Default is False.",
         action="store_true",
         dest="update_algorithms",
         default=config.getboolean(config.default_section, "update_algorithms"),
@@ -335,6 +384,8 @@ def get_cmdarguments() -> argparse.Namespace:
     args = parser.parse_args()
     if args.config is not None:
         config.read_file(open(args.config))
+        config_check(config)
+        # Create a log entry to record inputs
         return config
     else:
         return args
