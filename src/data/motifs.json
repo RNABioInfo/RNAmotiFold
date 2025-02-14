@@ -2,126 +2,61 @@
     {
         "motif_name": "T-Loop",
         "abbreviation": "T",
-        "rna3d_atlas_motif_ids": [
-            "HL_43993",
-            "HL_58705",
-            "HL_08002",
-            "HL_02887",
-            "HL_98864",
-            "H_86012"
-        ],
         "loop_type": "hairpin",
-        "include_unbulged":"True"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "GNRA",
         "abbreviation": "G",
-        "rna3d_atlas_motif_ids": [
-            "HL_37824"
-        ],
         "loop_type": "hairpin",
-        "include_unbulged":"False"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "UNCG",
         "abbreviation": "U",
-        "rna3d_atlas_motif_ids": [
-            "HL_34617"
-        ],
         "loop_type": "hairpin",
-        "include_unbulged":"False"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "tRNA anticodon loop",
         "abbreviation": "L",
-        "rna3d_atlas_motif_ids": [
-            "HL_06059",
-            "HL_83632"
-        ],
         "loop_type": "hairpin",
-        "include_unbulged":"True"
+        "include_unbulged": "True"
+    },
+    {
+        "motif_name": "tRNA D-loop",
+        "abbreviation": "D",
+        "loop_type": "hairpin",
+        "include_unbulged": "False"
     },
     {
         "motif_name": "UAA/GAN",
         "abbreviation": "A",
-        "rna3d_atlas_motif_ids": [
-            "IL_89002",
-            "IL_49767",
-            "IL_89201",
-            "IL_"
-        ],
         "loop_type": "internal",
-        "include_unbulged":"False"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "Tandem non-canoncial cWW pairs",
         "abbreviation": "M",
-        "rna3d_atlas_motif_ids": [
-            "IL_67085",
-            "IL_36174",
-            "IL_62742",
-            "IL_13404",
-            "IL_96332"
-        ],
         "loop_type": "internal",
-        "include_unbulged":"True"
+        "include_unbulged": "True"
     },
     {
         "motif_name": "C-Loop",
         "abbreviation": "C",
-        "rna3d_atlas_motif_ids": [
-            "IL_63596",
-            "IL_31461",
-            "IL_02509",
-            "IL_11347",
-            "IL_04395"
-                ],
         "loop_type": "internal",
-        "include_unbulged":"False"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "Sarcin-Ricin Loop",
         "abbreviation": "S",
-        "rna3d_atlas_motif_ids": [
-            "IL_04346",
-            "IL_76042",
-            "IL_41756",
-            "IL_16458",
-            "IL_38862",
-            "IL_93830",
-            "IL_88269",
-            "IL_02349",
-            "IL_35728",
-            "IL_26785",
-            "IL_34470",
-            "IL_61286",
-            "IL_59724",
-            "IL_24254"
-        ],
         "loop_type": "internal",
-        "include_unbulged":"True"
+        "include_unbulged": "True"
     },
     {
         "motif_name": "Kink-Turn",
         "abbreviation": "K",
-        "rna3d_atlas_motif_ids": [
-            "IL_70923",
-            "IL_45067",
-            "IL_69229",
-            "IL_51265",
-            "IL_90538",
-            "IL_24134",
-            "IL_60192",
-            "IL_74051",
-            "IL_64900",
-            "IL_94910",
-            "IL_37722",
-            "IL_33886",
-            "IL_34780",
-            "IL_77045",
-            "IL_93094"
-        ],
         "loop_type": "internal",
-        "include_unbulged":"True"
+        "include_unbulged": "True"
     }
 ]

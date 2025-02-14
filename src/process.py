@@ -94,13 +94,19 @@ class bgap_rna:
             pfc=cmd_args.pfc,
             pfc_filtering=cmd_args.pfc_filtering,
             session_id=cmd_args.id,
+            custom_hairpins=cmd_args.custom_hairpins,
+            custom_internals=cmd_args.custom_internals,
+            custom_bulges=cmd_args.custom_bulges,
+            replace_hairpins=cmd_args.replace_hairpins,
+            replace_internals=cmd_args.replace_internals,
+            replace_bulges=cmd_args.replace_bulges,
         )
 
     @classmethod
     def from_config(cls, config: configparser.ConfigParser, section_name: str):
         """ConfigParse alternative constructor. Accepts a string/path to a config file or a ConfigParser. Unused parameters should be left empty or be set to None."""
         return cls(
-            input=config[section_name]["input"],
+            input=config.get(section_name, "input"),
             algorithm=config.get(section_name, "algorithm"),
             motif_source=config.getint(section_name, "motif_source"),
             motif_orientation=config.getint(section_name, "motif_orientation"),
@@ -116,6 +122,12 @@ class bgap_rna:
             pfc=config.getboolean(section_name, "pfc"),
             pfc_filtering=config.getboolean(section_name, "pfc_filtering"),
             session_id=config.get(section_name, "ID"),
+            custom_hairpins=config.get(section_name, "custom_hairpins"),
+            custom_internals=config.get(section_name, "custom_internals"),
+            custom_bulges=config.get(section_name, "custom_bulges"),
+            replace_hairpins=config.getint(section_name, "replace_hairpins"),
+            replace_internals=config.getint(section_name, "replace_internals"),
+            replace_bulges=config.getint(section_name, "replace_bulges"),
         )
 
     def __init__(
@@ -130,7 +142,13 @@ class bgap_rna:
         hishape_mode: Optional[str] = None,
         temperature: Optional[float] = None,
         energy_percent: Optional[float] = None,
-        allowLonelyBasepairs: Optional[int] = None,
+        custom_hairpins: Optional[str] = None,
+        custom_internals: Optional[str] = None,
+        custom_bulges: Optional[str] = None,
+        allowLonelyBasepairs: bool = False,
+        replace_hairpins: bool = False,
+        replace_internals: bool = False,
+        replace_bulges: bool = False,
         subopt: bool = False,
         time: bool = False,
         pfc: bool = False,
@@ -155,6 +173,13 @@ class bgap_rna:
             input
         )  # type: SeqIO.FastaIO.FastaIterator | SeqIO.QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | Iterator[list] | SeqRecord
         self.pfc_filtering = pfc_filtering  # Set this to enable/disable filtering of partition function outputs to only return results with a probability over 0.0001
+        # Custom motif variables, custom_X is for the filepaths to the .csv files, replace_X is for if the customs should append to or replace the underlying motifs from RNA3D or Rfam
+        self.custom_hairpins = custom_hairpins
+        self.custom_internals = custom_internals
+        self.custom_bulges = custom_bulges
+        self.replace_hairpins = replace_hairpins
+        self.replace_internals = replace_internals
+        self.replace_bulges = replace_bulges
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -203,11 +228,44 @@ class bgap_rna:
         return self._allowLonelyBasepairs
 
     @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: Optional[int]):
-        if val is None or val in [0, 1]:
-            self._allowLonelyBasepairs = val
+    def allowLonelyBasepairs(self, val: bool):
+        if val:
+            self._allowLonelyBasepairs = 1
         else:
-            raise ValueError("allowLonelyBasepairs can only be 0 or 1.")
+            self._allowLonelyBasepairs = 0
+
+    @property
+    def replace_hairpins(self):
+        return self._replace_hairpins
+
+    @replace_hairpins.setter
+    def replace_hairpins(self, val: bool):
+        if val:
+            self._replace_hairpins = 1
+        else:
+            self._replace_hairpins = 0
+
+    @property
+    def replace_internals(self):
+        return self._replace_internals
+
+    @replace_internals.setter
+    def replace_internals(self, val: bool):
+        if val:
+            self._replace_internals = 1
+        else:
+            self._replace_internals = 0
+
+    @property
+    def replace_bulges(self):
+        return self._replace_bulges
+
+    @replace_bulges.setter
+    def replace_bulges(self, val: bool):
+        if val:
+            self._replace_bulges = 1
+        else:
+            self._replace_bulges = 0
 
     # Choose motif source, 1 = RNA 3D Motif Atlas, 2 = RMFam, 3 = Both
     @property
@@ -216,11 +274,11 @@ class bgap_rna:
 
     @motif_source.setter
     def motif_source(self, Q: Optional[int]):
-        if Q is None or Q in [1, 2, 3, 4]:
+        if Q is None or Q in [1, 2, 3]:
             self._motif_source = Q
         else:
             raise ValueError(
-                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both, 4 = Custom"
+                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both"
             )
 
     # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
@@ -380,6 +438,12 @@ class bgap_rna:
             "-b": self.motif_orientation,
             "-t": self.temperature,
             "-u": self.allowLonelyBasepairs,
+            "-X": self.custom_hairpins,
+            "-Y": self.custom_internals,
+            "-Z": self.custom_bulges,
+            "-L": self.replace_hairpins,
+            "-E": self.replace_internals,
+            "-G": self.replace_bulges,
         }
         if self.subopt:
             runtime_dictionary["-e"] = self.energy

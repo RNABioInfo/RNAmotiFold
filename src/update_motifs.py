@@ -3,10 +3,12 @@ from pathlib import Path
 import requests
 from os import scandir, remove
 from dataclasses import dataclass
+from collections import namedtuple
+import re
 import json
 
 non_listed_conversions = {"MAD": "A"}
-
+annotations = namedtuple("annotations", ["motif", "alignment", "annotations"])
 conversion_json_path = (
     Path(__file__).resolve().parent.joinpath("data", "nucleotide_conversion.json")
 )
@@ -150,21 +152,45 @@ class rna3d_motif:
             MotifSequence(sequence=x, abbreviation=self.abbreviation) for x in set(self.rna3d_fw)
         ]
 
-    def load_current_rna3datlas_instances(self):
-        match self.loop_type:
-            case "hairpin":
-                api_response = rna3d_motif.api_call(
-                    "http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json"
+    @staticmethod
+    def load_current_rna3datlas():
+        current_hl_json = json.loads(
+            rna3d_motif.api_call(
+                "http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json"
+            ).content.decode()
+        )
+        current_hl_annotations = rna3d_motif._get_annotations(
+            rna3d_motif.api_call(
+                "http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/annotations"
+            ).content.decode()
+        )
+        current_il_json = json.loads(
+            rna3d_motif.api_call(
+                "http://rna.bgsu.edu/rna3dhub/motifs/release/il/current/json"
+            ).content.decode()
+        )
+        current_il_annotations = rna3d_motif._get_annotations(
+            rna3d_motif.api_call(
+                "http://rna.bgsu.edu/rna3dhub/motifs/release/il/current/annotations"
+            ).content.decode()
+        )
+        return (current_hl_json, current_hl_annotations, current_il_json, current_il_annotations)
+
+    @staticmethod
+    def _get_annotations(annotation_csv: str) -> list[str]:
+        return_list = []
+        for line in annotation_csv.split("\n"):
+            split = line.split("\t")
+            # Get annotations
+            annotated = [x for x in split[2:] if x != ""]
+            # Only keep obj if there are any annotations [not annotated means len(list) is 0, pythonic way to check list fill status]
+            if annotated:
+                return_list.append(
+                    annotations(motif=split[0], alignment=split[1], annotations=annotated)
                 )
-            case "internal":
-                api_response = rna3d_motif.api_call(
-                    "http://rna.bgsu.edu/rna3dhub/motifs/release/il/current/json"
-                )
-        self.motifs = [
-            item
-            for item in json.loads(api_response.content.decode())
-            if item["motif_id"].split(".")[0] in self.rna_3d_atlas_ids
-        ]
+            else:
+                pass
+        return return_list
 
     @property
     def include_json(self):
@@ -182,10 +208,11 @@ class rna3d_motif:
             )
 
     def __init__(self, motif_json: dict):
+        self.motif_name = motif_json["motif_name"]
         self.abbreviation = motif_json["abbreviation"]
-        self.rna_3d_atlas_ids = motif_json["rna3d_atlas_motif_ids"]
         self.loop_type = motif_json["loop_type"]
         self.include_json = motif_json["include_unbulged"]
+        self.annotations = []  # type:list[annotations]
 
     def motifs2csv(self, mot_list):
         return "\n".join([x + f",{self.abbreviation}" for x in set(mot_list)]) + "\n"
@@ -217,16 +244,22 @@ class rna3d_motif:
                         pass
                         # print(alignment) #Debugging print statement
 
-    def get_rna3d_json_sequences(self):  # Extracts json sequences from the
-        for instance in self.motifs:
-            alignments = [x for x in instance["alignment"].values()]
-            self.sequence_from_nucleotide_list(alignments)
+    def get_rna3d_json_sequences(self, json_file):  # Extracts sequences from the json
+        collection_list = []
+        for entry in json_file:
+            if entry["motif_id"] in [x.motif for x in self.annotations]:
+                for json_alignment in entry["alignment"]:
+                    if json_alignment in [x.alignment for x in self.annotations]:
+                        collection_list.append(entry["alignment"][json_alignment])
+        self.sequence_from_nucleotide_list(collection_list)
 
     def get_rna3d_api_sequences(self):
         collection_list = []
-        for entry in self.instance_ids:
+        for entry in self.annotations:
             api_data = (
-                rna3d_motif.api_call(self.rna3datlas_api_call + entry).content.decode().split()
+                rna3d_motif.api_call(self.rna3datlas_api_call + entry.alignment)
+                .content.decode()
+                .split()
             )
             nucleotides = [x for x in api_data if "|" in x]
             collection_list.append(nucleotides)
@@ -273,6 +306,21 @@ class rna3d_motif:
             for internal in internals_read
         ]
         return (hairpins, internals)
+
+    def get_alignments(self, annotations_list: list[annotations]):
+        """This function alters the annotations_list and deletes the annotation objects that it consumed"""
+        indices = []
+        for idx, element in enumerate(annotations_list):
+            for slot in element.annotations:
+                if len(slot) >= len(self.motif_name):
+                    searchd = re.search(pattern=self.motif_name.lower(), string=slot.lower())
+                    if searchd is not None:
+                        self.annotations.append(element)
+                        indices.append(idx)
+                        break
+                else:
+                    pass
+        return [j for i, j in enumerate(annotations_list) if i not in indices]
 
 
 # Function that takes an input list of MotifSequence Objects, checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. All duplicates present in the list are put into a dictionary that is then returned.
@@ -342,13 +390,20 @@ def update_hexdumbs():  # Function iterates of motifs csv files and writes all t
 
 def main():
     """Updates motif sequence collection and updates both the duplicates.json file as well as the hexdumb file RNAmotiFold/submodules/RNALoops/Extensions/mot_header.hh"""
+    # rfam_sequences_tuples[0] = rfam_hairpins_fw, rfam_sequences_tuples[1] = rfam_internals_fw
     rfam_sequences_tuples = rna3d_motif.get_rfam_sequences()
     motifs = rna3d_motif.load_motif_json()
+    hl_json, hl_annotations, il_json, il_annotations = rna3d_motif.load_current_rna3datlas()
     for motif in motifs:
-        motif.load_current_rna3datlas_instances()
+        if motif.loop_type == "hairpin":
+            hl_annotations = motif.get_alignments(hl_annotations)
+            if motif.include_json:
+                motif.get_rna3d_json_sequences(hl_json)
+        if motif.loop_type == "internal":
+            il_annotations == motif.get_alignments(il_annotations)
+            if motif.include_json:
+                motif.get_rna3d_json_sequences(il_json)
         motif.get_rna3d_api_sequences()
-        if motif.include_json:
-            motif.get_rna3d_json_sequences()
 
     rna3d_hairpins_fw = flatten([x.seq_abb_tpls for x in motifs if x.loop_type == "hairpin"])
     rna3d_hairpins_rv = sequence_reverser(rna3d_hairpins_fw)

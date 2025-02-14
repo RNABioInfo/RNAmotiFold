@@ -36,6 +36,22 @@ def is_path_exists_or_creatable(pathname: str) -> bool:
         return False
 
 
+class MotifFileCkeck(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_string):
+        setattr(namespace, self.dest, MotifFileCheckFunction(value))
+
+
+def MotifFileCheckFunction(value: str) -> str:
+    if value is not None and value != "":
+        if Path(value).resolve().is_file():
+            return value
+        else:
+            raise FileNotFoundError("Could not find specified file.")
+
+
 class LogCheck(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs):
         super().__init__(option_strings, dest, **kwargs)
@@ -44,7 +60,7 @@ class LogCheck(argparse.Action):
         setattr(namespace, self.dest, LogCheckFunction(value))
 
 
-def LogCheckFunction(value: str):
+def LogCheckFunction(value: str) -> str:
     if not isinstance(getattr(logging, value.upper(), None), int):
         raise ValueError(f"Invalid log level: {value}")
     else:
@@ -59,7 +75,7 @@ class WorkerCheck(argparse.Action):
         setattr(namespace, self.dest, WorkerCheckFunction(value))
 
 
-def WorkerCheckFunction(value: int | str):
+def WorkerCheckFunction(value: int | str) -> int | str:
     if int(value) > cpu_count():
         print("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
         if isinstance(value, str):
@@ -81,7 +97,7 @@ class ConfigCheck(argparse.Action):
             )  # Make this into a log, no need to print
             setattr(namespace, self.dest, value)
 
-        elif Path(value).is_file():
+        elif Path(value).resolve().is_file():
             print(
                 f"Using user config: {value}."
             )  # Make into log, no need to print. Program will complain if something didn't work out.
@@ -166,7 +182,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-n",
         "--name",
-        help="For interactive sessions or with single sequence as input set an ID for the output. Default is N/A.",
+        help=f"For interactive sessions or with single sequence as input set an ID for the output. Default is {config.get(config.default_section, "ID")}",
         dest="id",
         type=str,
         default=config.get(config.default_section, "ID"),
@@ -192,7 +208,7 @@ def get_cmdarguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--conf",
-        help="Specify a config file path, if no path is given this defaults to the prewritten config file in RNAmotiFold/src/config.ini. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
+        help=f"Specify a config file path, if no path is given this defaults to the prewritten config file in {script_parameters.user_config_path}. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
         type=str,
         action=ConfigCheck,
         const=script_parameters.user_config_path,
@@ -204,7 +220,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-a",
         "--algorithm",
-        help="Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5] and RNAmotiCes mode with -p [h,b,m]. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is RNAmotiFold",
+        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5] and RNAmotiCes mode with -p [h,b,m]. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is {config.get(config.default_section, "algorithm")}",
         type=str,
         action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
@@ -214,7 +230,7 @@ def get_cmdarguments() -> argparse.Namespace:
     pfc_or_subopt.add_argument(
         "-s",
         "--subopt",
-        help="Specify if subopt folding should be used. Not useable with partition function implementations. Default is off",
+        help=f"Specify if subopt folding should be used. Not useable with partition function implementations. Default is {config.get(config.default_section, "subopt")}",
         action="store_true",
         default=config.getboolean(config.default_section, "subopt"),
         dest="subopt",
@@ -222,12 +238,11 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-Q",
         "--motif_source",
-        help="Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both, 4  = custom motifs. Default is 1",
+        help=f"Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both. Default is {config.get(config.default_section, "motif_source")}",
         choices=[
             1,
             2,
             3,
-            4,
         ],
         type=int,
         default=config.getint(config.default_section, "motif_source"),
@@ -236,7 +251,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-b",
         "--orientation",
-        help="Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is 1. ",
+        help=f"Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is {config.get(config.default_section, "motif_orientation")}.",
         choices=[
             1,
             2,
@@ -249,7 +264,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-k",
         "--kvalue",
-        help="Specify k to classify only the k lowest free energy classes. Default is k = 5",
+        help=f"Specify k to classify only the k lowest free energy classes. Default is {config.get(config.default_section, "kvalue")}.",
         type=int,
         default=config.getint(config.default_section, "kvalue"),
         dest="kvalue",
@@ -257,7 +272,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-p",
         "--hishape",
-        help="Set hishape mode, default is h",
+        help=f"Set hishape mode. Default is {config.get(config.default_section, "hishape_mode")}.",
         choices=[
             "h",
             "m",
@@ -270,7 +285,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-q",
         "--shape_level",
-        help="Set shape abstraction level. Default is 3",
+        help=f"Set shape abstraction level. Default is {config.get(config.default_section, "shape_level")}.",
         choices=[
             1,
             2,
@@ -293,7 +308,7 @@ def get_cmdarguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--time",
-        help="Activate time logging, activating this will run predictions with unix time utility. Default is off",
+        help=f"Activate time logging, activating this will run predictions with unix time utility. Default is {config.get(config.default_section, "time")}",
         action="store_true",
         default=config.getboolean(config.default_section, "time"),
         dest="time",
@@ -301,58 +316,103 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-t",
         "--temperature",
-        help="Scale energy parameters for folding to given temperature in Celsius. Default is 37",
+        help=f"Scale energy parameters for folding to given temperature in Celsius. Default is {config.get(config.default_section, "temperature")} °C.",
         type=float,
         default=config.getfloat(config.default_section, "temperature"),
         dest="temperature",
     )
     parser.add_argument(
         "-u",
-        help="Allow lonely base pairs, 1 = yes, 0 = no. Default is 0",
-        type=int,
-        choices=[0, 1],
+        help=f"Allow lonely base pairs, True = yes, False = no. Default is {config.get(config.default_section, "basepairs")}",
         dest="basepairs",
-        default=config.getint(config.default_section, "basepairs"),
+        action="store_true",
+        default=config.getboolean(config.default_section, "basepairs"),
     )
     parser.add_argument(
         "-c",
-        help="Set energy range in %%. Is overwritten if -e is set. Default is 10.0",
+        help=f"Set energy range in %%. Gets overruled by -e. Default is {config.get(config.default_section, "energy_percent")}",
         type=float,
         dest="energy_percent",
         default=config.getfloat(config.default_section, "energy_percent"),
     )
     pfc_or_subopt.add_argument(
         "--pfc",
-        help="If set, calculates cumulative partition function value for each class instead of default minimum free energy predictions. Can lead to long runtimes. Default is off.",
+        help=f"If set, calculates cumulative partition function value for each class instead of default minimum free energy predictions. Can lead to long runtimes. Default is {config.get(config.default_section, "pfc")}.",
         dest="pfc",
         action="store_true",
         default=config.getboolean(config.default_section, "pfc"),
     )
     parser.add_argument(
         "--low_prob_filter",
-        help="If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is off.",
+        help=f"If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is {config.get(config.default_section, "pfc_filtering")}.",
         action="store_true",
         dest="pfc_filtering",
         default=config.getboolean(config.default_section, "pfc_filtering"),
     )
-
+    parser.add_argument(
+        "-X",
+        "--custom_hairpins",
+        dest="custom_hairpins",
+        help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline].",
+        action=MotifFileCkeck,
+        default=config.get(config.default_section, "custom_hairpins"),
+    )
+    parser.add_argument(
+        "-Y",
+        "--custom_internals",
+        dest="custom_internals",
+        help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]",
+        action=MotifFileCkeck,
+        default=config.get(config.default_section, "custom_internals"),
+    )
+    parser.add_argument(
+        "-Z",
+        "--custom_bulges",
+        dest="custom_bulges",
+        help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline].",
+        action=MotifFileCkeck,
+        default=config.get(config.default_section, "custom_bulges"),
+    )
+    parser.add_argument(
+        "-L",
+        "--replace_hairpins",
+        dest="replace_hairpins",
+        help=f"If set, instead of appending custom hairpins to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_hairpins")}",
+        action="store_true",
+        default=config.getboolean(config.default_section, "replace_hairpins"),
+    )
+    parser.add_argument(
+        "-E",
+        "--replace_internals",
+        dest="replace_internals",
+        help=f"If set, instead of appending custom internals to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_internals")}",
+        action="store_true",
+        default=config.getboolean(config.default_section, "replace_internals"),
+    )
+    parser.add_argument(
+        "-G",
+        "--replace_bulges",
+        dest="replace_bulges",
+        help=f"If set, instead of appending custom bulges to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_bulges")}",
+        action="store_true",
+        default=config.getboolean(config.default_section, "replace_bulges"),
+    )
     ##############The line between script arguments and class args######
     parser.add_argument(
         "-w",
         "--workers",
-        help="Specify how many predictions should be done in parallel for file input. Default is os.cpu_count()-2",
+        help=f"Specify how many predictions should be done in parallel for file input. Default is {config.get(config.default_section, "workers")}",
         type=int,
         action=WorkerCheck,
         default=config.getint(config.default_section, "workers"),
         dest="workers",
     )
     parser.add_argument(
-        "-l",
         "--loglevel",
-        help="Set log level. Default is Info. Currently nothing is getting logged to be honest, this will (hopefully) change in the future.",
+        help=f"Set log level. Default is {config.get(config.default_section,"loglevel")}. Currently nothing is getting logged to be honest, this will (hopefully) change in the future.",
         action=LogCheck,
         type=str,
-        default=config[config.default_section]["loglevel"],
+        default=config.get(config.default_section, "loglevel"),
         dest="loglevel",
     )
     parser.add_argument(
@@ -367,16 +427,15 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-nu",
         "--no_update",
-        help="Blocks sequence updating, overwrites update_algorithms. Default is False",
+        help=f"Blocks sequence updating, overwrites update_algorithms. Default is {config.get(config.default_section, "no_update")}",
         default=config.getboolean(config.default_section, "no_update"),
         action="store_true",
         dest="no_update",
     )
-
     parser.add_argument(
         "--ua",
         "--update_algorithms",
-        help="If set algorithms are updated to use currently set motif sequences. Recommended to use when manually editing motif sequence files (adding custom motifs for example) in /RNAmotiFold/src/data/motifs/. Gets overwritten by --no_update. Default is False.",
+        help=f"If set, fetches newest motif sequences from RNA3DMotif Atlas and recompiles algorithms with them. Recommended to use when manually editing motif sequence files in /RNAmotiFold/src/data/motifs/. Gets overruled by --no_update. Default is {config.get(config.default_section, "update_algorithms")}.",
         action="store_true",
         dest="update_algorithms",
         default=config.getboolean(config.default_section, "update_algorithms"),
