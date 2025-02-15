@@ -4,11 +4,14 @@ import subprocess
 import argparse
 import sys
 import src.update_motifs
+import multiprocessing
+from src.args import WorkerCheck,WorkerCheckFunction
+from os import cpu_count
 
 ROOT_DIR = Path(__file__).absolute().parent
 
 
-def _check_preinstalled_gapc() -> Path:
+def get_cmd_args() -> Path:
     """Contains cmd_argument parsing solely for the purpose of checking if an already installed gapc is given"""
     parser = argparse.ArgumentParser(
         prog="SetUp.py",
@@ -16,14 +19,27 @@ def _check_preinstalled_gapc() -> Path:
         epilog="Does anyone read these anyways?",
     )
     parser.add_argument(
-        "preinstalled_gapc_path",
+        "--preinstalled_gapc_path",
         nargs="?",
         action=preinstalled_check,
-        type=Path,
+        dest="preinstalled_gapc_path",
+        default=None,
+        type=str,
         help="You may input the absolute path to a preinstalled gapcM version. If you don't the script will check if there is already a gapc installed (globally or locally) and if it isn't it will run a CMake Script to set it up locally.",
     )
+    parser.add_argument(
+        "-w",
+        "-workers",
+        type=int,
+        dest="workers",
+        action=WorkerCheck,
+        default= cpu_count()-1,
+        help="Specify how many parallel processes may be spawned to speed up algorithm calculations. Default is os.cpu_count()-2."
+    )
     args = parser.parse_known_args()
-    return args[0].preinstalled_gapc_path
+    return args[0]
+
+
 
 
 class preinstalled_check(argparse.Action):
@@ -61,14 +77,14 @@ def _detect_gapc() -> str | None:
     if global_gapc is not None:
         return global_gapc
     else:
-        local_gapc = list(ROOT_DIR.glob("**/gapc"))
+        local_gapc = list(ROOT_DIR.glob("**/bin/gapc"))
         try:
             return local_gapc[0]
         except IndexError:
             return None
 
 
-def setup_algorithms(gapc_path: str):
+def setup_algorithms(gapc_path: str,workers = int):
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
@@ -91,11 +107,19 @@ def setup_algorithms(gapc_path: str):
     ]:
         compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm_subopt_pfc}.cc -t -i {algorithm_subopt_pfc} RNALoops.gap && perl {PERL_PATH} {algorithm_subopt_pfc}.mf 0 && make -f {algorithm_subopt_pfc}.mf && mv {algorithm_subopt_pfc} {RNAMOTIFOLD_BIN} && rm {algorithm_subopt_pfc}.o && rm {algorithm_subopt_pfc}.mf && rm {algorithm_subopt_pfc}.hh && rm {algorithm_subopt_pfc}.d && rm {algorithm_subopt_pfc}.cc && rm {algorithm_subopt_pfc}_main.o && rm {algorithm_subopt_pfc}_main.d && rm {algorithm_subopt_pfc}_main.cc"
         compilation_list.append(compilation)
-    for comp in compilation_list:
-        try:
-            subprocess.run(comp, shell=True, check=True)
-        except subprocess.CalledProcessError as error:
-            raise error
+    The_Pool = multiprocessing.Pool(processes=workers)
+    for job in compilation_list:
+        The_Pool.apply_async(work_func,(job,))
+    The_Pool.close()
+    The_Pool.join()
+    return True
+
+
+def work_func(call):
+    try:
+        subprocess.run(call, shell=True, check=True)
+    except subprocess.CalledProcessError as error:
+        raise error
     return True
 
 
@@ -145,12 +169,10 @@ def update_sequences_algorithms():
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
     print("Updating RNA 3D Motif sequences...")
     src.update_motifs.main()  # fetches latest motif versions
-    print(
-        "Sequences updated.\n Checking for commandline arguments for preinstalled gap compiler..."
-    )
-    preinstalled_gapc_path = _check_preinstalled_gapc()
+    print("Sequences updated.")
+    args = get_cmd_args()
 
-    if preinstalled_gapc_path is None:
+    if args.preinstalled_gapc_path is None:
         print(
             "No preinstalled gap compiler set in commandline, checking with which and searching RNAmotiFold folder..."
         )
@@ -167,7 +189,7 @@ def update_sequences_algorithms():
             print("Algorithms are all set up, you can now use RNAmotiFold")
     else:
         print("Preinstalled gap compiler given, using it to install RNAmotiFold...")
-        setup_algorithms(preinstalled_gapc_path)
+        setup_algorithms(Path(args.preinstalled_gapc_path))
         print("Algorithms are all set up, you can now use RNAmotiFold")
 
 
@@ -175,16 +197,17 @@ def update_sequences_algorithms():
 def update_algorithms():
     """main update function that checks for a gap compiler, installs it if necessary, and (re)compiles all preset algorithms. Does not update motif sequences"""
     src.update_motifs.update_hexdumbs()
-    preinstalled_gapc_path = _check_preinstalled_gapc()
-    if preinstalled_gapc_path is None:
+    args = get_cmd_args()
+
+    if args.preinstalled_gapc_path is None:
         auto_gapc_path = _detect_gapc()
         if auto_gapc_path is None:
             cmake_generated_gapc_path = run_cmake()
-            setup_algorithms(cmake_generated_gapc_path)
+            setup_algorithms(cmake_generated_gapc_path,args.workers)
         else:
-            setup_algorithms(auto_gapc_path)
+            setup_algorithms(auto_gapc_path,args.workers)
     else:
-        setup_algorithms(preinstalled_gapc_path)
+        setup_algorithms(Path(args.preinstalled_gapc_path),args.workers)
 
 
 if __name__ == "__main__":
