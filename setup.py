@@ -5,7 +5,7 @@ import argparse
 import sys
 import src.update_motifs
 import multiprocessing
-from src.args import WorkerCheck,WorkerCheckFunction
+from src.args import WorkerCheck, WorkerCheckFunction
 from os import cpu_count
 
 ROOT_DIR = Path(__file__).absolute().parent
@@ -28,18 +28,24 @@ def get_cmd_args() -> Path:
         help="You may input the absolute path to a preinstalled gapcM version. If you don't the script will check if there is already a gapc installed (globally or locally) and if it isn't it will run a CMake Script to set it up locally.",
     )
     parser.add_argument(
+        "--perl_interpreter",
+        nargs="?",
+        dest="preinstalled_perl_path",
+        default=shutil.which("perl"),
+        type=str,
+        help="if you have an alternative perl interpreter you can set the path to it here. Otherwise this script will use the one returned by which perl.",
+    )
+    parser.add_argument(
         "-w",
         "-workers",
         type=int,
         dest="workers",
         action=WorkerCheck,
-        default= cpu_count()-1,
-        help="Specify how many parallel processes may be spawned to speed up algorithm calculations. Default is os.cpu_count()-2."
+        default=cpu_count() - 1,
+        help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is os.cpu_count()-2.",
     )
     args = parser.parse_known_args()
     return args[0]
-
-
 
 
 class preinstalled_check(argparse.Action):
@@ -84,14 +90,14 @@ def _detect_gapc() -> str | None:
             return None
 
 
-def setup_algorithms(gapc_path: str,workers = int):
+def setup_algorithms(gapc_path: str, perl_path: str, workers: int):
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
-    PERL_PATH = Path.joinpath(RNALOOPS_PATH, "Misc", "Applications", "addRNAoptions.pl")
+    addRNAOptions_path = Path.joinpath(RNALOOPS_PATH, "Misc", "Applications", "addRNAoptions.pl")
     compilation_list = []
     for algorithm in ["RNAmotiFold", "RNAmoSh", "RNAmotiCes_h", "RNAmotiCes_b", "RNAmotiCes_m"]:
-        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm}.cc -t --kbacktrace --kbest -i {algorithm} RNALoops.gap && perl {PERL_PATH} {algorithm}.mf 0 && make -f {algorithm}.mf && mv {algorithm} {RNAMOTIFOLD_BIN} && rm {algorithm}.o && rm {algorithm}.mf && rm {algorithm}.hh && rm {algorithm}.d && rm {algorithm}.cc && rm {algorithm}_main.o && rm {algorithm}_main.d && rm {algorithm}_main.cc"
+        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm}.cc -t --kbacktrace --kbest -i {algorithm} RNALoops.gap && {perl_path} {addRNAOptions_path} {algorithm}.mf 0 && make -f {algorithm}.mf && mv {algorithm} {RNAMOTIFOLD_BIN} && rm {algorithm}.o && rm {algorithm}.mf && rm {algorithm}.hh && rm {algorithm}.d && rm {algorithm}.cc && rm {algorithm}_main.o && rm {algorithm}_main.d && rm {algorithm}_main.cc"
         compilation_list.append(compilation)
     for algorithm_subopt_pfc in [
         "RNAmotiFold_subopt",
@@ -105,11 +111,11 @@ def setup_algorithms(gapc_path: str,workers = int):
         "RNAmotiCes_b_pfc",
         "RNAmotiCes_m_pfc",
     ]:
-        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm_subopt_pfc}.cc -t -i {algorithm_subopt_pfc} RNALoops.gap && perl {PERL_PATH} {algorithm_subopt_pfc}.mf 0 && make -f {algorithm_subopt_pfc}.mf && mv {algorithm_subopt_pfc} {RNAMOTIFOLD_BIN} && rm {algorithm_subopt_pfc}.o && rm {algorithm_subopt_pfc}.mf && rm {algorithm_subopt_pfc}.hh && rm {algorithm_subopt_pfc}.d && rm {algorithm_subopt_pfc}.cc && rm {algorithm_subopt_pfc}_main.o && rm {algorithm_subopt_pfc}_main.d && rm {algorithm_subopt_pfc}_main.cc"
+        compilation = f"cd {RNALOOPS_PATH} && {gapc_path} -o {algorithm_subopt_pfc}.cc -t -i {algorithm_subopt_pfc} RNALoops.gap && {perl_path} {addRNAOptions_path} {algorithm_subopt_pfc}.mf 0 && make -f {algorithm_subopt_pfc}.mf && mv {algorithm_subopt_pfc} {RNAMOTIFOLD_BIN} && rm {algorithm_subopt_pfc}.o && rm {algorithm_subopt_pfc}.mf && rm {algorithm_subopt_pfc}.hh && rm {algorithm_subopt_pfc}.d && rm {algorithm_subopt_pfc}.cc && rm {algorithm_subopt_pfc}_main.o && rm {algorithm_subopt_pfc}_main.d && rm {algorithm_subopt_pfc}_main.cc"
         compilation_list.append(compilation)
     The_Pool = multiprocessing.Pool(processes=workers)
     for job in compilation_list:
-        The_Pool.apply_async(work_func,(job,))
+        The_Pool.apply_async(work_func, (job,))
     The_Pool.close()
     The_Pool.join()
     return True
@@ -167,10 +173,10 @@ def run_cmake():
 
 def update_sequences_algorithms():
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
+    args = get_cmd_args()
     print("Updating RNA 3D Motif sequences...")
     src.update_motifs.main()  # fetches latest motif versions
     print("Sequences updated.")
-    args = get_cmd_args()
 
     if args.preinstalled_gapc_path is None:
         print(
@@ -181,33 +187,35 @@ def update_sequences_algorithms():
             print("No installed gapc found, installing...")
             cmake_generated_gapc_path = run_cmake()
             print("gap compiler installed, installing algorithms...")
-            setup_algorithms(cmake_generated_gapc_path)
+            setup_algorithms(cmake_generated_gapc_path, args.preinstalled_perl_path, args.workers)
             print("Algorithms are all set up, you can now use RNAmotiFold")
         else:
             print(f"gap compiler found in {auto_gapc_path}. Using it to set up algorithms...")
-            setup_algorithms(auto_gapc_path)
+            setup_algorithms(auto_gapc_path, args.preinstalled_perl_path, args.workers)
             print("Algorithms are all set up, you can now use RNAmotiFold")
     else:
         print("Preinstalled gap compiler given, using it to install RNAmotiFold...")
-        setup_algorithms(Path(args.preinstalled_gapc_path))
+        setup_algorithms(args.preinstalled_gapc_path, args.preinstalled_perl_path, args.workers)
         print("Algorithms are all set up, you can now use RNAmotiFold")
 
 
 # update function for loading new motif sets into algrithms, DOES NOT LOAD FRESH MOTIF SETS, DOES NOT UPDATE duplicates.json
 def update_algorithms():
     """main update function that checks for a gap compiler, installs it if necessary, and (re)compiles all preset algorithms. Does not update motif sequences"""
-    src.update_motifs.update_hexdumbs()
     args = get_cmd_args()
+    src.update_motifs.update_hexdumbs()
 
     if args.preinstalled_gapc_path is None:
         auto_gapc_path = _detect_gapc()
         if auto_gapc_path is None:
             cmake_generated_gapc_path = run_cmake()
-            setup_algorithms(cmake_generated_gapc_path,args.workers)
+            setup_algorithms(cmake_generated_gapc_path, args.preinstalled_perl_path, args.workers)
         else:
-            setup_algorithms(auto_gapc_path,args.workers)
+            setup_algorithms(auto_gapc_path, args.preinstalled_perl_path, args.workers)
     else:
-        setup_algorithms(Path(args.preinstalled_gapc_path),args.workers)
+        setup_algorithms(
+            Path(args.preinstalled_gapc_path), args.preinstalled_perl_path, args.workers
+        )
 
 
 if __name__ == "__main__":
