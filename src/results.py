@@ -1,11 +1,14 @@
 import sys
 from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger("results")
 
 
 class result:
 
     _separator: str = ","
-    _algorithm: str = "motmfepretty"
+    _algorithm: str = "RNAmotiFold"
 
     def __str__(self):
         return self.tsv
@@ -39,11 +42,11 @@ class result:
             ):
                 _header = ["ID", "motiCes", "mfe", "motBracket"]
             case "RNAmoSh" | "RNAmoSh_subopt":
-                _header = ["ID", "mosh", "mfe", "motBracket"]
+                _header = ["ID", "moSh", "mfe", "motBracket"]
             case "RNAmotiCes_h_pfc" | "RNAmotiCes_b_pfc" | "RNAmotiCes_m_pfc":
-                _header = ["ID", "MotiCes", "pfc", "probability"]
+                _header = ["ID", "motiCes", "pfc", "probability"]
             case "RNAmoSh_pfc":
-                _header = ["ID", "mosh", "pfc", "probability"]
+                _header = ["ID", "moSh", "pfc", "probability"]
             case "RNAmotiFold_pfc":
                 _header = ["ID", "motifs", "pfc", "probability"]
             case _:
@@ -80,26 +83,15 @@ class algorithm_output:
     def __str__(self):
         return self.results[0].header + "".join([str(x) for x in self.results])
 
-    def __init__(self, name: str, result_str: str, time_str: str):
+    def __init__(self, name: str, result_str: str, stderr: str):
         self.id = name
         self.results = self._format_results(result_str)  # type:list[result]
-        self.time_str = time_str
+        self.stderr = stderr
         self._index = 0
         if algorithm_output.pfc:
             self.calculate_pfc_probabilities()
             if algorithm_output.filtering:
                 self._filter_out_low_probability()
-
-    @property
-    def time_str(self):
-        return self._time_str
-
-    @time_str.setter
-    def time_str(self, time: str):
-        if time == "":
-            self._time_str = None
-        else:
-            self._time_str = time
 
     # Formats results from the mgapc output formatting to a list of result objects
     def _format_results(self, result_str: str) -> list[result]:
@@ -116,11 +108,10 @@ class algorithm_output:
     def write_results(self, initiated: bool):
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
         if not initiated:
+            logger.warning(self.stderr.strip())
             sys.stdout.write(self.results[0].header)
         for result_obj in self.results:
             sys.stdout.write(result_obj.tsv)
-        if self.time_str is not None:
-            sys.stderr.write(f"{self.id}: {self.time_str}")
         return True
 
     # Calculates partition function probabilities for me so I don't have to manually do it every time for all the outputs

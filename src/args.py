@@ -2,9 +2,9 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from typing import Optional
 from os import cpu_count, access, W_OK
 from dataclasses import dataclass
+import sys
 
 
 def is_path_creatable(pathname: str) -> bool:
@@ -64,7 +64,7 @@ def LogCheckFunction(value: str) -> str:
     if not isinstance(getattr(logging, value.upper(), None), int):
         raise ValueError(f"Invalid log level: {value}")
     else:
-        return value
+        return value.upper()
 
 
 class WorkerCheck(argparse.Action):
@@ -92,15 +92,12 @@ class ConfigCheck(argparse.Action):
 
     def __call__(self, parser, namespace, value: str, option_string=None):
         if value == "":
-            print(
+            sys.stderr.write(
                 f"Using default config: {script_parameters.defaults_config_path}"
             )  # Make this into a log, no need to print
             setattr(namespace, self.dest, value)
 
         elif Path(value).resolve().is_file():
-            print(
-                f"Using user config: {value}."
-            )  # Make into log, no need to print. Program will complain if something didn't work out.
             setattr(namespace, self.dest, Path(value))
         else:
             raise FileNotFoundError(f"Could not find specified config file {value}")
@@ -111,18 +108,15 @@ class OutputFileCheck(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: str, option_string):
-        setattr(namespace, self.dest, OutputFileCheckFunction(value))
+        setattr(namespace, self.dest, OutputFileCheckFunction(value, self.dest))
 
 
-def OutputFileCheckFunction(value):
+def OutputFileCheckFunction(value: str, dest: str):
     if value is None:
         return None
     elif is_path_exists_or_creatable(value):
         if Path(value).resolve().is_file():
-            print("Output file already exists, results will be appended.")
-        else:
-            with open(Path(value), "a+") as file:
-                pass
+            sys.stderr.write(f"Given {dest} file already exists, results will be appended.\n")
         return Path(value)
     else:
         raise FileNotFoundError("Given path is not a valid path.")
@@ -197,8 +191,8 @@ def get_cmdarguments() -> argparse.Namespace:
         dest="input",
     )
     parser.add_argument(
-        "-o",
         "--output",
+        "-o",
         help="Set file to write results to. Results will be appended to file if it already exists! Default is stdout.",
         type=str,
         default=config.get(config.default_section, "output"),
@@ -307,13 +301,6 @@ def get_cmdarguments() -> argparse.Namespace:
         dest="energy",
     )
     parser.add_argument(
-        "--time",
-        help=f"Activate time logging, activating this will run predictions with unix time utility. Default is {config.get(config.default_section, "time")}",
-        action="store_true",
-        default=config.getboolean(config.default_section, "time"),
-        dest="time",
-    )
-    parser.add_argument(
         "-t",
         "--temperature",
         help=f"Scale energy parameters for folding to given temperature in Celsius. Default is {config.get(config.default_section, "temperature")} °C.",
@@ -353,7 +340,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-X",
         "--custom_hairpins",
         dest="custom_hairpins",
-        help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline].",
+        help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCkeck,
         default=config.get(config.default_section, "custom_hairpins"),
     )
@@ -361,7 +348,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-Y",
         "--custom_internals",
         dest="custom_internals",
-        help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]",
+        help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCkeck,
         default=config.get(config.default_section, "custom_internals"),
     )
@@ -369,7 +356,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-Z",
         "--custom_bulges",
         dest="custom_bulges",
-        help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline].",
+        help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCkeck,
         default=config.get(config.default_section, "custom_bulges"),
     )
@@ -409,11 +396,19 @@ def get_cmdarguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--loglevel",
-        help=f"Set log level. Default is {config.get(config.default_section,"loglevel")}. Currently nothing is getting logged to be honest, this will (hopefully) change in the future.",
+        help=f"Set log level. Default is {config.get(config.default_section,"loglevel")}.",
         action=LogCheck,
         type=str,
         default=config.get(config.default_section, "loglevel"),
         dest="loglevel",
+    )
+    parser.add_argument(
+        "--logfile",
+        help=f"Set filepath as destination for log entries. Default is stderr stream.",
+        type=str,
+        action=OutputFileCheck,
+        default=config.get(config.default_section, "logfile"),
+        dest="logfile",
     )
     parser.add_argument(
         "-v",
@@ -425,7 +420,7 @@ def get_cmdarguments() -> argparse.Namespace:
     )
     # Arguments for updating motifs
     parser.add_argument(
-        "-nu",
+        "--nu",
         "--no_update",
         help=f"Blocks sequence updating, overwrites update_algorithms. Default is {config.get(config.default_section, "no_update")}",
         default=config.getboolean(config.default_section, "no_update"),
@@ -435,7 +430,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "--ua",
         "--update_algorithms",
-        help=f"If set, fetches newest motif sequences from RNA3DMotif Atlas and recompiles algorithms with them. Recommended to use when manually editing motif sequence files in /RNAmotiFold/src/data/motifs/. Gets overruled by --no_update. Default is {config.get(config.default_section, "update_algorithms")}.",
+        help=f"If set, loads current motif sequences from /RNAmotiFold/src/data/motifs/ into algorithms and recompiles them. This does not fetch the current motif sequences, re-run setup.py to fetch latest motif sequences and load them into the algorithms. Gets overruled by --no_update. Default is {config.get(config.default_section, "update_algorithms")}.",
         action="store_true",
         dest="update_algorithms",
         default=config.getboolean(config.default_section, "update_algorithms"),

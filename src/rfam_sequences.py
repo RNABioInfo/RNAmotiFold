@@ -68,7 +68,7 @@ def main():
         else:
             write_mode = "a"
         with open(
-            f"{Path(__file__).resolve().parent.joinpath("data","motifs","rfam_hairpins_fw.csv")}",
+            f"{Path(__file__).resolve().parent.joinpath("data","motifs","rfam_hairpins.csv")}",
             write_mode,
         ) as file:
             file.write(mot.motifs2csv(mot.seqs))

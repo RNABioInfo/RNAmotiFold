@@ -21,7 +21,7 @@
         "motif_name": "tRNA anticodon loop",
         "abbreviation": "L",
         "loop_type": "hairpin",
-        "include_unbulged": "True"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "tRNA D-loop",
@@ -36,10 +36,10 @@
         "include_unbulged": "False"
     },
     {
-        "motif_name": "Tandem non-canoncial cWW pairs",
+        "motif_name": "Tandem non-canonical cWW pairs",
         "abbreviation": "M",
         "loop_type": "internal",
-        "include_unbulged": "True"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "C-Loop",
@@ -48,15 +48,15 @@
         "include_unbulged": "False"
     },
     {
-        "motif_name": "Sarcin-Ricin Loop",
+        "motif_name": "Sarcin-Ricin",
         "abbreviation": "S",
         "loop_type": "internal",
-        "include_unbulged": "True"
+        "include_unbulged": "False"
     },
     {
         "motif_name": "Kink-Turn",
         "abbreviation": "K",
         "loop_type": "internal",
-        "include_unbulged": "True"
+        "include_unbulged": "False"
     }
 ]

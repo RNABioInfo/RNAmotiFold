@@ -6,6 +6,7 @@ import sys
 import src.update_motifs
 import multiprocessing
 from src.args import WorkerCheck, WorkerCheckFunction
+from time import sleep
 from os import cpu_count
 
 ROOT_DIR = Path(__file__).absolute().parent
@@ -171,13 +172,26 @@ def run_cmake():
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
 
 
+def update_wheel():
+    sleep(0.1)  # Prevents race condition on printing "Updating..."
+    for frame in r"-\|/-\|/":
+        print("\r", frame, sep="", end="", flush=True)
+        sleep(0.2)
+
+
 def update_sequences_algorithms():
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
+    from multiprocessing import Process
+
     args = get_cmd_args()
     print("Updating RNA 3D Motif sequences...")
-    src.update_motifs.main()  # fetches latest motif versions
-    print("Sequences updated.")
-
+    p = Process(target=src.update_motifs.main)
+    p.start()
+    while True:
+        update_wheel()
+        if not p.is_alive():
+            break
+    p.join()
     if args.preinstalled_gapc_path is None:
         print(
             "No preinstalled gap compiler set in commandline, checking with which and searching RNAmotiFold folder..."

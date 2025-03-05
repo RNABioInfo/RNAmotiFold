@@ -1,47 +1,33 @@
-import src.process as proc
+import src.bgap_rna as bgap
 import src.args as args
-from pathlib import Path
 from argparse import Namespace
-from src.results import algorithm_output
+import src.results
+from src.update_motifs import update_hexdumbs
 import setup
 import configparser
 import setup
-import json
 import logging
 from time import sleep
-from multiprocessing import Process
+from pathlib import Path
+from typing import Generator
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+import gzip
+import sys
+from typing import Optional
 
+####Logging setup####
+import logging
 
-def make_new_logger(
-    lvl: str | int, name: str, format: str = "", propagate: bool = False
-) -> logging.Logger:
-    """Convenient logger creation function,"""
-    logger = logging.getLogger(name)
-    logger.setLevel(lvl.upper())
-    handler = logging.StreamHandler()  # logs to stderr
-    if format:
-        formatter = logging.Formatter(fmt=format)
-    else:
-        formatter = logging.Formatter(fmt="%(asctime)s:%(levelname)s: %(message)s")
-    handler.setFormatter(formatter)
-    # Permanent propagate False since I'm not utilizing any subloggers and sublcasses.
-    logger.propagate = propagate
-    logger.addHandler(handler)
-    return logger
-
-
-def update_wheel():
-    sleep(0.1)  # Prevents race condition on printing "Updating..."
-    for frame in r"-\|/-\|/":
-        print("\r", frame, sep="", end="", flush=True)
-        sleep(0.2)
+logger = logging.getLogger("RNAmotiFold")
 
 
 def _version_checks(force_alg_update: bool):
     defaults_config = configparser.ConfigParser(allow_no_value=True)
     defaults_config.read_file(open(args.script_parameters.defaults_config_path))
     try:
-        update_needed = proc.bgap_rna.check_motif_versions(defaults_config["VERSIONS"]["motifs"])
+        update_needed = bgap.bgap_rna.check_motif_versions(defaults_config["VERSIONS"]["motifs"])
         if update_needed:
             print(
                 "There is a new set of RNA 3D Motif sequences available. You may need to update the motif.json file manually. Update RNAmotiFold ? [y/n]",
@@ -49,14 +35,8 @@ def _version_checks(force_alg_update: bool):
             )
             answer = input()
             if answer.lower() in ["y", "ye", "yes"]:
-                p = Process(target=setup.update_sequences_algorithms)
-                p.start()
-                while True:
-                    update_wheel()
-                    if not p.is_alive():
-                        break
-                p.join()
-                defaults_config.set("VERSIONS", "motifs", proc.bgap_rna.get_current_motif_version())
+                setup.update_sequences_algorithms()
+                defaults_config.set("VERSIONS", "motifs", bgap.bgap_rna.get_current_motif_version())
                 with open(args.script_parameters.defaults_config_path, "w") as file:
                     defaults_config.write(file)
                 return True
@@ -66,17 +46,17 @@ def _version_checks(force_alg_update: bool):
                     f"Skipping update, continuing with motif sequence version {defaults_config['VERSIONS']['motifs']}"
                 )
                 if force_alg_update:
-                    print("Update algorithms is set, updating algorithms...")  # make log
+                    logger.debug("Update algorithms is set, updating hexdumb and algorithms...")
+                    update_hexdumbs()
                     setup.update_algorithms()
                 return True
             else:
                 raise ValueError("Please answer the question with yes or no")
         else:
-            print("RNA 3D motif sequences are up to date")  # make log
+            logger.info("RNA 3D motif sequences are up to date")
             if force_alg_update:
-                print(
-                    "Update algorithms is set, loading new motif sequences into algorithms..."
-                )  # make log
+                logger.debug("Update algorithms is set, updating hexdumb and algorithms...")
+                update_hexdumbs()
                 setup.update_algorithms()
             return True
     except ValueError as error:
@@ -84,21 +64,24 @@ def _version_checks(force_alg_update: bool):
         return error
 
 
+# Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
     runtime_arguments: Namespace | configparser.ConfigParser,
-) -> list[algorithm_output | None]:
+) -> list[src.results.algorithm_output | src.results.error | None]:
     """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
     result_list = []
     if isinstance(runtime_arguments, Namespace):
-        proc_obj = proc.bgap_rna.from_argparse(runtime_arguments)
+        proc_obj = bgap.bgap_rna.from_argparse(runtime_arguments)
         output_file = runtime_arguments.output
         pool_boys = runtime_arguments.workers
         csv_separator = runtime_arguments.separator
+        name = runtime_arguments.id
     elif isinstance(runtime_arguments, configparser.ConfigParser):
-        proc_obj = proc.bgap_rna.from_config(runtime_arguments, "VARIABLES")
+        proc_obj = bgap.bgap_rna.from_config(runtime_arguments, "VARIABLES")
         output_file = runtime_arguments.get("VARIABLES", "output")
         pool_boys = runtime_arguments.getint("VARIABLES", "workers")
         csv_separator = runtime_arguments.get("VARIABLES", "separator")
+        name = runtime_arguments.get("VARIABLES", "name")
     else:
         raise TypeError(
             "runtime args is neither a argparse Namespace nor a configparser.Configparser instance. Exiting..."
@@ -106,38 +89,49 @@ def _interactive_session(
     while True:
         print("Awaiting input...")
         user_input = input()
-        if user_input.strip() in ["exit", "Exit", "Eixt", "Exi", "eixt"]:
-            print("Exiting, thank you for using RNAmotiFold!")
+        if user_input.strip().lower() in ["exit", "eixt", "exi"]:
+            logger.debug("Exit was given as input, exiting...")
             break
-        elif user_input in ["status", "Status", "state"]:
-            print(proc_obj)
-        elif user_input in ["h", "help", "-h"]:
+        elif user_input.strip().lower() in ["h", "help", "-h"]:
             print(
-                f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta,fastq or stockholm formatted sequence file."
+                f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta, fastq or stockholm formatted sequence file."
             )
         else:
-            proc_obj.input = user_input.strip()
+            realtime_input = _input_check(user_input, name)
             result = proc_obj.auto_run(
-                o_file=output_file, pool_workers=pool_boys, output_csv_separator=csv_separator
+                realtime_input,
+                o_file=output_file,
+                pool_workers=pool_boys,
+                output_csv_separator=csv_separator,
             )
             result_list.append(result)
     return result_list  # Added result outputting just in case I wanna do something with that down the line.
 
 
+# Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
     runtime_arguments: Namespace | configparser.ConfigParser,
-) -> list[algorithm_output]:
+) -> list[src.results.algorithm_output | src.results.error]:
     if isinstance(runtime_arguments, Namespace):
-        proc_obj = proc.bgap_rna.from_argparse(runtime_arguments)
+        runtime_input = _input_check(
+            runtime_arguments.input,
+            runtime_arguments.id,
+        )
+        proc_obj = bgap.bgap_rna.from_argparse(runtime_arguments)
         output_file = runtime_arguments.output  # type:str
         pool_boys = runtime_arguments.workers  # type: int
         csv_seaparator = runtime_arguments.separator  # type:str
     elif isinstance(runtime_arguments, configparser.ConfigParser):
-        proc_obj = proc.bgap_rna.from_config(runtime_arguments)
+        runtime_input = _input_check(
+            runtime_arguments.get("VARIABLES", "input"),
+            runtime_arguments.get("VARIABLES", "name"),
+        )
+        proc_obj = bgap.bgap_rna.from_config(runtime_arguments)
         output_file = runtime_arguments.get("VARIABLES", "output")  # type:str
         pool_boys = runtime_arguments.getint("VARIABLES", "workers")
         csv_seaparator = runtime_arguments.get("VARIABLES", "separator")  # type:str
     result = proc_obj.auto_run(
+        user_input=runtime_input,
         o_file=output_file,
         pool_workers=pool_boys,
         output_csv_separator=csv_seaparator,
@@ -146,6 +140,7 @@ def _uninteractive_session(
     return result
 
 
+# Does all the updating
 def updates(no_update: bool, update_algorithms: bool):
     if not no_update:
         version_check_done = False
@@ -155,75 +150,117 @@ def updates(no_update: bool, update_algorithms: bool):
             except ValueError as error:
                 raise error
     else:
-        print(
-            "Motif sequence updating disabled, continuing without update..."
-        )  # make into a log entry
+        logger.debug("Motif sequence updating disabled, continuing without updating.")
 
 
-def _duplicate_warning(mot_source: int, mot_orient: int) -> list[dict]:
-    """Gives out a warning about possible duplicates in the currently used motif set"""
-    if mot_source < 4:
-        motif_set_in_use = get_current_set(mot_source, mot_orient)
-        for motif_set in motif_set_in_use:
-            for key in motif_set.keys():
-                if len(key) == 1:
-                    print(
-                        f"Warning possibles duplicates: {key}: {''.join(motif_set[key])}/{key.upper()}"
-                    )  # Also log this for uninteractive sessions.
+# Finds File type based on file ending
+def _find_filetype(file_path: Path) -> None:
+    if file_path.suffixes[-1] == ".gz" or file_path.suffixes[-1] == ".zip":
+        file_extension = file_path.suffixes[-2]
+        input_zipped = True
     else:
-        print(
-            "Duplicate warnings are disabled for custom motif sets, I trust you know what you're doing."
+        file_extension = file_path.suffixes[-1]
+        input_zipped = False
+    match file_extension:
+        case (
+            ".fasta"
+            | ".fas"
+            | ".fa"
+            | ".fna"
+            | ".ffn"
+            | ".faa"
+            | ".mpfa"
+            | ".frn"
+            | ".txt"
+            | ".fsa"
+        ):
+            filetype = "fasta"
+
+        case ".fastq" | ".fq":
+            filetype = "fastq"
+        case ".stk" | ".stockholm" | ".sto":
+            filetype = "stockholm"
+        case _:
+            logger.critical(
+                "Filetype was not recognized as fasta, fastq or stockholm format. Or file could not be unpacked, please ensure it is zipped with either .gz or .zip or not zipped at all."
+            )
+            raise TypeError("Unable to read given input file.")
+    logger.debug(f"Recognized filetype as {filetype}.")
+    return (input_zipped, filetype)
+
+
+# Read input file
+def _read_input_file(
+    file_path: Path,
+) -> (
+    SeqIO.FastaIO.FastaIterator
+    | SeqIO.QualityIO.FastqPhredIterator
+    | Generator[SeqIO.SeqRecord, None, None]
+):
+    (zipped, filetype) = _find_filetype(file_path)
+    if not zipped:
+        return SeqIO.parse(file_path, filetype)
+    else:
+        with gzip.open(file_path, "rt") as handle:
+            return SeqIO.parse(handle, filetype)
+
+
+# This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
+def _input_check(user_input: str, id: str):
+    if Path(user_input).resolve().is_file():
+        logger.info("Recognized input as filepath, reading...")
+        return _read_input_file(Path(user_input).resolve())
+    else:
+        if any(c not in "AUCGTaucgt+" for c in set(user_input)):
+            raise ValueError(
+                "Input string was neither a viable file path nor a viable RNA or DNA sequence"
+            )
+        else:
+            return SeqRecord(seq=Seq(user_input), id=id)
+
+
+# configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
+def configure_logs(loglevel: str, logfile: Optional[str]):
+    if logfile is not None:
+        logging.basicConfig(
+            filename=logfile,
+            filemode="w+",
+            level=loglevel,
+            format="%(asctime)s:%(name)s:%(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
-
-
-# builds the names of the 3 motif sets in use currently from the -Q and -b input arguments
-def get_current_set(mot_src: int, mot_ori: int) -> list[dict]:
-    types = ["hairpins", "internals", "bulges"]
-    match mot_src:
-        case 1:
-            src = "rna3d"
-        case 2:
-            src = "rfam"
-        case 3:
-            src = "both"
-    match mot_ori:
-        case 1:
-            orient = "fw.csv"
-        case 2:
-            orient = "rv.csv"
-        case 3:
-            orient = "both.csv"
-    filenames = ["_".join([src, x, orient]) for x in types]
-    with open(
-        Path(__file__).resolve().parent.joinpath("src", "data", "duplicates.json"), "r"
-    ) as file:
-        read_json = json.load(file, object_hook=dict)
-    current_set = [x for x in read_json if x["motif_mode"] in filenames]
-    return current_set
+    else:
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=loglevel,
+            format="%(asctime)s:%(name)s:%(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
 
 if __name__ == "__main__":
     rt_args = args.get_cmdarguments()
     try:
         if isinstance(rt_args, configparser.ConfigParser):
+            configure_logs(
+                rt_args.get("VARIABLES", "loglevel"), rt_args.get("VARIABLES", "logfile")
+            )
             updates(
                 rt_args.getboolean("VARIABLES", "no_update"),
                 rt_args.getboolean("VARIABLES", "update_algorithms"),
             )
-            _duplicate_warning(
-                rt_args.getint("VARIABLES", "motif_source"),
-                rt_args.getint("VARIABLES", "motif_orientation"),
-            )
             user_input = rt_args.get("VARIABLES", "input")
         elif isinstance(rt_args, Namespace):
+            configure_logs(rt_args.loglevel, rt_args.logfile)
             updates(rt_args.no_update, rt_args.update_algorithms)
-            _duplicate_warning(rt_args.motif_source, rt_args.motif_orientation)
             user_input = rt_args.input
     except ValueError as error:
         raise error
 
     if user_input is not None:
+        logger.info("Input is set, starting calculations")
         out = _uninteractive_session(rt_args)
 
     else:
+        logger.info("No input set, starting interactive session")
         out = _interactive_session(rt_args)

@@ -1,5 +1,4 @@
 import sys
-import gzip
 import argparse
 import subprocess
 import configparser
@@ -7,11 +6,15 @@ import multiprocessing
 from pathlib import Path
 from typing import Iterator, Optional, Generator
 from Bio import SeqIO
-from Bio.Seq import Seq
+import logging
 from Bio.SeqRecord import SeqRecord
 from requests import get
 import src.results as results
 from contextlib import redirect_stdout
+
+import logging
+
+logger = logging.getLogger("bgap_rna")
 
 # A Python class for making Bellman's GAP more convenient to use
 # Just create a class instances, feed it with the call arguments you need
@@ -22,13 +25,13 @@ from contextlib import redirect_stdout
 class bgap_rna:
 
     def __repr__(self) -> str:
-        return f"bgap_rna({' , '.join([str(x)+'='+str(self.__dict__[x]) for x in self.__dict__ if x != '_input'])})"
+        return f"bgap_rna({' , '.join([str(x)+'='+str(self.__dict__[x]) for x in self.__dict__])})"
 
     def __str__(self) -> str:
-        return " ".join([self.call, str(self._input_str)])
+        return self.call
 
     @staticmethod
-    def _worker_funct(call: str, iq: multiprocessing.Queue, oq: multiprocessing.Queue) -> list:
+    def _worker_funct(call: str, iq: multiprocessing.Queue, listenerq: multiprocessing.Queue):
         while True:
             record = iq.get()  # type:Optional[SeqIO.SeqRecord]
             if record is None:
@@ -45,7 +48,7 @@ class bgap_rna:
                 )
             else:
                 result = results.error(record.id, subprocess_output.stderr)
-            oq.put(result)
+            listenerq.put(result)
 
     @staticmethod
     def get_current_motif_version(attempts=5) -> str:
@@ -78,7 +81,6 @@ class bgap_rna:
     def from_argparse(cls, cmd_args: argparse.Namespace):
         """argparse alternative constructor."""
         return cls(
-            input=cmd_args.input,
             algorithm=cmd_args.algorithm,
             motif_source=cmd_args.motif_source,
             motif_orientation=cmd_args.motif_orientation,
@@ -90,7 +92,6 @@ class bgap_rna:
             energy_percent=cmd_args.energy_percent,
             allowLonelyBasepairs=cmd_args.basepairs,
             subopt=cmd_args.subopt,
-            time=cmd_args.time,
             pfc=cmd_args.pfc,
             pfc_filtering=cmd_args.pfc_filtering,
             session_id=cmd_args.id,
@@ -106,7 +107,6 @@ class bgap_rna:
     def from_config(cls, config: configparser.ConfigParser, section_name: str):
         """ConfigParse alternative constructor. Accepts a string/path to a config file or a ConfigParser. Unused parameters should be left empty or be set to None."""
         return cls(
-            input=config.get(section_name, "input"),
             algorithm=config.get(section_name, "algorithm"),
             motif_source=config.getint(section_name, "motif_source"),
             motif_orientation=config.getint(section_name, "motif_orientation"),
@@ -118,7 +118,6 @@ class bgap_rna:
             energy_percent=config.getfloat(section_name, "energy_percent"),
             allowLonelyBasepairs=config.getint(section_name, "basepairs"),
             subopt=config.getboolean(section_name, "subopt"),
-            time=config.getboolean(section_name, "time"),
             pfc=config.getboolean(section_name, "pfc"),
             pfc_filtering=config.getboolean(section_name, "pfc_filtering"),
             session_id=config.get(section_name, "ID"),
@@ -132,7 +131,6 @@ class bgap_rna:
 
     def __init__(
         self,
-        input: Optional[str | SeqRecord | list[str | SeqRecord]] = None,
         algorithm: Optional[str] = None,
         motif_source: Optional[int] = None,
         motif_orientation: Optional[int] = None,
@@ -150,7 +148,6 @@ class bgap_rna:
         replace_internals: bool = False,
         replace_bulges: bool = False,
         subopt: bool = False,
-        time: bool = False,
         pfc: bool = False,
         pfc_filtering: bool = False,
         session_id: str = "N/A",
@@ -158,7 +155,6 @@ class bgap_rna:
         self.id = session_id
         self.subopt = subopt
         self.pfc = pfc
-        self.time = time
         self.motif_source = motif_source
         self.motif_orientation = motif_orientation
         self.kvalue = kvalue
@@ -372,61 +368,14 @@ class bgap_rna:
                 try:
                     alg = alg + "_" + self.hishape_mode
                 except TypeError:
-                    raise TypeError("Specify a hishape mode with -q if you want to use hishapes.")
+                    raise TypeError("Specify a hishape mode with -p")
             if self.subopt:
                 alg = alg + "_subopt"
             elif self.pfc:
                 alg = alg + "_pfc"
                 if self.subopt:
-                    raise ValueError("Partition function can't be used with subopt")
+                    raise ValueError("Partition function can't be used in combination with subopt")
             self._algorithm = alg
-
-    # Checks if input is a single sequence or a file with multiple sequences and creates either a SeqRecord or an iterator
-    @property
-    def input(self):
-        return self._input
-
-    # Input setter function, accepts a Path, string, SeqRecord or List and always returns an Iterator over SeqRecord objects (even if the length is 1)
-    @input.setter
-    def input(self, input: Optional[Path | str | SeqRecord | list[str | SeqRecord]]):
-        self._input_str = str(input)
-        if input is None:
-            self._input = input
-        else:
-            match input:
-                case Path():
-                    if input.is_file():
-                        self._input = self._read_input_file(input)
-                    else:
-                        raise LookupError("Could not find input file.")
-                case str():
-                    if Path(input).resolve().is_file():
-                        self._input = self._read_input_file(Path(input).resolve())
-
-                    else:
-                        if any(c not in "AUCGTaucgt+" for c in set(input)):
-                            raise ValueError(
-                                "Input string was neither a viable file path nor a viable RNA or DNA sequence"
-                            )
-                        else:
-                            self._input = SeqRecord(seq=Seq(input), id=self.id)
-
-                case (
-                    SeqRecord()
-                    | SeqIO.FastaIO.FastaIterator()
-                    | SeqIO.QualityIO.FastqPhredIterator()
-                ):
-                    self._input = input
-                case list():
-                    if any(type(candidate) is not SeqRecord for candidate in input):
-                        raise ValueError("At least one of your list items is not a SeqRecords")
-
-                    else:
-                        self._input = iter(input)
-                case _:
-                    raise TypeError(
-                        "Did not recognize input type, only path, str, SeqRecord, List of Strings or List of SeqRecords is allowed."
-                    )
 
     @property
     def call(self):
@@ -450,7 +399,7 @@ class bgap_rna:
             runtime_dictionary["-c"] = self.energy_percent
         else:
             runtime_dictionary["-k"] = self.kvalue
-        if self.algorithm == "motshapeX":
+        if self.algorithm == "RNAmoSh":
             runtime_dictionary["-q"] = self.shape_level
         arguments = [
             "{key} {value}".format(key=x, value=y)
@@ -459,75 +408,33 @@ class bgap_rna:
         ]
 
         call = " ".join([self.algorithm_path, " ".join(arguments), ""])
-        if self.time:
-            call = "time " + call
         return call
 
     @call.setter
     def call(self):
         raise ValueError("Please use the custom_call property so set a custom call.")
 
-    # Finds File type based on file ending
-    def _find_filetype(self, file_path: Path) -> None:
-        if file_path.suffixes[-1] == ".gz" or file_path.suffixes[-1] == ".zip":
-            file_extension = file_path.suffixes[-2]
-            input_zipped = True
-        else:
-            file_extension = file_path.suffixes[-1]
-            input_zipped = False
-
-        match file_extension:
-            case (
-                ".fasta"
-                | ".fas"
-                | ".fa"
-                | ".fna"
-                | ".ffn"
-                | ".faa"
-                | ".mpfa"
-                | ".frn"
-                | ".txt"
-                | ".fsa"
-            ):
-                filetype = "fasta"
-
-            case ".fastq" | ".fq":
-                filetype = "fastq"
-
-            case ".stk" | ".stockholm" | ".sto":
-                filetype = "stockholm"
-            case _:
-                raise TypeError(
-                    "Filetype was not recognized as fasta, fastq or stockholm format. Or file could not be unpacked, please ensure it is zipped with either .gz or .zip or not zipped at all."
-                )
-        return (input_zipped, filetype)
-
-    # Read input file
-    def _read_input_file(
-        self, file_path: Path
-    ) -> (
-        SeqIO.FastaIO.FastaIterator
-        | SeqIO.QualityIO.FastqPhredIterator
-        | Generator[SeqIO.SeqRecord, None, None]
-    ):
-        (zipped, filetype) = self._find_filetype(file_path)
-        if not zipped:
-            return SeqIO.parse(file_path, filetype)
-        else:
-            with gzip.open(file_path, "rt") as handle:
-                return SeqIO.parse(handle, filetype)
-
     # Calibrate results.algorithm objects based on the current status of the bgap_rna class instance
-    def _calibrate_result_objects(self, sep: str = "\t"):
+    def _calibrate_result_objects(
+        self, sep: Optional[str] = "\t", logger: Optional[logging.Logger] = None
+    ):
         """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
         results.result._separator = sep
         results.result._algorithm = self.algorithm
         results.algorithm_output.pfc = self.pfc
         results.algorithm_output.filtering = self.pfc_filtering
+        results.algorithm_output.logger = logger
 
     # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
     def auto_run(
         self,
+        user_input: (
+            SeqRecord
+            | Iterator
+            | SeqIO.FastaIO.FastaIterator
+            | SeqIO.QualityIO.FastqPhredIterator
+            | Generator[SeqIO.SeqRecord, None, None]
+        ),
         o_file: Optional[Path] = None,
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator="\t",
@@ -536,28 +443,35 @@ class bgap_rna:
         if output_csv_separator == r"\t":
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
-        if isinstance(self.input, SeqRecord):
-            return self._run_single_process(o_file)
+        if isinstance(user_input, SeqRecord):
+            return self._run_single_process(user_input, o_file)
         elif isinstance(
-            self.input,
+            user_input,
             Iterator
             | SeqIO.FastaIO.FastaIterator
             | SeqIO.QualityIO.FastqPhredIterator
             | Generator[SeqIO.SeqRecord, None, None],
         ):
-            return self._run_multi_process(o_file, workers=pool_workers)
+            return self._run_multi_process(user_input, o_file, workers=pool_workers)
         else:
             raise TypeError(
                 "Input does not match any of the allowed types SeqRecord, FastaIterator, FastqPhredIterator, Iterator[list[SeqRecord]]"
             )
 
     # single process function utilizing subprocess to run a single prediction and return the output
-    def _run_single_process(self, output_f: Path | None = None) -> results.algorithm_output:
+    def _run_single_process(
+        self,
+        user_input,
+        output_f: Path | None = None,
+    ) -> results.algorithm_output | results.error:
         """Single sequence input running function, silently transcribes DNA to RNA"""
-        if "T" in str(self.input.seq):
-            self.input.seq = self.input.seq.transcribe()
+        if "T" in str(user_input):
+            logger.debug("Detected DNA sequence as input, transcribing to RNA")
+            user_input.seq = user_input.seq.transcribe()
+            logger.debug(f"Transcription complete, new input:{str(user_input.seq)}")
+        logger.debug("Running prediction")
         subproc_out = subprocess.run(
-            self.call + str(self.input.seq),
+            self.call + str(user_input.seq),
             text=True,
             capture_output=True,
             shell=True,
@@ -565,12 +479,14 @@ class bgap_rna:
         )
         if not subproc_out.returncode:
             return_val = results.algorithm_output(
-                self.input.id, subproc_out.stdout, subproc_out.stderr
+                user_input.id, subproc_out.stdout, subproc_out.stderr
             )
+            logger.info(f"Prediction finished successfully")
             if isinstance(output_f, Path):
                 with open(output_f, "a+") as file:
                     with redirect_stdout(file):
                         return_val.write_results(initiated=False)
+                        return return_val
             else:
                 return_val.write_results(initiated=False)
                 sys.stdout.flush()
@@ -581,11 +497,18 @@ class bgap_rna:
                     "Your prediction could not be computed due to insufficient memory capacity on your computer, please download more RAM."
                 )
             else:
-                print(subproc_out.stderr)
+                logger.info(f"Process {user_input.id} finished with error: {subproc_out.stderr}")
+                return results.error(user_input.id, subproc_out.stderr)
 
     # multiprocessing function, which utilizes a worker pool to run the specified algorithm on each sequences in the input iterable
     def _run_multi_process(
         self,
+        user_input: (
+            Iterator
+            | SeqIO.FastaIO.FastaIterator
+            | SeqIO.QualityIO.FastqPhredIterator
+            | Generator[SeqIO.SeqRecord, None, None]
+        ),
         output_file: Optional[Path] = None,
         workers: int = multiprocessing.cpu_count(),
     ) -> Optional[list[results.algorithm_output]]:
@@ -593,21 +516,21 @@ class bgap_rna:
         Manager = multiprocessing.Manager()  # Spawn multiprocessing Manager object
         # Start with setting up the input and output Queues
         input_q = Manager.Queue()  # type:multiprocessing.Queue[SeqIO.SeqRecord]
-        for record in self.input:
+        for record in user_input:
             input_q.put(record)
 
         # Check for the size of the input Q, if it is below workers we have less sequences than workers
         if input_q.qsize() < workers:
             workers = input_q.qsize()
-        output_q = Manager.Queue()  # type:multiprocessing.Queue[tuple]
+        listener_q = Manager.Queue()  # type:multiprocessing.Queue[tuple]
         # Start worker Pool and the listener subprocess, which takes in the worker outputs and formats them
         Pool = multiprocessing.Pool(processes=workers)
-        listening = multiprocessing.Process(target=self._listener, args=(output_q, output_file))
+        listening = multiprocessing.Process(target=self._listener, args=(listener_q, output_file))
         listening.start()
         worker_list = []  # type:list[multiprocessing.AsyncResult]
 
         for i in range(workers):  # Populate the pool
-            work = Pool.apply_async(bgap_rna._worker_funct, (self.call, input_q, output_q))
+            work = Pool.apply_async(bgap_rna._worker_funct, (self.call, input_q, listener_q))
             worker_list.append(work)
 
         for i in range(workers):  # Tell the workers to stop
@@ -616,12 +539,14 @@ class bgap_rna:
             work.get()
         Pool.close()
         Pool.join()
-        output_q.put(None)
+        listener_q.put(None)
         listening.join()
-        return output_q.get()
+        return listener_q.get()
 
     def _listener(
-        self, q: multiprocessing.Queue, output_f: Path | None
+        self,
+        q: multiprocessing.Queue,
+        output_f: Path | None,
     ) -> list[results.algorithm_output] | None:
         writing_started = False
         return_list = []
@@ -633,12 +558,16 @@ class bgap_rna:
             else:
                 if isinstance(output, results.algorithm_output):
                     if isinstance(output_f, Path):
+                        logger.info(f"Prediction {output.id} finished.")
                         with open(output_f, "a+") as file:
                             with redirect_stdout(file):
                                 writing_started = output.write_results(writing_started)
                     else:
                         writing_started = output.write_results(writing_started)
                         sys.stdout.flush()
+                        logger.info(f"Prediction {output.id} finished.")
                     return_list.append(output)
                 if isinstance(output, results.error):
-                    sys.stderr.write(f"{output.id}: {output.error}")
+                    logger.info(
+                        f"Prediction {output.id} finished with error: {output.error.strip()}"
+                    )

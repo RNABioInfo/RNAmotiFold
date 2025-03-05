@@ -15,6 +15,10 @@ conversion_json_path = (
 motifs_folder_path = Path(__file__).resolve().parent.joinpath("data", "motifs")
 duplicates_json_path = Path(__file__).resolve().parent.joinpath("data", "duplicates.json")
 
+import logging
+
+logger = logging.getLogger("update_motifs")
+
 
 @dataclass
 class MotifSequence:
@@ -99,33 +103,26 @@ class rna3d_motif:
         return flatten([[*item["alignment"]] for item in self.motifs])
 
     @property
-    def rna3d_fw(self):
-        if hasattr(self, "_rna3d_fw"):
-            return self._rna3d_fw
+    def rna3d(self):
+        if hasattr(self, "_rna3d"):
+            return self._rna3d
         else:
             return []
 
-    @rna3d_fw.setter
-    def rna3d_fw(self, new_data):
-        if hasattr(self, "_rna3d_fw"):
-            self._rna3d_fw.append(new_data)
+    @rna3d.setter
+    def rna3d(self, new_data):
+        if hasattr(self, "_rna3d"):
+            self._rna3d.append(new_data)
         else:
-            self._rna3d_fw = []
-            self._rna3d_fw.append(new_data)
-
-    @property
-    def rna3d_rv(self):
-        _bgsu_rv = []
-        for element in self.rna3d_fw:
-            _bgsu_rv.append(element[::-1])
-        return _bgsu_rv
+            self._rna3d = []
+            self._rna3d.append(new_data)
 
     @property
     def bulge_sequences(self):
         if self.loop_type == "internal":
             return [
                 MotifSequence(sequence=x, abbreviation=self.abbreviation)
-                for x in set(self.rna3d_fw)
+                for x in set(self.rna3d)
                 if "$" not in x
             ]
         else:
@@ -138,7 +135,7 @@ class rna3d_motif:
         if self.loop_type == "internal":
             return [
                 MotifSequence(sequence=x, abbreviation=self.abbreviation)
-                for x in set(self.rna3d_fw)
+                for x in set(self.rna3d)
                 if "$" in x
             ]
         else:
@@ -148,9 +145,7 @@ class rna3d_motif:
 
     @property
     def seq_abb_tpls(self):
-        return [
-            MotifSequence(sequence=x, abbreviation=self.abbreviation) for x in set(self.rna3d_fw)
-        ]
+        return [MotifSequence(sequence=x, abbreviation=self.abbreviation) for x in set(self.rna3d)]
 
     @staticmethod
     def load_current_rna3datlas():
@@ -223,12 +218,11 @@ class rna3d_motif:
             case "hairpin":
                 for alignment in alignment_nucleotide_list:
                     if len(alignment) - 2 > 3:
-                        self.rna3d_fw = "".join(
+                        self.rna3d = "".join(
                             rna3d_motif.get_nucleotide_element(x, 3) for x in alignment[1:-1]
                         )
                     else:
                         pass
-                        # print(alignment)
             case "internal":
                 for alignment in alignment_nucleotide_list:
                     sequence_break = rna3d_motif.get_break(alignment)
@@ -236,7 +230,7 @@ class rna3d_motif:
                     if sequence_break > 0:
                         front = alignment[1:sequence_break]
                         back = alignment[sequence_break + 2 : -1]
-                        self.rna3d_fw = rna3d_motif.FUSION(
+                        self.rna3d = rna3d_motif.FUSION(
                             "".join(rna3d_motif.get_nucleotide_element(x, 3) for x in front),
                             "".join(rna3d_motif.get_nucleotide_element(x, 3) for x in back),
                         )
@@ -285,10 +279,10 @@ class rna3d_motif:
         with open(hexdumb_file, "a+") as writefile:
             writefile.write("\n".join(out) + "\n")
 
-    @staticmethod  # collects the rfam_hairpins_fw and rfam_internals_fw, these are pre-written so it just has to read the csv files. Both are turned into lists made up of (sequence, motif abbreviation) tuples.
+    @staticmethod  # collects the rfam_hairpins and rfam_internals, these are pre-written so it just has to read the csv files. Both are turned into lists made up of (sequence, motif abbreviation) tuples.
     def get_rfam_sequences() -> tuple[list[MotifSequence], list[MotifSequence]]:
-        rfam_hairpins = motifs_folder_path.joinpath("rfam_hairpins_fw.csv")
-        rfam_internals = motifs_folder_path.joinpath("rfam_internals_fw.csv")
+        rfam_hairpins = motifs_folder_path.joinpath("rfam_hairpins.csv")
+        rfam_internals = motifs_folder_path.joinpath("rfam_internals.csv")
         with open(rfam_hairpins) as file:
             hairpins_read = file.readlines()  # type:list[str]
         hairpins = [
@@ -315,41 +309,29 @@ class rna3d_motif:
                 if len(slot) >= len(self.motif_name):
                     searchd = re.search(pattern=self.motif_name.lower(), string=slot.lower())
                     if searchd is not None:
-                        self.annotations.append(element)
-                        indices.append(idx)
-                        break
+                        if any(
+                            [
+                                re.search(pattern=x.lower(), string=slot.lower())
+                                for x in ["mini", "variation", "related", "reverse"]
+                            ]
+                        ):
+                            pass
+                        else:
+                            self.annotations.append(element)
+                            indices.append(idx)
+                            break
                 else:
                     pass
         return [j for i, j in enumerate(annotations_list) if i not in indices]
 
 
-# Function that takes an input list of MotifSequence Objects, checks it for duplicates and writes sequences to csv. Ignores same motif duplicate sequences. All duplicates present in the list are put into a dictionary that is then returned.
-# AFTER THIS IS RUN ONCE YOU NEED TO UPDATE THE SEQUENCE CATALOG BECAUSE THE FUNCTION CHANGES THE ABBREVIATIONS SO ON A SECOND RUN THERE WONT BE ANY DUPLICATES ANYMORE
-def dupe_check_write_csv(input_list: list[MotifSequence], filename: str, write_csv: bool = True):
-    seen = {}  # type: dict[str,str]
-    dupes = {"motif_mode": filename, "duplicate sequences": []}  # type: dict[str,str|list]
-    for MotSeq in input_list:
-        if MotSeq.sequence not in seen.keys():
-            seen[MotSeq.sequence] = MotSeq.abbreviation
-        else:
-            if (
-                seen[MotSeq.sequence] == MotSeq.abbreviation
-                or seen[MotSeq.sequence] == MotSeq.abbreviation.lower()
-            ):
-                pass
-            else:
-                seen[MotSeq.sequence] = seen[MotSeq.sequence].lower()
-                if MotSeq.abbreviation not in dupes.keys():
-                    dupes[seen[MotSeq.sequence]] = [MotSeq.abbreviation]
-                else:
-                    dupes[seen[MotSeq.sequence]].append(MotSeq.abbreviation)
-                dupes["duplicate sequences"].append(
-                    str(MotSeq) + "/" + seen[MotSeq.sequence].upper()
-                )
-    if write_csv:
-        with open(motifs_folder_path.joinpath(filename), mode="w+") as file:
-            file.write("\n".join([x + f",{seen[x]}" for x in seen]))
-    return dupes
+# Function that takes an input list of MotifSequence Objects writes sequences to csv. Ignores same motif duplicate sequences.
+def write_csv(input_list: list[MotifSequence], filename: str):
+    seen = set([str(MotSeq) for MotSeq in input_list])
+    with open(motifs_folder_path.joinpath(filename), mode="w+") as file:
+        for MotSeq in seen:
+            file.write(MotSeq + "\n")
+    return True
 
 
 def flatten(xss):  # Makes a list of lists into a single list with all the items
@@ -364,7 +346,7 @@ def sequence_reverser(seq_abb_tpls: list[MotifSequence]) -> list[MotifSequence]:
 
 
 def update_hexdumbs():  # Function iterates of motifs csv files and writes all their hexdums to submodules/RNALoops/Extensions/mot_header.hh
-    """main function for updating hexdumbs. Can be used on it's own to update the mot_header.hh file in submodules/RNALoops/Extensions. Does not check for duplicates again, if you want your duplicate.json updated run update_motif_collection.py"""
+    """main function for updating hexdumbs. Can be used on it's own to update the mot_header.hh file in submodules/RNALoops/Extensions."""
     if Path.is_file(
         Path(__file__)
         .resolve()
@@ -389,8 +371,8 @@ def update_hexdumbs():  # Function iterates of motifs csv files and writes all t
 
 
 def main():
-    """Updates motif sequence collection and updates both the duplicates.json file as well as the hexdumb file RNAmotiFold/submodules/RNALoops/Extensions/mot_header.hh"""
-    # rfam_sequences_tuples[0] = rfam_hairpins_fw, rfam_sequences_tuples[1] = rfam_internals_fw
+    """Updates motif sequence collection and the hexdumb file RNAmotiFold/submodules/RNALoops/Extensions/mot_header.hh"""
+    # rfam_sequences_tuples[0] = rfam_hairpins, rfam_sequences_tuples[1] = rfam_internals
     rfam_sequences_tuples = rna3d_motif.get_rfam_sequences()
     motifs = rna3d_motif.load_motif_json()
     hl_json, hl_annotations, il_json, il_annotations = rna3d_motif.load_current_rna3datlas()
@@ -405,75 +387,35 @@ def main():
                 motif.get_rna3d_json_sequences(il_json)
         motif.get_rna3d_api_sequences()
 
-    rna3d_hairpins_fw = flatten([x.seq_abb_tpls for x in motifs if x.loop_type == "hairpin"])
-    rna3d_hairpins_rv = sequence_reverser(rna3d_hairpins_fw)
-    rna3d_hairpins_both = flatten([rna3d_hairpins_fw, rna3d_hairpins_rv])
+    rna3d_hairpins = flatten([x.seq_abb_tpls for x in motifs if x.loop_type == "hairpin"])
+    rna3d_internals = flatten([x.internal_sequences for x in motifs if x.loop_type == "internal"])
 
-    rna3d_internals_fw = flatten(
-        [x.internal_sequences for x in motifs if x.loop_type == "internal"]
-    )
-    rna3d_internals_rv = sequence_reverser(rna3d_internals_fw)
-    rna3d_internals_both = flatten([rna3d_internals_fw, rna3d_internals_rv])
-
-    rna3d_bulges_fw = flatten([x.bulge_sequences for x in motifs if x.loop_type == "internal"])
-    rna3d_bulges_rv = sequence_reverser(rna3d_bulges_fw)
-    rna3d_bulges_both = flatten([rna3d_bulges_fw, rna3d_bulges_rv])
+    rna3d_bulges = flatten([x.bulge_sequences for x in motifs if x.loop_type == "internal"])
 
     # retrieved from tuple created by get_rfam_sequences since they are pre-set
-    rfam_hairpins_fw = rfam_sequences_tuples[0]
-    rfam_hairpins_rv = sequence_reverser(rfam_hairpins_fw)
-    rfam_hairpins_both = flatten([rfam_hairpins_fw, rfam_hairpins_rv])
-
+    rfam_hairpins = rfam_sequences_tuples[0]
     # retrieved from tuple created by get_rfam_sequences since they are pre-set
-    rfam_internals_fw = rfam_sequences_tuples[1]
-    rfam_internals_rv = sequence_reverser(rfam_internals_fw)
-    rfam_internals_both = flatten([rfam_internals_fw, rfam_internals_rv])
-
-    both_hairpins_fw = flatten([rna3d_hairpins_fw, rfam_hairpins_fw])
-    both_hairpins_rv = flatten([rna3d_hairpins_rv, rfam_hairpins_rv])
-    both_hairpins_both = flatten([rna3d_hairpins_both, rfam_hairpins_both])
-
-    both_internals_fw = flatten([rna3d_internals_fw, rna3d_internals_fw])
-    both_internals_rv = flatten([rna3d_internals_rv, rna3d_internals_rv])
-    both_internals_both = flatten([rna3d_internals_both, rfam_internals_both])
+    rfam_internals = rfam_sequences_tuples[1]
+    # There are no bulge sequences from Rfam so no need to flatten anything, Rfam bulges file is left empty anyways (it's just there for consistency, if anything changes I'll have to change the rfam_sequences python script)
+    rfam_bulges = []
 
     #################
     # THERE ARE NO EXTRA BULGE SETS TO MAKE SINCE THERE ARE NO BULGES NOTED IN THE RFAM
     # SHOULD THIS EVER CHANGE I WILL NEED TO ADD THEM ABOVE AND CHANGE THE BULGES DUPE_CHECK_WRITE_CSV CALLS
     ################
-    duplicates = []  # type:list[dict]
-    duplicates.append(dupe_check_write_csv(rna3d_hairpins_fw, "rna3d_hairpins_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_hairpins_rv, "rna3d_hairpins_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_hairpins_both, "rna3d_hairpins_both.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_internals_fw, "rna3d_internals_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_internals_rv, "rna3d_internals_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_internals_both, "rna3d_internals_both.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_fw, "rna3d_bulges_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_rv, "rna3d_bulges_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_both, "rna3d_bulges_both.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_hairpins_fw, "rfam_hairpins_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_hairpins_rv, "rfam_hairpins_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_hairpins_both, "rfam_hairpins_both.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_internals_fw, "rfam_internals_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_internals_rv, "rfam_internals_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rfam_internals_both, "rfam_internals_both.csv"))
-    duplicates.append(dupe_check_write_csv(both_hairpins_fw, "both_hairpins_fw.csv"))
-    duplicates.append(dupe_check_write_csv(both_hairpins_rv, "both_hairpins_rv.csv"))
-    duplicates.append(dupe_check_write_csv(both_hairpins_both, "both_hairpins_both.csv"))
-    duplicates.append(dupe_check_write_csv(both_internals_fw, "both_internals_fw.csv"))
-    duplicates.append(dupe_check_write_csv(both_internals_rv, "both_internals_rv.csv"))
-    duplicates.append(dupe_check_write_csv(both_internals_both, "both_internals_both.csv"))
+    both_hairpins = flatten([rna3d_hairpins, rfam_hairpins])
+    both_internals = flatten([rna3d_internals, rna3d_internals])
+    both_bulges = flatten([rna3d_bulges, rfam_bulges])
 
-    # THERE ARE ACTUALLY NO BULGES IN THE RFAM SO IF I EVER ADD ONE OF THEIR MOTIFS THAT INCLUDES A BULGE OR THEY UPDATE THEIR DATABASE ADD THEM BELOW HERE
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_fw, "both_bulges_fw.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_rv, "both_bulges_rv.csv"))
-    duplicates.append(dupe_check_write_csv(rna3d_bulges_both, "both_bulges_both.csv"))
-
-    if Path.is_file(duplicates_json_path):
-        remove(duplicates_json_path)
-    with open(duplicates_json_path, "w+") as file:
-        file.write(json.dumps(duplicates))
-
+    write_csv(rna3d_hairpins, "rna3d_hairpins.csv")
+    write_csv(rna3d_internals, "rna3d_internals.csv")
+    write_csv(rna3d_bulges, "rna3d_bulges.csv")
+    write_csv(rfam_hairpins, "rfam_hairpins.csv")
+    write_csv(rfam_internals, "rfam_internals.csv")
+    write_csv(rfam_bulges, "rfam_bulges.csv")
+    write_csv(both_hairpins, "both_hairpins.csv")
+    write_csv(both_internals, "both_internals.csv")
+    write_csv(both_bulges, "both_bulges.csv")
     update_hexdumbs()
 
 
