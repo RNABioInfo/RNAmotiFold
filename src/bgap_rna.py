@@ -423,7 +423,6 @@ class bgap_rna:
         results.result._algorithm = self.algorithm
         results.algorithm_output.pfc = self.pfc
         results.algorithm_output.filtering = self.pfc_filtering
-        results.algorithm_output.logger = logger
 
     # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
     def auto_run(

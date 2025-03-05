@@ -7,7 +7,6 @@ import setup
 import configparser
 import setup
 import logging
-from time import sleep
 from pathlib import Path
 from typing import Generator
 from Bio import SeqIO
