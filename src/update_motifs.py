@@ -58,9 +58,8 @@ class rna3d_motif:
         split = nucleotide.split("|")
         element = split[number]
         if number == 3:  # If you are grabbing the base from the nucleotide string
-            if len(element) > 1:  # if it is a nonstandard base it will have
+            if element not in ["G", "C", "U", "A"]:
                 element = rna3d_motif.nucleotide_conversion(element)
-
         return element
 
     @staticmethod
