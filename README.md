@@ -44,8 +44,10 @@ You do not need admin rights for your system to install it, everything will be i
 1. Run `pip install -r requirements.txt` to install non-default python packages into your python environment.
 2. Run `python3 setup.py` (this may take a couple minutes).
 3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAheliCes`` or run any of them directly from ``/RNAmotifold/Build/bin/``.
-3.1 Be sure to check out all the available commandline parameters with ``python RNAmotiFold.py -h``!
-3.2 Calling ``RNAmotiFold.py`` without an input ( ``-i [input]``) will start an interactive session with your set commandline arguments, letting you do individual calculations. Calling it with an input calls your chosen algorithm, does the predictions and returns the output.
+
+### Usage
+1. Be sure to check out all the available commandline parameters with ``python RNAmotiFold.py -h``!
+2. Calling ``RNAmotiFold.py`` without an input ( ``-i [input]``) will start an interactive session with your set commandline arguments, letting you do individual calculations. Calling it with an input calls your chosen algorithm, does the predictions and returns the output.
 
 ---
 
