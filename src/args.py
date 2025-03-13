@@ -214,7 +214,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-a",
         "--algorithm",
-        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5] and RNAmotiCes mode with -p [h,b,m]. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is {config.get(config.default_section, "algorithm")}",
+        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5].. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is {config.get(config.default_section, "algorithm")}",
         type=str,
         action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
@@ -262,19 +262,6 @@ def get_cmdarguments() -> argparse.Namespace:
         type=int,
         default=config.getint(config.default_section, "kvalue"),
         dest="kvalue",
-    )
-    parser.add_argument(
-        "-p",
-        "--hishape",
-        help=f"Set hishape mode. Default is {config.get(config.default_section, "hishape_mode")}.",
-        choices=[
-            "h",
-            "m",
-            "b",
-        ],
-        type=str,
-        default=config.get(config.default_section, "hishape_mode"),
-        dest="hishape_mode",
     )
     parser.add_argument(
         "-q",
@@ -422,7 +409,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "--nu",
         "--no_update",
-        help=f"Blocks sequence updating, overwrites update_algorithms. Default is {config.get(config.default_section, "no_update")}",
+        help=f"Blocks checking for new RNA 3D Motif Atlas version. Default is {config.get(config.default_section, "no_update")}",
         default=config.getboolean(config.default_section, "no_update"),
         action="store_true",
         dest="no_update",
@@ -430,7 +417,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "--ua",
         "--update_algorithms",
-        help=f"If set, loads current motif sequences from /RNAmotiFold/src/data/motifs/ into algorithms and recompiles them. This does not fetch the current motif sequences, re-run setup.py to fetch latest motif sequences and load them into the algorithms. Gets overruled by --no_update. Default is {config.get(config.default_section, "update_algorithms")}.",
+        help=f"If set, loads current motif sequences from /RNAmotiFold/src/data/motifs/ into algorithms and recompiles them. This does not fetch the current motif sequences, re-run setup.py to fetch latest motif sequences and load them into the algorithms. Default is {config.get(config.default_section, "update_algorithms")}.",
         action="store_true",
         dest="update_algorithms",
         default=config.getboolean(config.default_section, "update_algorithms"),

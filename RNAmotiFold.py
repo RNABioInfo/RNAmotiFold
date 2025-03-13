@@ -15,6 +15,7 @@ from Bio.SeqRecord import SeqRecord
 import gzip
 import sys
 from typing import Optional
+from requests import get
 
 ####Logging setup####
 import logging
@@ -22,45 +23,68 @@ import logging
 logger = logging.getLogger("RNAmotiFold")
 
 
-def _version_checks(force_alg_update: bool):
+def get_current_motif_version(attempts=5) -> str:
+    i = 0
+    while i < attempts:
+        response = get("http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json")
+        if response.status_code == 200:
+            return response.headers["Content-disposition"].split("=")[1].split("_")[1][:-5].strip()
+        else:
+            i += 1
+    raise ConnectionError(f"Could not establish connection to API server in {attempts} attempts.")
+
+
+# Compare local RNA 3D Motif Atlas version against current, input should be installed motif version findable under RNALoops/src/data/config. In case of connectivity issues return installed version
+def check_motif_versions(installed_motif_version: str) -> str:
+    try:
+        current = get_current_motif_version()
+    except ConnectionError as error:
+        logger.warning(error)
+        return installed_motif_version
+    return current
+
+
+# Does all the updating with tradeoffs between update algorithms and no update
+def updates(no_update: bool, update_algorithms: bool):
     defaults_config = configparser.ConfigParser(allow_no_value=True)
     defaults_config.read_file(open(args.script_parameters.defaults_config_path))
-    try:
-        update_needed = bgap.bgap_rna.check_motif_versions(defaults_config["VERSIONS"]["motifs"])
-        if update_needed:
+    if no_update:
+        if update_algorithms:
+            # Both are set, so don't check for new version but update algorithms
+            update_hexdumbs()
+            setup.update_algorithms()
+        else:
+            # Only No update is set, so don't check for new version and don't update algorithms
+            return True
+    else:
+        # No update isn't set, so check for new version
+        logger.info("Checking current RNA 3D Motif Atlas version")
+        current_version = check_motif_versions(defaults_config["VERSIONS"]["motifs"])
+        if current_version == defaults_config["VERSIONS"]["motifs"]:
+            logger.info("RNA 3D Motif Atlas sequences are up to date")
+            if update_algorithms:
+                update_hexdumbs()
+                setup.update_algorithms()
+            return True
+        else:
             print(
-                "There is a new set of RNA 3D Motif sequences available. You may need to update the motif.json file manually. Update RNAmotiFold ? [y/n]",
+                f"There is a new set of RNA 3D Motif Atlas sequences available. Update from {defaults_config['VERSIONS']['motifs']} to {current_version}? [y/n]",
                 end=" ",
             )
             answer = input()
             if answer.lower() in ["y", "ye", "yes"]:
-                setup.update_sequences_algorithms()
-                defaults_config.set("VERSIONS", "motifs", bgap.bgap_rna.get_current_motif_version())
-                with open(args.script_parameters.defaults_config_path, "w") as file:
+                # setup.update_sequences_algorithms()
+                defaults_config.set("VERSIONS", "motifs", current_version)
+                with open(args.script_parameters.defaults_config_path, "w+") as file:
                     defaults_config.write(file)
                 return True
-
             elif answer.lower() in ["n", "no"]:
-                print(
-                    f"Skipping update, continuing with motif sequence version {defaults_config['VERSIONS']['motifs']}"
-                )
-                if force_alg_update:
-                    logger.debug("Update algorithms is set, updating hexdumb and algorithms...")
+                if update_algorithms:
                     update_hexdumbs()
                     setup.update_algorithms()
                 return True
             else:
-                raise ValueError("Please answer the question with yes or no")
-        else:
-            logger.info("RNA 3D motif sequences are up to date")
-            if force_alg_update:
-                logger.debug("Update algorithms is set, updating hexdumb and algorithms...")
-                update_hexdumbs()
-                setup.update_algorithms()
-            return True
-    except ValueError as error:
-        print(error)
-        return error
+                raise ValueError("Answer not recognized")
 
 
 # Interactive session to run multiple predictions in an "interactive" environment
@@ -96,14 +120,18 @@ def _interactive_session(
                 f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta, fastq or stockholm formatted sequence file."
             )
         else:
-            realtime_input = _input_check(user_input, name)
-            result = proc_obj.auto_run(
-                realtime_input,
-                o_file=output_file,
-                pool_workers=pool_boys,
-                output_csv_separator=csv_separator,
-            )
-            result_list.append(result)
+            try:
+                realtime_input = _input_check(user_input, name)
+            except ValueError as error:
+                print(error)
+            else:
+                result = proc_obj.auto_run(
+                    realtime_input,
+                    o_file=output_file,
+                    pool_workers=pool_boys,
+                    output_csv_separator=csv_separator,
+                )
+                result_list.append(result)
     return result_list  # Added result outputting just in case I wanna do something with that down the line.
 
 
@@ -137,19 +165,6 @@ def _uninteractive_session(
     )
     # Added result outputting just in case I wanna do something with that down the line.
     return result
-
-
-# Does all the updating
-def updates(no_update: bool, update_algorithms: bool):
-    if not no_update:
-        version_check_done = False
-        while version_check_done is not True:
-            try:
-                version_check_done = _version_checks(update_algorithms)
-            except ValueError as error:
-                raise error
-    else:
-        logger.debug("Motif sequence updating disabled, continuing without updating.")
 
 
 # Finds File type based on file ending
