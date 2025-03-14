@@ -8,7 +8,7 @@ from typing import Iterator, Optional, Generator
 from Bio import SeqIO
 import logging
 from Bio.SeqRecord import SeqRecord
-from requests import get
+
 import src.results as results
 from contextlib import redirect_stdout
 
@@ -50,33 +50,6 @@ class bgap_rna:
                 result = results.error(record.id, subprocess_output.stderr)
             listenerq.put(result)
 
-    @staticmethod
-    def get_current_motif_version(attempts=5) -> str:
-        i = 0
-        while i < attempts:
-            response = get("http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json")
-            if response.status_code == 200:
-                return response.headers["Content-disposition"].split("=")[1].split("_")[1][:-5]
-        else:
-            i += 1
-        raise ConnectionError(
-            f"Could not establish connection to API server in {attempts} attempts."
-        )
-
-    # Compare local RNA 3D Motif Atlas version against current, input should be installed motif version findable under RNALoops/src/data/config
-    @staticmethod
-    def check_motif_versions(installed: str) -> bool:
-        try:
-            current = bgap_rna.get_current_motif_version()
-        except ConnectionError:
-            raise ConnectionError(
-                "Could not connect to RNA 3D Motif Atlas server to check for current motif versions."
-            )
-        if current == installed:
-            return False
-        else:
-            return True
-
     @classmethod
     def from_argparse(cls, cmd_args: argparse.Namespace):
         """argparse alternative constructor."""
@@ -87,7 +60,6 @@ class bgap_rna:
             kvalue=cmd_args.kvalue,
             shape_level=cmd_args.shape_level,
             energy=cmd_args.energy,
-            hishape_mode=cmd_args.hishape_mode,
             temperature=cmd_args.temperature,
             energy_percent=cmd_args.energy_percent,
             allowLonelyBasepairs=cmd_args.basepairs,
@@ -113,7 +85,6 @@ class bgap_rna:
             kvalue=config.getint(section_name, "kvalue"),
             shape_level=config.getint(section_name, "shape_level"),
             energy=config.get(section_name, "energy"),
-            hishape_mode=config.get(section_name, "hishape_mode"),
             temperature=config.getfloat(section_name, "temperature"),
             energy_percent=config.getfloat(section_name, "energy_percent"),
             allowLonelyBasepairs=config.getint(section_name, "basepairs"),
@@ -137,7 +108,6 @@ class bgap_rna:
         kvalue: Optional[int] = None,
         shape_level: Optional[int] = None,
         energy: Optional[str] = None,
-        hishape_mode: Optional[str] = None,
         temperature: Optional[float] = None,
         energy_percent: Optional[float] = None,
         custom_hairpins: Optional[str] = None,
@@ -160,7 +130,6 @@ class bgap_rna:
         self.kvalue = kvalue
         self.shape_level = shape_level
         self.energy = energy
-        self.hishape_mode = hishape_mode
         self.temperature = temperature
         self.algorithm = algorithm
         self.energy_percent = energy_percent
@@ -303,18 +272,6 @@ class bgap_rna:
                 "Shape level can only be set to levels 5 (most abstract) - 1 (least abstract)."
             )
 
-    # Set hishape abstraction level, viable inputs are h, b, m
-    @property
-    def hishape_mode(self):
-        return self._hishape
-
-    @hishape_mode.setter
-    def hishape_mode(self, h: Optional[str]):
-        if h is None or h in ["h", "m", "b"]:
-            self._hishape = h
-        else:
-            raise ValueError("HiShape mode can only be set to h,b or m.")
-
     # Set energy range for suboptimal candidate calcualtions
     @property
     def energy(self):
@@ -354,7 +311,7 @@ class bgap_rna:
             Path(__file__).resolve().parents[1].joinpath("Build", "bin").joinpath(self.algorithm)
         )
 
-    # Builds the algorithm name string, checks for _pfc at the end and builds hishape name and adds _subopt
+    # Builds the algorithm name string, adds _pfc or _subopt
     @property
     def algorithm(self):
         return self._algorithm
@@ -364,11 +321,6 @@ class bgap_rna:
         if alg is None:
             self._algorithm = None
         else:
-            if alg == "RNAmotiCes":
-                try:
-                    alg = alg + "_" + self.hishape_mode
-                except TypeError:
-                    raise TypeError("Specify a hishape mode with -p")
             if self.subopt:
                 alg = alg + "_subopt"
             elif self.pfc:
@@ -465,9 +417,9 @@ class bgap_rna:
     ) -> results.algorithm_output | results.error:
         """Single sequence input running function, silently transcribes DNA to RNA"""
         if "T" in str(user_input):
-            logger.debug("Detected DNA sequence as input, transcribing to RNA")
+            logger.info("Detected DNA sequence as input, transcribing to RNA")
             user_input.seq = user_input.seq.transcribe()
-            logger.debug(f"Transcription complete, new input:{str(user_input.seq)}")
+            logger.info(f"Transcription complete, new input:{str(user_input.seq)}")
         logger.debug("Running prediction")
         subproc_out = subprocess.run(
             self.call + str(user_input.seq),

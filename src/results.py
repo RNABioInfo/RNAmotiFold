@@ -32,18 +32,11 @@ class result:
         match self._algorithm:
             case "RNAmotiFold" | "RNAmotiFold_subopt":
                 _header = ["ID", "motifs", "mfe", "motBracket"]
-            case (
-                "RNAmotiCes_h"
-                | "RNAmotiCes_m"
-                | "RNAmotiCes_b"
-                | "RNAmotiCes_h_subopt"
-                | "RNAmotiCes_m_subopt"
-                | "RNAmotiCes_b_subopt"
-            ):
+            case "RNAmotiCes" | "RNAmotiCes_subopt":
                 _header = ["ID", "motiCes", "mfe", "motBracket"]
             case "RNAmoSh" | "RNAmoSh_subopt":
                 _header = ["ID", "moSh", "mfe", "motBracket"]
-            case "RNAmotiCes_h_pfc" | "RNAmotiCes_b_pfc" | "RNAmotiCes_m_pfc":
+            case "RNAmotiCes_pfc":
                 _header = ["ID", "motiCes", "pfc", "probability"]
             case "RNAmoSh_pfc":
                 _header = ["ID", "moSh", "pfc", "probability"]
@@ -78,6 +71,7 @@ class algorithm_output:
             self._index += 1
             return item
         else:
+            self._index = 0
             raise StopIteration
 
     def __str__(self):
@@ -108,7 +102,8 @@ class algorithm_output:
     def write_results(self, initiated: bool):
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
         if not initiated:
-            logger.warning(self.stderr.strip())
+            if self.stderr.strip():
+                logger.warning(self.stderr.strip())
             sys.stdout.write(self.results[0].header)
         for result_obj in self.results:
             sys.stdout.write(result_obj.tsv)
