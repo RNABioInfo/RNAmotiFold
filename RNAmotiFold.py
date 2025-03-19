@@ -73,7 +73,7 @@ def updates(no_update: bool, update_algorithms: bool):
             )
             answer = input()
             if answer.lower() in ["y", "ye", "yes"]:
-                # setup.update_sequences_algorithms()
+                setup.update_sequences_algorithms()
                 defaults_config.set("VERSIONS", "motifs", current_version)
                 with open(args.script_parameters.defaults_config_path, "w+") as file:
                     defaults_config.write(file)

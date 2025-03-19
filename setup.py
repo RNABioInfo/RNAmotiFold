@@ -5,7 +5,7 @@ import argparse
 import sys
 import src.update_motifs
 import multiprocessing
-from src.args import WorkerCheck, WorkerCheckFunction
+from src.args import WorkerCheck
 from time import sleep
 from os import cpu_count
 
