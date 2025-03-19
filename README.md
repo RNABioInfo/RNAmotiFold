@@ -40,10 +40,10 @@ You do not need admin rights for your system to install it, everything will be i
 
 
 
-0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules --branch develop`
+0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules`
 1. Run `pip install -r requirements.txt` to install non-default python packages into your python environment.
 2. Run `python3 setup.py` (this may take a couple minutes).
-3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAheliCes`` or run any of them directly from ``/RNAmotifold/Build/bin/``.
+3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAmotiCes`` or run any of them directly from ``/RNAmotifold/Build/bin/``.
 
 ### Usage
 1. Be sure to check out all the available commandline parameters with ``python RNAmotiFold.py -h``!
