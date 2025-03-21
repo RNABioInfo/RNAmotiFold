@@ -16,7 +16,7 @@ Tested on the following dependencies:
  + C++ compiler ==  GCC g++ 13.2.0
  + C compiler == GCC 13.2.0
  + GNU make ==  3.81
-
+ + Python interpreter == Python 3.12
  + Python packages:
     + requests == 2.32.3
     + bio == 1.7.1
