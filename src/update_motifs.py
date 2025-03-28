@@ -403,15 +403,15 @@ def main():
     # SHOULD THIS EVER CHANGE I WILL NEED TO ADD THEM ABOVE AND CHANGE THE BULGES DUPE_CHECK_WRITE_CSV CALLS
     ################
     both_hairpins = flatten([rna3d_hairpins, rfam_hairpins])
-    both_internals = flatten([rna3d_internals, rna3d_internals])
+    both_internals = flatten([rna3d_internals, rfam_internals])
     both_bulges = flatten([rna3d_bulges, rfam_bulges])
 
     write_csv(rna3d_hairpins, "rna3d_hairpins.csv")
     write_csv(rna3d_internals, "rna3d_internals.csv")
     write_csv(rna3d_bulges, "rna3d_bulges.csv")
-    write_csv(rfam_hairpins, "rfam_hairpins.csv")
-    write_csv(rfam_internals, "rfam_internals.csv")
-    write_csv(rfam_bulges, "rfam_bulges.csv")
+    # write_csv(rfam_hairpins, "rfam_hairpins.csv")
+    # write_csv(rfam_internals, "rfam_internals.csv")
+    # write_csv(rfam_bulges, "rfam_bulges.csv")
     write_csv(both_hairpins, "both_hairpins.csv")
     write_csv(both_internals, "both_internals.csv")
     write_csv(both_bulges, "both_bulges.csv")
