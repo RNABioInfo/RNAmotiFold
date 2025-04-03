@@ -4,12 +4,17 @@ import subprocess
 import argparse
 import sys
 import src.update_motifs
+import src.args
 import multiprocessing
+import configparser
+import logging
 from src.args import WorkerCheck
 from time import sleep
 from os import cpu_count
 
 ROOT_DIR = Path(__file__).absolute().parent
+
+logger = logging.getLogger("RNAmotiFold")
 
 
 def get_cmd_args() -> Path:
@@ -209,6 +214,72 @@ def update_sequences_algorithms():
         print("Algorithms are all set up, you can now use RNAmotiFold")
 
 
+# Does all the updating with tradeoffs between update algorithms and no update
+def updates(no_update: bool, update_algorithm_bool: bool):
+    defaults_config = configparser.ConfigParser(allow_no_value=True)
+    defaults_config.read_file(open(src.args.script_parameters.defaults_config_path))
+    if no_update:
+        if update_algorithm_bool:
+            # Both are set, so don't check for new version but update algorithms
+            src.update_motifs.update_hexdumbs()
+            update_algorithms()
+        else:
+            # Only No update is set, so don't check for new version and don't update algorithms
+            return True
+    else:
+        # No update isn't set, so check for new version
+        logger.info("Checking current RNA 3D Motif Atlas version")
+        current_version = check_motif_versions(defaults_config["VERSIONS"]["motifs"])
+        if current_version == defaults_config["VERSIONS"]["motifs"]:
+            logger.info("RNA 3D Motif Atlas sequences are up to date")
+            if update_algorithm_bool:
+                src.update_motifs.update_hexdumbs()
+                update_algorithms()
+            return True
+        else:
+            print(
+                f"There is a new set of RNA 3D Motif Atlas sequences available. Update from {defaults_config['VERSIONS']['motifs']} to {current_version}? [y/n]",
+                end=" ",
+            )
+            answer = input()
+            if answer.lower() in ["y", "ye", "yes"]:
+                update_sequences_algorithms()
+                defaults_config.set("VERSIONS", "motifs", current_version)
+                with open(src.args.script_parameters.defaults_config_path, "w+") as file:
+                    defaults_config.write(file)
+                return True
+            elif answer.lower() in ["n", "no"]:
+                if update_algorithm_bool:
+                    src.update_motifs.update_hexdumbs()
+                    update_algorithms()
+                return True
+            else:
+                raise ValueError("Answer not recognized")
+
+
+# Compare local RNA 3D Motif Atlas version against current, input should be installed motif version findable under RNALoops/src/data/config. In case of connectivity issues return installed version
+def check_motif_versions(installed_motif_version: str) -> str:
+    try:
+        current = get_current_motif_version()
+    except ConnectionError as error:
+        logger.warning(error)
+        return installed_motif_version
+    return current
+
+
+def get_current_motif_version(attempts=5) -> str:
+    from requests import get
+
+    i = 0
+    while i < attempts:
+        response = get("http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json")
+        if response.status_code == 200:
+            return response.headers["Content-disposition"].split("=")[1].split("_")[1][:-5].strip()
+        else:
+            i += 1
+    raise ConnectionError(f"Could not establish connection to API server in {attempts} attempts.")
+
+
 # update function for loading new motif sets into algrithms, DOES NOT LOAD FRESH MOTIF SETS, DOES NOT UPDATE duplicates.json
 def update_algorithms():
     """main update function that checks for a gap compiler, installs it if necessary, and (re)compiles all preset algorithms. Does not update motif sequences"""
@@ -229,4 +300,4 @@ def update_algorithms():
 
 
 if __name__ == "__main__":
-    update_sequences_algorithms()
+    updates(False, True)

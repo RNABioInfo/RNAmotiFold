@@ -5,7 +5,6 @@ import src.results
 from src.update_motifs import update_hexdumbs
 import setup
 import configparser
-import setup
 import logging
 from pathlib import Path
 from typing import Generator
@@ -15,76 +14,12 @@ from Bio.SeqRecord import SeqRecord
 import gzip
 import sys
 from typing import Optional
-from requests import get
+
 
 ####Logging setup####
 import logging
 
 logger = logging.getLogger("RNAmotiFold")
-
-
-def get_current_motif_version(attempts=5) -> str:
-    i = 0
-    while i < attempts:
-        response = get("http://rna.bgsu.edu/rna3dhub/motifs/release/hl/current/json")
-        if response.status_code == 200:
-            return response.headers["Content-disposition"].split("=")[1].split("_")[1][:-5].strip()
-        else:
-            i += 1
-    raise ConnectionError(f"Could not establish connection to API server in {attempts} attempts.")
-
-
-# Compare local RNA 3D Motif Atlas version against current, input should be installed motif version findable under RNALoops/src/data/config. In case of connectivity issues return installed version
-def check_motif_versions(installed_motif_version: str) -> str:
-    try:
-        current = get_current_motif_version()
-    except ConnectionError as error:
-        logger.warning(error)
-        return installed_motif_version
-    return current
-
-
-# Does all the updating with tradeoffs between update algorithms and no update
-def updates(no_update: bool, update_algorithms: bool):
-    defaults_config = configparser.ConfigParser(allow_no_value=True)
-    defaults_config.read_file(open(args.script_parameters.defaults_config_path))
-    if no_update:
-        if update_algorithms:
-            # Both are set, so don't check for new version but update algorithms
-            update_hexdumbs()
-            setup.update_algorithms()
-        else:
-            # Only No update is set, so don't check for new version and don't update algorithms
-            return True
-    else:
-        # No update isn't set, so check for new version
-        logger.info("Checking current RNA 3D Motif Atlas version")
-        current_version = check_motif_versions(defaults_config["VERSIONS"]["motifs"])
-        if current_version == defaults_config["VERSIONS"]["motifs"]:
-            logger.info("RNA 3D Motif Atlas sequences are up to date")
-            if update_algorithms:
-                update_hexdumbs()
-                setup.update_algorithms()
-            return True
-        else:
-            print(
-                f"There is a new set of RNA 3D Motif Atlas sequences available. Update from {defaults_config['VERSIONS']['motifs']} to {current_version}? [y/n]",
-                end=" ",
-            )
-            answer = input()
-            if answer.lower() in ["y", "ye", "yes"]:
-                setup.update_sequences_algorithms()
-                defaults_config.set("VERSIONS", "motifs", current_version)
-                with open(args.script_parameters.defaults_config_path, "w+") as file:
-                    defaults_config.write(file)
-                return True
-            elif answer.lower() in ["n", "no"]:
-                if update_algorithms:
-                    update_hexdumbs()
-                    setup.update_algorithms()
-                return True
-            else:
-                raise ValueError("Answer not recognized")
 
 
 # Interactive session to run multiple predictions in an "interactive" environment
@@ -259,14 +194,14 @@ if __name__ == "__main__":
             configure_logs(
                 rt_args.get("VARIABLES", "loglevel"), rt_args.get("VARIABLES", "logfile")
             )
-            updates(
+            setup.updates(
                 rt_args.getboolean("VARIABLES", "no_update"),
                 rt_args.getboolean("VARIABLES", "update_algorithms"),
             )
             user_input = rt_args.get("VARIABLES", "input")
         elif isinstance(rt_args, Namespace):
             configure_logs(rt_args.loglevel, rt_args.logfile)
-            updates(rt_args.no_update, rt_args.update_algorithms)
+            setup.updates(rt_args.no_update, rt_args.update_algorithms)
             user_input = rt_args.input
     except ValueError as error:
         raise error
