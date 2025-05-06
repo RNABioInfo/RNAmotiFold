@@ -1,14 +1,12 @@
 import sys
-import argparse
 import subprocess
-import configparser
 import multiprocessing
 from pathlib import Path
 from typing import Iterator, Optional, Generator
 from Bio import SeqIO
 import logging
 from Bio.SeqRecord import SeqRecord
-
+from src.args import script_parameters
 import src.results as results
 from contextlib import redirect_stdout
 
@@ -51,53 +49,27 @@ class bgap_rna:
             listenerq.put(result)
 
     @classmethod
-    def from_argparse(cls, cmd_args: argparse.Namespace):
-        """argparse alternative constructor."""
+    def from_script_parameters(cls, params: script_parameters):
         return cls(
-            algorithm=cmd_args.algorithm,
-            motif_source=cmd_args.motif_source,
-            motif_orientation=cmd_args.motif_orientation,
-            kvalue=cmd_args.kvalue,
-            shape_level=cmd_args.shape_level,
-            energy=cmd_args.energy,
-            temperature=cmd_args.temperature,
-            energy_percent=cmd_args.energy_percent,
-            allowLonelyBasepairs=cmd_args.basepairs,
-            subopt=cmd_args.subopt,
-            pfc=cmd_args.pfc,
-            pfc_filtering=cmd_args.pfc_filtering,
-            session_id=cmd_args.id,
-            custom_hairpins=cmd_args.custom_hairpins,
-            custom_internals=cmd_args.custom_internals,
-            custom_bulges=cmd_args.custom_bulges,
-            replace_hairpins=cmd_args.replace_hairpins,
-            replace_internals=cmd_args.replace_internals,
-            replace_bulges=cmd_args.replace_bulges,
-        )
-
-    @classmethod
-    def from_config(cls, config: configparser.ConfigParser, section_name: str):
-        """ConfigParse alternative constructor. Accepts a string/path to a config file or a ConfigParser. Unused parameters should be left empty or be set to None."""
-        return cls(
-            algorithm=config.get(section_name, "algorithm"),
-            motif_source=config.getint(section_name, "motif_source"),
-            motif_orientation=config.getint(section_name, "motif_orientation"),
-            kvalue=config.getint(section_name, "kvalue"),
-            shape_level=config.getint(section_name, "shape_level"),
-            energy=config.get(section_name, "energy"),
-            temperature=config.getfloat(section_name, "temperature"),
-            energy_percent=config.getfloat(section_name, "energy_percent"),
-            allowLonelyBasepairs=config.getint(section_name, "basepairs"),
-            subopt=config.getboolean(section_name, "subopt"),
-            pfc=config.getboolean(section_name, "pfc"),
-            pfc_filtering=config.getboolean(section_name, "pfc_filtering"),
-            session_id=config.get(section_name, "ID"),
-            custom_hairpins=config.get(section_name, "custom_hairpins"),
-            custom_internals=config.get(section_name, "custom_internals"),
-            custom_bulges=config.get(section_name, "custom_bulges"),
-            replace_hairpins=config.getint(section_name, "replace_hairpins"),
-            replace_internals=config.getint(section_name, "replace_internals"),
-            replace_bulges=config.getint(section_name, "replace_bulges"),
+            algorithm=params.algorithm,
+            motif_source=params.motif_source,
+            motif_orientation=params.motif_orientation,
+            kvalue=params.kvalue,
+            shape_level=params.shape_level,
+            energy=params.energy,
+            pfc=params.pfc,
+            pfc_filtering=params.pfc_filtering,
+            temperature=params.temperature,
+            energy_percent=params.energy_percent,
+            custom_hairpins=params.custom_hairpins,
+            custom_internals=params.custom_internals,
+            custom_bulges=params.custom_bulges,
+            allowLonelyBasepairs=params.basepairs,
+            replace_hairpins=params.replace_hairpins,
+            replace_internals=params.replace_internals,
+            replace_bulges=params.replace_bulges,
+            subopt=params.subopt,
+            session_id=params.name,
         )
 
     def __init__(
@@ -443,13 +415,8 @@ class bgap_rna:
                 sys.stdout.flush()
             return return_val
         else:
-            if subproc_out.returncode == 137:
-                print(
-                    "Your prediction could not be computed due to insufficient memory capacity on your computer, please download more RAM."
-                )
-            else:
-                logger.info(f"Process {user_input.id} finished with error: {subproc_out.stderr}")
-                return results.error(user_input.id, subproc_out.stderr)
+            logger.warning(f"Process {user_input.id} finished with error: {subproc_out.stderr}")
+            return results.error(user_input.id, subproc_out.stderr)
 
     # multiprocessing function, which utilizes a worker pool to run the specified algorithm on each sequences in the input iterable
     def _run_multi_process(
@@ -519,6 +486,6 @@ class bgap_rna:
                         logger.info(f"Prediction {output.id} finished.")
                     return_list.append(output)
                 if isinstance(output, results.error):
-                    logger.info(
+                    logger.warning(
                         f"Prediction {output.id} finished with error: {output.error.strip()}"
                     )

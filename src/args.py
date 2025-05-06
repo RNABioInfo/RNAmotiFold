@@ -156,9 +156,100 @@ class script_parameters:
     defaults_config_path = Path(__file__).resolve().parent.joinpath("data", "defaults.ini")
     user_config_path = Path(__file__).resolve().parent.joinpath("config.ini")
     RNAmotiFold_path = Path(__file__).resolve().parents[1]
+    name: str
+    input: str
+    output: str
+    algorithm: str
+    subopt: bool
+    motif_source: int
+    motif_orientation: int
+    kvalue: int
+    shape_level: int
+    energy: str
+    temperature: float
+    basepairs: bool
+    energy_percent: float
+    pfc: bool
+    pfc_filtering: bool
+    custom_hairpins: str
+    custom_internals: str
+    custom_bulges: str
+    replace_hairpins: bool
+    replace_internals: bool
+    replace_bulges: bool
+    loglevel: str
+    logfile: str
+    workers: int
+    separator: str
+    no_update: bool
+    version: str
+
+    @classmethod
+    def from_argparser(cls, args: argparse.Namespace):
+        return cls(
+            name=args.name,
+            input=args.input,
+            output=args.output,
+            algorithm=args.algorithm,
+            subopt=args.subopt,
+            motif_source=args.motif_source,
+            motif_orientation=args.motif_orientation,
+            kvalue=args.kvalue,
+            shape_level=args.shape_level,
+            energy=args.energy,
+            temperature=args.temperature,
+            basepairs=args.basepairs,
+            energy_percent=args.energy_percent,
+            pfc=args.pfc,
+            pfc_filtering=args.pfc_filtering,
+            custom_hairpins=args.custom_hairpins,
+            custom_internals=args.custom_internals,
+            custom_bulges=args.custom_bulges,
+            replace_hairpins=args.replace_hairpins,
+            replace_internals=args.replace_internals,
+            replace_bulges=args.replace_bulges,
+            loglevel=args.loglevel,
+            logfile=args.logfile,
+            workers=args.workers,
+            separator=args.separator,
+            no_update=args.no_update,
+            version=args.version,
+        )
+
+    @classmethod
+    def from_configparser(cls, confs: configparser.ConfigParser):
+        return cls(
+            name=confs.get("VARIABLES", "name"),
+            input=confs.get("VARIABLES", "input"),
+            output=confs.get("VARIABLES", "output"),
+            algorithm=confs.get("VARIABLES", "algorithm"),
+            subopt=confs.getboolean("VARIABLES", "subopt"),
+            motif_source=confs.getint("VARIABLES", "motif_source"),
+            motif_orientation=confs.getint("VARIABLES", "motif_orientation"),
+            kvalue=confs.getint("VARIABLES", "kvalue"),
+            shape_level=confs.getint("VARIABLES", "shape_level"),
+            energy=confs.get("VARIABLES", "energy"),
+            temperature=confs.getfloat("VARIABLES", "temperature"),
+            basepairs=confs.getboolean("VARIABLES", "basepairs"),
+            energy_percent=confs.getfloat("VARIABLES", "energy_percent"),
+            pfc=confs.getboolean("VARIABLES", "pfc"),
+            pfc_filtering=confs.getboolean("VARIABLES", "pfc_filtering"),
+            custom_hairpins=confs.get("VARIABLES", "custom_hairpins"),
+            custom_internals=confs.get("VARIABLES", "custom_internals"),
+            custom_bulges=confs.get("VARIABLES", "custom_bulges"),
+            replace_hairpins=confs.getboolean("VARIABLES", "replace_hairpins"),
+            replace_internals=confs.getboolean("VARIABLES", "replace_internals"),
+            replace_bulges=confs.getboolean("VARIABLES", "replace_bulges"),
+            loglevel=confs.get("VARIABLES", "loglevel"),
+            logfile=confs.get("VARIABLES", "logfile"),
+            workers=confs.getint("VARIABLES", "workers"),
+            separator=confs.get("VARIABLES", "separator"),
+            no_update=confs.getboolean("VARIABLES", "no_update"),
+            version=confs.get("VARIABLES", "version"),
+        )
 
 
-def get_cmdarguments() -> argparse.Namespace:
+def get_cmdarguments() -> script_parameters:
     config = configparser.ConfigParser(allow_no_value=True)
     config.read_file(open(script_parameters.defaults_config_path))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
@@ -177,7 +268,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-n",
         "--name",
         help=f"For interactive sessions or with single sequence as input set an ID for the output. Default is {config.get(config.default_section, "ID")}",
-        dest="id",
+        dest="name",
         type=str,
         default=config.get(config.default_section, "ID"),
     )
@@ -221,6 +312,14 @@ def get_cmdarguments() -> argparse.Namespace:
         nargs="?",
         dest="algorithm",
     )
+    parser.add_argument(
+        "-v",
+        "--version",
+        help=f"Specify which RNA 3D Motif sequence version you want to use. Default is the newest version. Use --no_update to disabled checking for new motif versions.",
+        dest="version",
+        type=str,
+        default="current",
+    )
     pfc_or_subopt.add_argument(
         "-s",
         "--subopt",
@@ -232,7 +331,7 @@ def get_cmdarguments() -> argparse.Namespace:
     parser.add_argument(
         "-Q",
         "--motif_source",
-        help=f"Specify from which database motifs should be used, 1 = BGSU, 2 = Rfam, 3 = both. Default is {config.get(config.default_section, "motif_source")}",
+        help=f"Specify from which database motifs should be used, 1 = RNA 3D Motif Atlas, 2 = Rfam, 3 = both. Default is {config.get(config.default_section, "motif_source")}",
         choices=[
             1,
             2,
@@ -351,7 +450,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-L",
         "--replace_hairpins",
         dest="replace_hairpins",
-        help=f"If set, instead of appending custom hairpins to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_hairpins")}",
+        help=f"If set, instead of appending custom hairpins to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_hairpins")}",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_hairpins"),
     )
@@ -359,7 +458,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-E",
         "--replace_internals",
         dest="replace_internals",
-        help=f"If set, instead of appending custom internals to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_internals")}",
+        help=f"If set, instead of appending custom internals to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_internals")}",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_internals"),
     )
@@ -367,7 +466,7 @@ def get_cmdarguments() -> argparse.Namespace:
         "-G",
         "--replace_bulges",
         dest="replace_bulges",
-        help=f"If set, instead of appending custom bulges to the chosen RNA3D Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_bulges")}",
+        help=f"If set, instead of appending custom bulges to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_bulges")}",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_bulges"),
     )
@@ -398,7 +497,6 @@ def get_cmdarguments() -> argparse.Namespace:
         dest="logfile",
     )
     parser.add_argument(
-        "-v",
         "--sep",
         help="Specify separation character for output. Default is tab for human readability.",
         type=str,
@@ -414,19 +512,12 @@ def get_cmdarguments() -> argparse.Namespace:
         action="store_true",
         dest="no_update",
     )
-    parser.add_argument(
-        "--ua",
-        "--update_algorithms",
-        help=f"If set, loads current motif sequences from /RNAmotiFold/src/data/motifs/ into algorithms and recompiles them. This does not fetch the current motif sequences, re-run setup.py to fetch latest motif sequences and load them into the algorithms. Default is {config.get(config.default_section, "update_algorithms")}.",
-        action="store_true",
-        dest="update_algorithms",
-        default=config.getboolean(config.default_section, "update_algorithms"),
-    )
+
     args = parser.parse_args()
     if args.config is not None:
         config.read_file(open(args.config))
         config_check(config)
+        return script_parameters.from_configparser(config)
         # Create a log entry to record inputs
-        return config
     else:
-        return args
+        return script_parameters.from_argparser(args)

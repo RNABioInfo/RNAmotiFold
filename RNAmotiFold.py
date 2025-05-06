@@ -1,10 +1,7 @@
 import src.bgap_rna as bgap
 import src.args as args
-from argparse import Namespace
 import src.results
-from src.update_motifs import update_hexdumbs
 import setup
-import configparser
 import logging
 from pathlib import Path
 from typing import Generator
@@ -15,7 +12,6 @@ import gzip
 import sys
 from typing import Optional
 
-
 ####Logging setup####
 import logging
 
@@ -24,26 +20,11 @@ logger = logging.getLogger("RNAmotiFold")
 
 # Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
-    runtime_arguments: Namespace | configparser.ConfigParser,
+    runtime_arguments: args.script_parameters,
 ) -> list[src.results.algorithm_output | src.results.error | None]:
     """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
     result_list = []
-    if isinstance(runtime_arguments, Namespace):
-        proc_obj = bgap.bgap_rna.from_argparse(runtime_arguments)
-        output_file = runtime_arguments.output
-        pool_boys = runtime_arguments.workers
-        csv_separator = runtime_arguments.separator
-        name = runtime_arguments.id
-    elif isinstance(runtime_arguments, configparser.ConfigParser):
-        proc_obj = bgap.bgap_rna.from_config(runtime_arguments, "VARIABLES")
-        output_file = runtime_arguments.get("VARIABLES", "output")
-        pool_boys = runtime_arguments.getint("VARIABLES", "workers")
-        csv_separator = runtime_arguments.get("VARIABLES", "separator")
-        name = runtime_arguments.get("VARIABLES", "name")
-    else:
-        raise TypeError(
-            "runtime args is neither a argparse Namespace nor a configparser.Configparser instance. Exiting..."
-        )
+    proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     while True:
         print("Awaiting input...")
         user_input = input()
@@ -56,15 +37,15 @@ def _interactive_session(
             )
         else:
             try:
-                realtime_input = _input_check(user_input, name)
+                realtime_input = _input_check(user_input, runtime_arguments.name)
             except ValueError as error:
                 print(error)
             else:
                 result = proc_obj.auto_run(
                     realtime_input,
-                    o_file=output_file,
-                    pool_workers=pool_boys,
-                    output_csv_separator=csv_separator,
+                    o_file=runtime_arguments.output,
+                    pool_workers=runtime_arguments.workers,
+                    output_csv_separator=runtime_arguments.separator,
                 )
                 result_list.append(result)
     return result_list  # Added result outputting just in case I wanna do something with that down the line.
@@ -72,33 +53,16 @@ def _interactive_session(
 
 # Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
-    runtime_arguments: Namespace | configparser.ConfigParser,
+    runtime_arguments: args.script_parameters,
 ) -> list[src.results.algorithm_output | src.results.error]:
-    if isinstance(runtime_arguments, Namespace):
-        runtime_input = _input_check(
-            runtime_arguments.input,
-            runtime_arguments.id,
-        )
-        proc_obj = bgap.bgap_rna.from_argparse(runtime_arguments)
-        output_file = runtime_arguments.output  # type:str
-        pool_boys = runtime_arguments.workers  # type: int
-        csv_seaparator = runtime_arguments.separator  # type:str
-    elif isinstance(runtime_arguments, configparser.ConfigParser):
-        runtime_input = _input_check(
-            runtime_arguments.get("VARIABLES", "input"),
-            runtime_arguments.get("VARIABLES", "name"),
-        )
-        proc_obj = bgap.bgap_rna.from_config(runtime_arguments)
-        output_file = runtime_arguments.get("VARIABLES", "output")  # type:str
-        pool_boys = runtime_arguments.getint("VARIABLES", "workers")
-        csv_seaparator = runtime_arguments.get("VARIABLES", "separator")  # type:str
+    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.name)
+    proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     result = proc_obj.auto_run(
         user_input=runtime_input,
-        o_file=output_file,
-        pool_workers=pool_boys,
-        output_csv_separator=csv_seaparator,
+        o_file=runtime_arguments.output,
+        pool_workers=runtime_arguments.workers,
+        output_csv_separator=runtime_arguments.separator,
     )
-    # Added result outputting just in case I wanna do something with that down the line.
     return result
 
 
@@ -190,26 +154,14 @@ def configure_logs(loglevel: str, logfile: Optional[str]):
 if __name__ == "__main__":
     rt_args = args.get_cmdarguments()
     try:
-        if isinstance(rt_args, configparser.ConfigParser):
-            configure_logs(
-                rt_args.get("VARIABLES", "loglevel"), rt_args.get("VARIABLES", "logfile")
-            )
-            setup.updates(
-                rt_args.getboolean("VARIABLES", "no_update"),
-                rt_args.getboolean("VARIABLES", "update_algorithms"),
-            )
-            user_input = rt_args.get("VARIABLES", "input")
-        elif isinstance(rt_args, Namespace):
-            configure_logs(rt_args.loglevel, rt_args.logfile)
-            setup.updates(rt_args.no_update, rt_args.update_algorithms)
-            user_input = rt_args.input
+        configure_logs(rt_args.loglevel, rt_args.logfile)
+        if not rt_args.no_update:
+            setup.updates(rt_args.version, rt_args.workers)
     except ValueError as error:
         raise error
-
-    if user_input is not None:
+    if rt_args.input is not None:
         logger.info("Input is set, starting calculations")
         out = _uninteractive_session(rt_args)
-
     else:
         logger.info("No input set, starting interactive session")
         out = _interactive_session(rt_args)
