@@ -22,8 +22,13 @@ logger = logging.getLogger("bgap_rna")
 
 class bgap_rna:
 
-    def __repr__(self) -> str:
-        return f"bgap_rna({' , '.join([str(x)+'='+str(self.__dict__[x]) for x in self.__dict__])})"
+    def __repr__(self):
+        classname = type(self).__name__
+        k, v = zip(*self.__dict__.items())
+        together = []
+        for i in range(0, len(v)):
+            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+        return f"{classname}({', '.join(together)})"
 
     def __str__(self) -> str:
         return self.call
@@ -37,6 +42,7 @@ class bgap_rna:
             else:
                 if "T" in str(record.seq):
                     record.seq = record.seq.transcribe()
+                logger.debug(f"Running prediction: {record.id}:{call+str(record.seq)}")
                 subprocess_output = subprocess.run(
                     call + str(record.seq), text=True, capture_output=True, shell=True
                 )
@@ -58,7 +64,7 @@ class bgap_rna:
             shape_level=params.shape_level,
             energy=params.energy,
             pfc=params.pfc,
-            pfc_filtering=params.pfc_filtering,
+            low_prob_filter=params.low_prob_filter,
             temperature=params.temperature,
             energy_percent=params.energy_percent,
             custom_hairpins=params.custom_hairpins,
@@ -69,7 +75,7 @@ class bgap_rna:
             replace_internals=params.replace_internals,
             replace_bulges=params.replace_bulges,
             subopt=params.subopt,
-            session_id=params.name,
+            session_id=params.id,
         )
 
     def __init__(
@@ -91,12 +97,13 @@ class bgap_rna:
         replace_bulges: bool = False,
         subopt: bool = False,
         pfc: bool = False,
-        pfc_filtering: bool = False,
+        low_prob_filter: Optional[float] = None,
         session_id: str = "N/A",
     ):
         self.id = session_id
         self.subopt = subopt
         self.pfc = pfc
+        self.low_probability_filter = low_prob_filter
         self.motif_source = motif_source
         self.motif_orientation = motif_orientation
         self.kvalue = kvalue
@@ -109,7 +116,6 @@ class bgap_rna:
         self.input = (
             input
         )  # type: SeqIO.FastaIO.FastaIterator | SeqIO.QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | Iterator[list] | SeqRecord
-        self.pfc_filtering = pfc_filtering  # Set this to enable/disable filtering of partition function outputs to only return results with a probability over 0.0001
         # Custom motif variables, custom_X is for the filepaths to the .csv files, replace_X is for if the customs should append to or replace the underlying motifs from RNA3D or Rfam
         self.custom_hairpins = custom_hairpins
         self.custom_internals = custom_internals
@@ -276,6 +282,20 @@ class bgap_rna:
         else:
             raise ValueError("Kvalue cannot be 0 or lower.")
 
+    @property
+    def low_probability_filter(self):
+        return self._low_probability_filter
+
+    @low_probability_filter.setter
+    def low_probability_filter(self, value: Optional[float]):
+        if value is not None:
+            if 0 < value < 1:
+                self._low_probability_filter = value
+        elif value is None:
+            self._low_probability_filter = value
+        else:
+            raise ValueError("Probability filter cannot be below 0 or above 1")
+
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
@@ -307,6 +327,7 @@ class bgap_rna:
         if hasattr(self, "custom_call"):
             return self.custom_call
         runtime_dictionary = {
+            "-F": self.low_probability_filter,
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
             "-t": self.temperature,
@@ -319,14 +340,18 @@ class bgap_rna:
             "-G": self.replace_bulges,
         }
         if self.subopt:
-            runtime_dictionary["-e"] = self.energy
+            # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary
             runtime_dictionary["-c"] = self.energy_percent
+            runtime_dictionary["-e"] = self.energy
         else:
             runtime_dictionary["-k"] = self.kvalue
-        if self.algorithm == "RNAmoSh":
+        if self.algorithm in ["RNAmoSh", "RNAmoSh_subopt", "RNAmoSh_pfc"]:
             runtime_dictionary["-q"] = self.shape_level
         arguments = [
-            "{key} {value}".format(key=x, value=y)
+            "{key} {value:g}".format(
+                key=x,
+                value=y,
+            )
             for x, y in runtime_dictionary.items()
             if y is not None
         ]
@@ -339,14 +364,11 @@ class bgap_rna:
         raise ValueError("Please use the custom_call property so set a custom call.")
 
     # Calibrate results.algorithm objects based on the current status of the bgap_rna class instance
-    def _calibrate_result_objects(
-        self, sep: Optional[str] = "\t", logger: Optional[logging.Logger] = None
-    ):
+    def _calibrate_result_objects(self, sep: Optional[str] = "\t"):
         """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
         results.result._separator = sep
         results.result._algorithm = self.algorithm
         results.algorithm_output.pfc = self.pfc
-        results.algorithm_output.filtering = self.pfc_filtering
 
     # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
     def auto_run(
@@ -392,7 +414,7 @@ class bgap_rna:
             logger.info("Detected DNA sequence as input, transcribing to RNA")
             user_input.seq = user_input.seq.transcribe()
             logger.info(f"Transcription complete, new input:{str(user_input.seq)}")
-        logger.debug("Running prediction")
+        logger.debug(f"Running prediction:{self.id}:{self.call} {str(user_input.seq)}")
         subproc_out = subprocess.run(
             self.call + str(user_input.seq),
             text=True,

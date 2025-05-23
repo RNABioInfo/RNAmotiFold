@@ -96,7 +96,6 @@ class ConfigCheck(argparse.Action):
                 f"Using default config: {script_parameters.defaults_config_path}"
             )  # Make this into a log, no need to print
             setattr(namespace, self.dest, value)
-
         elif Path(value).resolve().is_file():
             setattr(namespace, self.dest, Path(value))
         else:
@@ -108,16 +107,16 @@ class OutputFileCheck(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, value: str, option_string):
-        setattr(namespace, self.dest, OutputFileCheckFunction(value, self.dest))
+        setattr(namespace, self.dest, OutputFileCheckFunction(value))
 
 
-def OutputFileCheckFunction(value: str, dest: str):
+def OutputFileCheckFunction(value: str):
     if value is None:
         return None
     elif is_path_exists_or_creatable(value):
         if Path(value).resolve().is_file():
-            sys.stderr.write(f"Given {dest} file already exists, results will be appended.\n")
-        return Path(value)
+            sys.stderr.write(f"Given {value} file already exists, results will be appended.\n")
+        return value
     else:
         raise FileNotFoundError("Given path is not a valid path.")
 
@@ -156,7 +155,7 @@ class script_parameters:
     defaults_config_path = Path(__file__).resolve().parent.joinpath("data", "defaults.ini")
     user_config_path = Path(__file__).resolve().parent.joinpath("config.ini")
     RNAmotiFold_path = Path(__file__).resolve().parents[1]
-    name: str
+    id: str
     input: str
     output: str
     algorithm: str
@@ -170,7 +169,7 @@ class script_parameters:
     basepairs: bool
     energy_percent: float
     pfc: bool
-    pfc_filtering: bool
+    low_prob_filter: float
     custom_hairpins: str
     custom_internals: str
     custom_bulges: str
@@ -184,10 +183,18 @@ class script_parameters:
     no_update: bool
     version: str
 
+    def __repr__(self):
+        classname = type(self).__name__
+        k, v = zip(*self.__dict__.items())
+        together = []
+        for i in range(0, len(v)):
+            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+        return f"{classname}({', '.join(together)})"
+
     @classmethod
     def from_argparser(cls, args: argparse.Namespace):
         return cls(
-            name=args.name,
+            id=args.id,
             input=args.input,
             output=args.output,
             algorithm=args.algorithm,
@@ -201,7 +208,7 @@ class script_parameters:
             basepairs=args.basepairs,
             energy_percent=args.energy_percent,
             pfc=args.pfc,
-            pfc_filtering=args.pfc_filtering,
+            low_prob_filter=args.low_prob_filter,
             custom_hairpins=args.custom_hairpins,
             custom_internals=args.custom_internals,
             custom_bulges=args.custom_bulges,
@@ -219,7 +226,7 @@ class script_parameters:
     @classmethod
     def from_configparser(cls, confs: configparser.ConfigParser):
         return cls(
-            name=confs.get("VARIABLES", "name"),
+            id=confs.get("VARIABLES", "id"),
             input=confs.get("VARIABLES", "input"),
             output=confs.get("VARIABLES", "output"),
             algorithm=confs.get("VARIABLES", "algorithm"),
@@ -233,7 +240,7 @@ class script_parameters:
             basepairs=confs.getboolean("VARIABLES", "basepairs"),
             energy_percent=confs.getfloat("VARIABLES", "energy_percent"),
             pfc=confs.getboolean("VARIABLES", "pfc"),
-            pfc_filtering=confs.getboolean("VARIABLES", "pfc_filtering"),
+            low_prob_filter=confs.getfloat("VARIABLES", "low_prob_filter"),
             custom_hairpins=confs.get("VARIABLES", "custom_hairpins"),
             custom_internals=confs.get("VARIABLES", "custom_internals"),
             custom_bulges=confs.get("VARIABLES", "custom_bulges"),
@@ -267,10 +274,10 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-n",
         "--name",
-        help=f"For interactive sessions or with single sequence as input set an ID for the output. Default is {config.get(config.default_section, "ID")}",
-        dest="name",
+        help=f"For interactive sessions or with single sequence as input set an ID for the output. Default is {config.get(config.default_section, "id")}",
+        dest="id",
         type=str,
-        default=config.get(config.default_section, "ID"),
+        default=config.get(config.default_section, "id"),
     )
     parser.add_argument(
         "-i",
@@ -417,10 +424,10 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "--low_prob_filter",
-        help=f"If set, classes with a probability below 0.0001 are shown in the output when using a partition function. Default is {config.get(config.default_section, "pfc_filtering")}.",
-        action="store_true",
-        dest="pfc_filtering",
-        default=config.getboolean(config.default_section, "pfc_filtering"),
+        help=f"Set probability cutoff for partition function, filters out results with lower probability during calculation. Default is {config.get(config.default_section, "low_prob_filter")}.",
+        type=float,
+        dest="low_prob_filter",
+        default=config.getfloat(config.default_section, "low_prob_filter"),
     )
     parser.add_argument(
         "-X",
@@ -518,6 +525,5 @@ def get_cmdarguments() -> script_parameters:
         config.read_file(open(args.config))
         config_check(config)
         return script_parameters.from_configparser(config)
-        # Create a log entry to record inputs
     else:
         return script_parameters.from_argparser(args)

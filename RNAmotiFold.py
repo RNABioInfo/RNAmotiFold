@@ -25,6 +25,7 @@ def _interactive_session(
     """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
     result_list = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
+    logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
         print("Awaiting input...")
         user_input = input()
@@ -37,7 +38,7 @@ def _interactive_session(
             )
         else:
             try:
-                realtime_input = _input_check(user_input, runtime_arguments.name)
+                realtime_input = _input_check(user_input, runtime_arguments.id)
             except ValueError as error:
                 print(error)
             else:
@@ -55,8 +56,9 @@ def _interactive_session(
 def _uninteractive_session(
     runtime_arguments: args.script_parameters,
 ) -> list[src.results.algorithm_output | src.results.error]:
-    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.name)
+    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id)
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
+    logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     result = proc_obj.auto_run(
         user_input=runtime_input,
         o_file=runtime_arguments.output,
@@ -137,7 +139,7 @@ def configure_logs(loglevel: str, logfile: Optional[str]):
     if logfile is not None:
         logging.basicConfig(
             filename=logfile,
-            filemode="w+",
+            filemode="a+",
             level=loglevel,
             format="%(asctime)s:%(name)s:%(levelname)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -159,6 +161,7 @@ if __name__ == "__main__":
             setup.updates(rt_args.version, rt_args.workers)
     except ValueError as error:
         raise error
+    logger.debug("Input args: " + repr(rt_args))
     if rt_args.input is not None:
         logger.info("Input is set, starting calculations")
         out = _uninteractive_session(rt_args)

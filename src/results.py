@@ -55,12 +55,19 @@ class error:
 
 
 class algorithm_output:
-    """Class specifically made for reading mgapc outputs."""
+    """Class specifically made for reading gapcM outputs."""
 
     # Class wide variables that will be the same for all algorithm outputs at the same time.
     # These get set with the _calibrate_results function during auto_run() in the main bgap_rna class
     pfc = False
-    filtering = False
+
+    def __repr__(self):
+        classname = type(self).__name__
+        k, v = zip(*self.__dict__.items())
+        together = []
+        for i in range(0, len(v)):
+            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+        return f"{classname}({', '.join(together)})"
 
     def __iter__(self):
         return self
@@ -84,8 +91,6 @@ class algorithm_output:
         self._index = 0
         if algorithm_output.pfc:
             self.calculate_pfc_probabilities()
-            if algorithm_output.filtering:
-                self._filter_out_low_probability()
 
     # Formats results from the mgapc output formatting to a list of result objects
     def _format_results(self, result_str: str) -> list[result]:
@@ -118,8 +123,3 @@ class algorithm_output:
         pfc_sum = sum(pfc_list)
         for result_obj in self.results:
             result_obj.cols.append(round(float(result_obj.cols[-1]) / pfc_sum, 4))
-
-    # Filters out partition function results that have probabilities below 0.0001
-    def _filter_out_low_probability(self):
-        """Filter out low probability results. Probabilities are calculated with these included"""
-        self.results = [result for result in self.results if result.cols[-1] > 0.0001]
