@@ -5,7 +5,7 @@ from pathlib import Path
 from os import cpu_count, access, W_OK
 from dataclasses import dataclass
 import sys
-
+from typing import Any, Optional, Sequence
 
 def is_path_creatable(pathname: str) -> bool:
     """
@@ -37,27 +37,27 @@ def is_path_exists_or_creatable(pathname: str) -> bool:
 
 
 class MotifFileCkeck(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value, option_string):
-        setattr(namespace, self.dest, MotifFileCheckFunction(value))
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str]|Sequence[Any], option_string:Optional[str] = None):
+        setattr(namespace, self.dest, MotifFileCheckFunction(str(value)))
 
 
-def MotifFileCheckFunction(value: str) -> str:
+def MotifFileCheckFunction(value: Optional[str]) -> str:
     if value is not None and value != "":
         if Path(value).resolve().is_file():
             return value
-        else:
-            raise FileNotFoundError("Could not find specified file.")
+        raise FileNotFoundError("Could not find specified file.")
+    raise ValueError("No motif file specified")
 
 
 class LogCheck(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: str, option_string):
-        setattr(namespace, self.dest, LogCheckFunction(value))
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str]|Sequence[Any], option_string:Optional[str] = None):
+        setattr(namespace, self.dest, LogCheckFunction(str(value)))
 
 
 def LogCheckFunction(value: str) -> str:
@@ -68,77 +68,83 @@ def LogCheckFunction(value: str) -> str:
 
 
 class WorkerCheck(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: int, option_string):
-        setattr(namespace, self.dest, WorkerCheckFunction(value))
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str|Sequence[Any]], option_string:Optional[str] = None):
+        setattr(namespace, self.dest, WorkerCheckFunction(value)) #type:ignore 
 
 
-def WorkerCheckFunction(value: int | str) -> int | str:
-    if int(value) > cpu_count():
-        print("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
-        if isinstance(value, str):
-            return str(cpu_count() - 1)
+def WorkerCheckFunction(value: Optional[str]) -> Optional[int]:
+    cpus:int|None = cpu_count()
+    if cpus is not None:
+        if value is not None:
+            if int(value) > cpus:
+                print("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
+                return int(cpus - 1)
+            else:
+                return int(value)
         else:
-            return cpu_count() - 1
-    else:
-        return value
+            return None
+    print("Could not count cpus, playing it safe and setting CPU_count to 1")
+    return 1
 
 
 class ConfigCheck(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: str, option_string=None):
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str | Sequence[Any] | None, option_string:Optional[str]=None):
         if value == "":
             sys.stderr.write(
                 f"Using default config: {script_parameters.defaults_config_path}"
             )  # Make this into a log, no need to print
             setattr(namespace, self.dest, value)
-        elif Path(value).resolve().is_file():
-            setattr(namespace, self.dest, Path(value))
+        elif Path(str(value)).resolve().is_file():
+            setattr(namespace, self.dest, Path(str(value)))
         else:
             raise FileNotFoundError(f"Could not find specified config file {value}")
 
 
 class OutputFileCheck(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: str, option_string):
-        setattr(namespace, self.dest, OutputFileCheckFunction(value))
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str| Sequence[Any] | None, option_string:Optional[str]=None):
+        setattr(namespace, self.dest, OutputFileCheckFunction(value)) #type:ignore
 
 
-def OutputFileCheckFunction(value: str):
+def OutputFileCheckFunction(value: Optional[str]):
     if value is None:
         return None
     elif is_path_exists_or_creatable(value):
         if Path(value).resolve().is_file():
-            sys.stderr.write(f"Given {value} file already exists, results will be appended.\n")
+            sys.stderr.write(f"Given file {value} already exists, results will be appended.\n")
         return value
     else:
         raise FileNotFoundError("Given path is not a valid path.")
 
 
 class AlgorithmMatching(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: str, option_string):
-        setattr(namespace, self.dest, AlgorithmMatchingFunction(value))
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str |Sequence[Any] | None, option_string:Optional[str] = None):
+        setattr(namespace, self.dest, AlgorithmMatchingFunction(value)) #type:ignore
 
 
-def AlgorithmMatchingFunction(value: str):
-    match value.strip().lower():
-        case "rnamosh":
-            return "RNAmoSh"
-        case "rnamotices":
-            return "RNAmotiCes"
-        case "rnamotifold":
-            return "RNAmotiFold"
-        case _:
-            return value
+def AlgorithmMatchingFunction(value: Optional[str]) -> Optional[str]:
+    if value is not None:
+        match value.strip().lower():
+            case "rnamosh":
+                return "RNAmoSh"
+            case "rnamotices":
+                return "RNAmotiCes"
+            case "rnamotifold":
+                return "RNAmotiFold"
+            case _:
+                return value
+    return None
 
 
 def config_check(parser: configparser.ConfigParser, section_name: str = "VARIABLES"):
@@ -146,7 +152,8 @@ def config_check(parser: configparser.ConfigParser, section_name: str = "VARIABL
         section_name, "algorithm", AlgorithmMatchingFunction(parser.get(section_name, "algorithm"))
     )
     parser.set(section_name, "output", OutputFileCheckFunction(parser.get(section_name, "output")))
-    parser.set(section_name, "workers", WorkerCheckFunction(parser.get(section_name, "workers")))
+    parser.set(section_name, "logfile", OutputFileCheckFunction(parser.get(section_name, "logfile")))
+    parser.set(section_name, "workers", str(WorkerCheckFunction(parser.get(section_name, "workers"))))
     return True
 
 
@@ -156,8 +163,8 @@ class script_parameters:
     user_config_path = Path(__file__).resolve().parent.joinpath("config.ini")
     RNAmotiFold_path = Path(__file__).resolve().parents[1]
     id: str
-    input: str
-    output: str
+    input: Optional[str]
+    output: Optional[Path]
     algorithm: str
     subopt: bool
     motif_source: int
@@ -177,7 +184,7 @@ class script_parameters:
     replace_internals: bool
     replace_bulges: bool
     loglevel: str
-    logfile: str
+    logfile: Optional[Path]
     workers: int
     separator: str
     no_update: bool
@@ -186,17 +193,25 @@ class script_parameters:
     def __repr__(self):
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
-        together = []
+        together:list[str] = []
         for i in range(0, len(v)):
             together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
 
     @classmethod
     def from_argparser(cls, args: argparse.Namespace):
+        if args.output:
+            outpath = Path(args.output)
+        else:
+            outpath = None
+        if args.logfile:
+            logfile_path = Path(args.logfile)
+        else:
+            logfile_path = None
         return cls(
             id=args.id,
             input=args.input,
-            output=args.output,
+            output=outpath,
             algorithm=args.algorithm,
             subopt=args.subopt,
             motif_source=args.motif_source,
@@ -216,7 +231,7 @@ class script_parameters:
             replace_internals=args.replace_internals,
             replace_bulges=args.replace_bulges,
             loglevel=args.loglevel,
-            logfile=args.logfile,
+            logfile=logfile_path,
             workers=args.workers,
             separator=args.separator,
             no_update=args.no_update,
@@ -225,10 +240,18 @@ class script_parameters:
 
     @classmethod
     def from_configparser(cls, confs: configparser.ConfigParser):
+        if confs.get("VARIABLES", "output"):
+            outpath = Path(confs.get("VARIABLES", "output"))
+        else:
+            outpath = None
+        if confs.get("VARIABLES", "logfile"):
+            logpath = Path(confs.get("VARIABLES", "logfile"))
+        else:
+            logpath = None
         return cls(
             id=confs.get("VARIABLES", "id"),
             input=confs.get("VARIABLES", "input"),
-            output=confs.get("VARIABLES", "output"),
+            output=outpath,
             algorithm=confs.get("VARIABLES", "algorithm"),
             subopt=confs.getboolean("VARIABLES", "subopt"),
             motif_source=confs.getint("VARIABLES", "motif_source"),
@@ -248,7 +271,7 @@ class script_parameters:
             replace_internals=confs.getboolean("VARIABLES", "replace_internals"),
             replace_bulges=confs.getboolean("VARIABLES", "replace_bulges"),
             loglevel=confs.get("VARIABLES", "loglevel"),
-            logfile=confs.get("VARIABLES", "logfile"),
+            logfile=logpath,
             workers=confs.getint("VARIABLES", "workers"),
             separator=confs.get("VARIABLES", "separator"),
             no_update=confs.getboolean("VARIABLES", "no_update"),

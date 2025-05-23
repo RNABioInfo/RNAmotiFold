@@ -1,12 +1,12 @@
 import shutil
 from pathlib import Path
+from typing import Optional,Any,Sequence
 import subprocess
 import argparse
 import sys
 import logging
 import multiprocessing
 from itertools import product
-from os import cpu_count
 
 ROOT_DIR = Path(__file__).absolute().parent
 
@@ -21,7 +21,7 @@ except ImportError as e:
 logger = logging.getLogger("RNAmotiFold")
 
 
-def get_cmd_args() -> Path:
+def get_cmd_args():
     """Contains cmd_argument parsing solely for the purpose of checking if an already installed gapc is given"""
     parser = argparse.ArgumentParser(
         prog="SetUp.py",
@@ -58,21 +58,21 @@ def get_cmd_args() -> Path:
         "-workers",
         type=int,
         dest="workers",
-        default=cpu_count() - 1,
-        help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is os.cpu_count()-2.",
+        default=5,
+        help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is 5.",
     )
     args = parser.parse_known_args()
     return args[0]
 
 
 class preinstalled_check(argparse.Action):
-    def __init__(self, option_strings, dest, **kwargs):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self, parser, namespace, value: str, option_string):
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: Optional[str|Sequence[Any]], option_string:Optional[str]=None):
         if value is None:
             setattr(namespace, self.dest, value)
-        else:
+        elif isinstance(value,str):
             if Path(value).is_file():
                 try:
                     version_check = subprocess.run(
@@ -91,14 +91,16 @@ class preinstalled_check(argparse.Action):
                         )
             else:
                 raise FileNotFoundError("The given file does not exist.")
+        else:
+            raise ValueError("Why is my value a Sequence ?")
 
 
 # Checks if gapc is installed with which or locally
-def _detect_gapc() -> str | None:
+def _detect_gapc() -> Path|None:
     """Checks for a gapc installation with which and globs RNAmotiFold folder for any gapc instance (which is presumed to be a modified gapc, if you have a different gapc in here that's on you)"""
     global_gapc = shutil.which("gapc")
     if global_gapc is not None:
-        return global_gapc
+        return Path(global_gapc)
     else:
         local_gapc = list(ROOT_DIR.glob("**/bin/gapc"))
         try:
@@ -107,11 +109,11 @@ def _detect_gapc() -> str | None:
             return None
 
 
-def setup_algorithms(gapc_path: str, perl_path: str, poolboys: int):
+def setup_algorithms(gapc_path: Path, perl_path: str, poolboys: int):
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
-    compilation_list = []
+    compilation_list:list[str] = []
     algorithms = [
         "".join(x)
         for x in list(product(["RNAmotiFold", "RNAmoSh", "RNAmotiCes"], ["", "_subopt", "_pfc"]))
@@ -131,7 +133,7 @@ def setup_algorithms(gapc_path: str, perl_path: str, poolboys: int):
     return True
 
 
-def work_func(call):
+def work_func(call:str):
     try:
         subprocess.run(call, shell=True, check=True)
     except subprocess.CalledProcessError as error:
@@ -149,7 +151,7 @@ def _check_submodule(submodule: str) -> Path:
         return SUBMOD_DIR
 
 
-def run_cmake():
+def run_cmake() -> Path:
     BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
     BUILD_PATH.mkdir(exist_ok=True)
     try:
@@ -179,11 +181,12 @@ def run_cmake():
 
     if not build_process.returncode:
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
+    raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
 
 
 # Does all the updating with tradeoffs between update algorithms and no update
 def updates(motif_version: str, workers: int) -> bool:
-    update = motifs._uninteractive_update(version=motif_version)
+    update = motifs._uninteractive_update(version=motif_version) #type:ignore
     if update:
         perl_interpreter = shutil.which("perl")
         if perl_interpreter is None:
@@ -197,7 +200,7 @@ def updates(motif_version: str, workers: int) -> bool:
             print(
                 "Could not identify global or local gapc, please enter path to your gapcM: ", end=""
             )
-            gapcM_path = input()
+            gapcM_path = Path(input())
         setup_algorithms(perl_path=perl_interpreter, gapc_path=gapcM_path, poolboys=workers)
         return True
     else:
@@ -216,17 +219,17 @@ def main():
             print("No installed gapc found, installing...")
             cmake_generated_gapc_path = run_cmake()
             print("gap compiler installed, installing algorithms...")
-            motifs._uninteractive_update(args.version)
+            motifs._uninteractive_update(args.version) #type:ignore
             setup_algorithms(cmake_generated_gapc_path, args.preinstalled_perl_path, args.workers)
             print("Algorithms are all set up, you can now use RNAmotiFold")
         else:
             print(f"gap compiler found in {auto_gapc_path}. Using it to set up algorithms...")
-            motifs._uninteractive_update(args.version)
+            motifs._uninteractive_update(args.version) #type:ignore
             setup_algorithms(auto_gapc_path, args.preinstalled_perl_path, args.workers)
             print("Algorithms are all set up, you can now use RNAmotiFold")
     else:
         print("Preinstalled gap compiler given, using it to install RNAmotiFold...")
-        motifs._uninteractive_update(args.version)
+        motifs._uninteractive_update(args.version) #type:ignore
         setup_algorithms(args.preinstalled_gapc_path, args.preinstalled_perl_path, args.workers)
         print("Algorithms are all set up, you can now use RNAmotiFold")
 

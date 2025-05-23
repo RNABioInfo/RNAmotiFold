@@ -7,29 +7,25 @@ logger = logging.getLogger("results")
 
 class result:
 
-    _separator: str = ","
-    _algorithm: str = "RNAmotiFold"
+    separator: str = ","
+    algorithm: str = "RNAmotiFold"
 
-    def __str__(self):
+    def __str__(self) ->str:
         return self.tsv
 
-    def __init__(self, id: str, result_list: list) -> None:
+    def __init__(self, id: str, result_list: list[str]) -> None:
         self.id = id
         self.cols = result_list
 
     @property
-    def tsv(self):
+    def tsv(self)->str:
         """Returns tsv string of itself"""
-        return self.id + result._separator + result._separator.join(map(str, self.cols)) + "\n"
-
-    @property
-    def separator(self):
-        return self._separator
+        return self.id + result.separator + result.separator.join(map(str, self.cols)) + "\n"
 
     @property
     def header(self):
         """Returns header string of itself, adapted to currently set algorithm"""
-        match self._algorithm:
+        match self.algorithm:
             case "RNAmotiFold" | "RNAmotiFold_subopt":
                 _header = ["ID", "motifs", "mfe", "motBracket"]
             case "RNAmotiCes" | "RNAmotiCes_subopt":
@@ -45,7 +41,10 @@ class result:
             case _:
                 _header = [f"col{self.cols.index(x)}" for x in self.cols]
                 _header.insert(0, "ID")
-        return result._separator.join(_header) + "\n"
+        return result.separator.join(_header) + "\n"
+
+
+
 
 
 @dataclass
@@ -55,7 +54,7 @@ class error:
 
 
 class algorithm_output:
-    """Class specifically made for reading gapcM outputs."""
+    """Bigger algorithm output class that mainly holds a list of result objects."""
 
     # Class wide variables that will be the same for all algorithm outputs at the same time.
     # These get set with the _calibrate_results function during auto_run() in the main bgap_rna class
@@ -64,7 +63,7 @@ class algorithm_output:
     def __repr__(self):
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
-        together = []
+        together: list[str] = []
         for i in range(0, len(v)):
             together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
@@ -86,7 +85,7 @@ class algorithm_output:
 
     def __init__(self, name: str, result_str: str, stderr: str):
         self.id = name
-        self.results = self._format_results(result_str)  # type:list[result]
+        self.results: list[result] = self._format_results(result_str)
         self.stderr = stderr
         self._index = 0
         if algorithm_output.pfc:
@@ -94,7 +93,7 @@ class algorithm_output:
 
     # Formats results from the mgapc output formatting to a list of result objects
     def _format_results(self, result_str: str) -> list[result]:
-        reslist = []
+        reslist:list[result] = []
         split = result_str.strip().split("\n")
         for output in split:
             split_result = output.split("|")
@@ -116,10 +115,10 @@ class algorithm_output:
 
     # Calculates partition function probabilities for me so I don't have to manually do it every time for all the outputs
     def calculate_pfc_probabilities(self) -> None:
-        pfc_list = []
+        pfc_list:list[float] = []
         for result_obj in self.results:
             pfc_val = float(result_obj.cols[-1])
             pfc_list.append(pfc_val)
         pfc_sum = sum(pfc_list)
         for result_obj in self.results:
-            result_obj.cols.append(round(float(result_obj.cols[-1]) / pfc_sum, 4))
+            result_obj.cols.append(str(round(float(result_obj.cols[-1]) / pfc_sum, 4)))

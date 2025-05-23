@@ -1,19 +1,17 @@
 import src.bgap_rna as bgap
 import src.args as args
-import src.results
+import src.results as results
 import setup
 import logging
 from pathlib import Path
 from typing import Generator
 from Bio import SeqIO
+from Bio.SeqIO import FastaIO, QualityIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import gzip
 import sys
 from typing import Optional
-
-####Logging setup####
-import logging
 
 logger = logging.getLogger("RNAmotiFold")
 
@@ -21,9 +19,9 @@ logger = logging.getLogger("RNAmotiFold")
 # Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
     runtime_arguments: args.script_parameters,
-) -> list[src.results.algorithm_output | src.results.error | None]:
+) -> list[results.algorithm_output | results.error | list[results.algorithm_output]]:
     """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
-    result_list = []
+    result_list:list[results.algorithm_output | results.error | list[results.algorithm_output]] = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
@@ -55,8 +53,8 @@ def _interactive_session(
 # Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
     runtime_arguments: args.script_parameters,
-) -> list[src.results.algorithm_output | src.results.error]:
-    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id)
+) -> results.algorithm_output | results.error | list[results.algorithm_output]:
+    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id) #type:ignore cause we can only get here by argument not being None in main
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     result = proc_obj.auto_run(
@@ -69,7 +67,7 @@ def _uninteractive_session(
 
 
 # Finds File type based on file ending
-def _find_filetype(file_path: Path) -> None:
+def _find_filetype(file_path: Path) -> tuple[bool, str]:
     if file_path.suffixes[-1] == ".gz" or file_path.suffixes[-1] == ".zip":
         file_extension = file_path.suffixes[-2]
         input_zipped = True
@@ -108,16 +106,16 @@ def _find_filetype(file_path: Path) -> None:
 def _read_input_file(
     file_path: Path,
 ) -> (
-    SeqIO.FastaIO.FastaIterator
-    | SeqIO.QualityIO.FastqPhredIterator
-    | Generator[SeqIO.SeqRecord, None, None]
+    FastaIO.FastaIterator
+    | QualityIO.FastqPhredIterator
+    | Generator[SeqRecord, None, None]
 ):
     (zipped, filetype) = _find_filetype(file_path)
     if not zipped:
-        return SeqIO.parse(file_path, filetype)
+        return SeqIO.parse(file_path, filetype) #type:ignore
     else:
         with gzip.open(file_path, "rt") as handle:
-            return SeqIO.parse(handle, filetype)
+            return SeqIO.parse(handle, filetype) #type:ignore
 
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
@@ -135,7 +133,7 @@ def _input_check(user_input: str, id: str):
 
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
-def configure_logs(loglevel: str, logfile: Optional[str]):
+def configure_logs(loglevel: str, logfile: Optional[Path]):
     if logfile is not None:
         logging.basicConfig(
             filename=logfile,
