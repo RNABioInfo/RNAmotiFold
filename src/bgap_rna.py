@@ -23,7 +23,7 @@ class bgap_rna:
     def __repr__(self):
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
-        together:list[str] = []
+        together: list[str] = []
         for i in range(0, len(v)):
             together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
@@ -32,7 +32,11 @@ class bgap_rna:
         return self.call
 
     @staticmethod
-    def _worker_funct(call: str, iq: 'multiprocessing.Queue[SeqRecord|None]', listenerq: 'multiprocessing.Queue[results.algorithm_output|results.error]'):
+    def _worker_funct(
+        call: str,
+        iq: "multiprocessing.Queue[SeqRecord|None]",
+        listenerq: "multiprocessing.Queue[results.algorithm_output|results.error]",
+    ):
         while True:
             record: Optional[SeqRecord] = iq.get()
             if record is None:
@@ -46,7 +50,7 @@ class bgap_rna:
                 )
             if not subprocess_output.returncode:
                 result = results.algorithm_output(
-                str(record.id), subprocess_output.stdout, subprocess_output.stderr
+                    str(record.id), subprocess_output.stdout, subprocess_output.stderr
                 )
             else:
                 result = results.error(str(record.id), subprocess_output.stderr)
@@ -318,7 +322,7 @@ class bgap_rna:
         """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
-        runtime_dictionary: dict[str,Optional[str]|Optional[int]|Optional[float]] = {
+        runtime_dictionary: dict[str, Optional[str] | Optional[int] | Optional[float]] = {
             "-F": self.low_probability_filter,
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
@@ -330,7 +334,7 @@ class bgap_rna:
             "-L": self.replace_hairpins,
             "-E": self.replace_internals,
             "-G": self.replace_bulges,
-        } #type:dict[str,Optional[float,int,str]]
+        }  # type:dict[str,Optional[float,int,str]]
         if self.subopt:
             # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary
             runtime_dictionary["-c"] = self.energy_percent
@@ -348,8 +352,10 @@ class bgap_rna:
             if y is not None
         ]
 
-        call = " ".join([self.algorithm_path, " ".join(arguments), ""])
-        return call
+        seq_free_call = " ".join(
+            [self.algorithm_path, " ".join(arguments), ""]
+        )  # Creates call string without a sequence
+        return seq_free_call
 
     @call.setter
     def call(self):
@@ -359,8 +365,10 @@ class bgap_rna:
     def _calibrate_result_objects(self, sep: str = "\t"):
         """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
         results.result.separator = sep
-        results.result.algorithm = self.algorithm
-        results.algorithm_output.pfc = self.pfc
+        if self.pfc:
+            results.algorithm_output.Status = "pfc"
+        else:
+            results.algorithm_output.Status = "mfe"
 
     # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
     def auto_run(
@@ -374,9 +382,8 @@ class bgap_rna:
         ),
         o_file: Optional[Path] = None,
         pool_workers: int = multiprocessing.cpu_count(),
-        output_csv_separator:str ="\t",
-    ) -> results.algorithm_output|results.error|list[results.algorithm_output]:
-        
+        output_csv_separator: str = "\t",
+    ) -> results.algorithm_output | results.error | list[results.algorithm_output]:
         """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
 
         if output_csv_separator == r"\t":
@@ -387,11 +394,10 @@ class bgap_rna:
         else:
             return self._run_multi_process(user_input, o_file, workers=pool_workers)
 
-
     # single process function utilizing subprocess to run a single prediction and return the output
     def _run_single_process(
         self,
-        user_input:SeqRecord,
+        user_input: SeqRecord,
         output_f: Path | None = None,
     ) -> results.algorithm_output | results.error:
         """Single sequence input running function, silently transcribes DNA to RNA"""
@@ -440,19 +446,19 @@ class bgap_rna:
 
         Manager = multiprocessing.Manager()  # Spawn multiprocessing Manager object
         # Start with setting up the input and output Queues
-        input_q:multiprocessing.Queue[SeqRecord|str|None] = Manager.Queue() #type: ignore
+        input_q: multiprocessing.Queue[SeqRecord | str | None] = Manager.Queue()  # type: ignore
         for record in user_input:
             input_q.put(record)
 
         # Check for the size of the input Q, if it is below workers we have less sequences than workers
         if input_q.qsize() < workers:
             workers = input_q.qsize()
-        listener_q:multiprocessing.Queue[results.algorithm_output | results.error | None] = Manager.Queue() #type: ignore
+        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None] = Manager.Queue()  # type: ignore
         # Start worker Pool and the listener subprocess, which takes in the worker outputs and formats them
         Pool = multiprocessing.Pool(processes=workers)
         listening = multiprocessing.Process(target=self._listener, args=(listener_q, output_file))
         listening.start()
-        worker_list:list[Any] = []
+        worker_list: list[Any] = []
 
         for i in range(workers):  # Populate the pool
             work = Pool.apply_async(bgap_rna._worker_funct, (self.call, input_q, listener_q))
@@ -466,19 +472,23 @@ class bgap_rna:
         Pool.join()
         listener_q.put(None)
         listening.join()
-        listener_results:results.algorithm_output | results.error | None | list[results.algorithm_output] = listener_q.get()
-        if not isinstance(listener_results,list):
+        listener_results: (
+            results.algorithm_output | results.error | None | list[results.algorithm_output]
+        ) = listener_q.get()
+        if not isinstance(listener_results, list):
             logger.error(f"Received wrong listener return: {str(listener_results)}")
-            raise ValueError("Listener did not finish properly, something except the return list was returned to the main process")
+            raise ValueError(
+                "Listener did not finish properly, something except the return list was returned to the main process"
+            )
         return listener_results
 
     def _listener(
         self,
-        q: 'multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output]]',
+        q: "multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output]]",
         output_f: Path | None,
     ) -> list[results.algorithm_output] | None:
         writing_started = False
-        return_list:list[results.algorithm_output] = []
+        return_list: list[results.algorithm_output] = []
         while True:
             output = q.get()
             if output is None:
