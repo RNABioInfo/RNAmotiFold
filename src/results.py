@@ -28,7 +28,7 @@ class result_mfe(result):
         super().__init__(id, result_list)
 
     @property
-    def header(self, classifier: str = "class") -> str:
+    def header(self, classifier: str = "Class") -> str:
         """Returns header string of itself, adapted to currently set algorithm"""
         _header: list[str] = ["ID", classifier, "mfe", "motBracket"]
         return result.separator.join(_header) + "\n"
@@ -39,7 +39,7 @@ class result_pfc(result):
         super().__init__(id, result_list)
 
     @property
-    def header(self, classifier: str = "class") -> str:
+    def header(self, classifier: str = "Class") -> str:
         """Returns header string of itself, adapted to currently set algorithm"""
         _header: list[str] = ["ID", classifier, "pfc", "Probability"]
         return result.separator.join(_header) + "\n"
