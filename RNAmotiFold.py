@@ -21,7 +21,7 @@ def _interactive_session(
     runtime_arguments: args.script_parameters,
 ) -> list[results.algorithm_output | results.error | list[results.algorithm_output]]:
     """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
-    result_list:list[results.algorithm_output | results.error | list[results.algorithm_output]] = []
+    result_list: list[results.algorithm_output | results.error | list[results.algorithm_output]] = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
@@ -75,20 +75,8 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
         file_extension = file_path.suffixes[-1]
         input_zipped = False
     match file_extension:
-        case (
-            ".fasta"
-            | ".fas"
-            | ".fa"
-            | ".fna"
-            | ".ffn"
-            | ".faa"
-            | ".mpfa"
-            | ".frn"
-            | ".txt"
-            | ".fsa"
-        ):
+        case ".fasta" | ".fas" | ".fa" | ".fna" | ".ffn" | ".faa" | ".mpfa" | ".frn" | ".txt" | ".fsa":
             filetype = "fasta"
-
         case ".fastq" | ".fq":
             filetype = "fastq"
         case ".stk" | ".stockholm" | ".sto":
@@ -105,31 +93,27 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
 # Read input file
 def _read_input_file(
     file_path: Path,
-) -> (
-    FastaIO.FastaIterator
-    | QualityIO.FastqPhredIterator
-    | Generator[SeqRecord, None, None]
-):
+) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None]:
     (zipped, filetype) = _find_filetype(file_path)
     if not zipped:
-        return SeqIO.parse(file_path, filetype) #type:ignore
+        return SeqIO.parse(file_path, filetype)  # type:ignore
     else:
         with gzip.open(file_path, "rt") as handle:
-            return SeqIO.parse(handle, filetype) #type:ignore
+            return SeqIO.parse(handle, filetype)  # type:ignore
 
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
 def _input_check(user_input: str, id: str):
-    if Path(user_input).resolve().is_file():
-        logger.info("Recognized input as filepath, reading...")
-        return _read_input_file(Path(user_input).resolve())
+    try:
+        if Path(user_input).resolve().is_file():
+            logger.info("Recognized input as filepath, reading...")
+            return _read_input_file(Path(user_input).resolve())
+    except OSError as e:
+        logger.debug(e)
+    if any(c not in "AUCGTaucgt+" for c in set(user_input)):
+        raise ValueError("Input string was neither a viable file path nor a viable RNA or DNA sequence")
     else:
-        if any(c not in "AUCGTaucgt+" for c in set(user_input)):
-            raise ValueError(
-                "Input string was neither a viable file path nor a viable RNA or DNA sequence"
-            )
-        else:
-            return SeqRecord(seq=Seq(user_input), id=id)
+        return SeqRecord(seq=Seq(user_input), id=id)
 
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
