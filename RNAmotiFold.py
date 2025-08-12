@@ -85,20 +85,8 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
         file_extension = file_path.suffixes[-1]
         input_zipped = False
     match file_extension:
-        case (
-            ".fasta"
-            | ".fas"
-            | ".fa"
-            | ".fna"
-            | ".ffn"
-            | ".faa"
-            | ".mpfa"
-            | ".frn"
-            | ".txt"
-            | ".fsa"
-        ):
+        case ".fasta" | ".fas" | ".fa" | ".fna" | ".ffn" | ".faa" | ".mpfa" | ".frn" | ".txt" | ".fsa":
             filetype = "fasta"
-
         case ".fastq" | ".fq":
             filetype = "fastq"
         case ".stk" | ".stockholm" | ".sto":
@@ -115,17 +103,13 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
 # Read input file
 def _read_input_file(
     file_path: Path,
-) -> (
-    FastaIO.FastaIterator
-    | QualityIO.FastqPhredIterator
-    | Generator[SeqRecord, None, None]
-):
+) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None]:
     (zipped, filetype) = _find_filetype(file_path)
     if not zipped:
-        return SeqIO.parse(file_path, filetype) #type:ignore
+        return SeqIO.parse(file_path, filetype)  # type:ignore
     else:
         with gzip.open(file_path, "rt") as handle:
-            return SeqIO.parse(handle, filetype) #type:ignore
+            return SeqIO.parse(handle, filetype)  # type:ignore
 
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
