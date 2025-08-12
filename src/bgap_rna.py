@@ -460,11 +460,11 @@ class bgap_rna:
         listening.start()
         worker_list: list[Any] = []
 
-        for i in range(workers):  # Populate the pool
+        for i in range(workers):  #type:ignore Populate the pool
             work = Pool.apply_async(bgap_rna._worker_funct, (self.call, input_q, listener_q))
             worker_list.append(work)
 
-        for i in range(workers):  # Tell the workers to stop
+        for i in range(workers):  #type:ignore Tell the workers to stop
             input_q.put(None)
         for work in worker_list:  # Let workers finish their iterables
             work.get()
