@@ -259,7 +259,7 @@ class bgap_rna:
         if e == "":
             e = None
         if e is not None:
-            if float(e) > 0:
+            if float(e) >= 0:
                 self._energy = e
             else:
                 raise ValueError("Energy range cannot be lower than 0.")
@@ -344,7 +344,7 @@ class bgap_rna:
         if self.algorithm in ["RNAmoSh", "RNAmoSh_subopt", "RNAmoSh_pfc"]:
             runtime_dictionary["-q"] = self.shape_level
         arguments = [
-            "{key} {value:g}".format(
+            "{key} {value}".format(
                 key=x,
                 value=y,
             )
@@ -383,7 +383,7 @@ class bgap_rna:
         o_file: Optional[Path] = None,
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
-    ) -> results.algorithm_output | results.error | list[results.algorithm_output]:
+    ) -> list[results.algorithm_output | results.error ]:
         """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
 
         if output_csv_separator == r"\t":
@@ -399,7 +399,7 @@ class bgap_rna:
         self,
         user_input: SeqRecord,
         output_f: Path | None = None,
-    ) -> results.algorithm_output | results.error:
+    ) -> list[results.algorithm_output | results.error]:
         """Single sequence input running function, silently transcribes DNA to RNA"""
         if "T" in str(user_input):
             logger.info("Detected DNA sequence as input, transcribing to RNA")
@@ -422,14 +422,14 @@ class bgap_rna:
                 with open(output_f, "a+") as file:
                     with redirect_stdout(file):
                         return_val.write_results(initiated=False)
-                        return return_val
+                        return [return_val]
             else:
                 return_val.write_results(initiated=False)
                 sys.stdout.flush()
-            return return_val
+            return [return_val]
         else:
             logger.warning(f"Process {user_input.id} finished with error: {subproc_out.stderr}")
-            return results.error(str(user_input.id), subproc_out.stderr)
+            return [results.error(str(user_input.id), subproc_out.stderr)]
 
     # multiprocessing function, which utilizes a worker pool to run the specified algorithm on each sequences in the input iterable
     def _run_multi_process(
@@ -442,7 +442,7 @@ class bgap_rna:
         ),
         output_file: Optional[Path] = None,
         workers: int = multiprocessing.cpu_count(),
-    ) -> list[results.algorithm_output]:
+    ) -> list[results.algorithm_output | results.error]:
 
         Manager = multiprocessing.Manager()  # Spawn multiprocessing Manager object
         # Start with setting up the input and output Queues
@@ -453,7 +453,7 @@ class bgap_rna:
         # Check for the size of the input Q, if it is below workers we have less sequences than workers
         if input_q.qsize() < workers:
             workers = input_q.qsize()
-        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None] = Manager.Queue()  # type: ignore
+        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output | results.error]] = Manager.Queue()  # type: ignore
         # Start worker Pool and the listener subprocess, which takes in the worker outputs and formats them
         Pool = multiprocessing.Pool(processes=workers)
         listening = multiprocessing.Process(target=self._listener, args=(listener_q, output_file))
@@ -472,25 +472,18 @@ class bgap_rna:
         Pool.join()
         listener_q.put(None)
         listening.join()
-        listener_results: (
-            results.algorithm_output | results.error | None | list[results.algorithm_output]
-        ) = listener_q.get()
-        if not isinstance(listener_results, list):
-            logger.error(f"Received wrong listener return: {str(listener_results)}")
-            raise ValueError(
-                "Listener did not finish properly, something except the return list was returned to the main process"
-            )
+        listener_results: list[results.algorithm_output | results.error] = listener_q.get() #type:ignore This will always be a list of results since it's what the listener "returns"
         return listener_results
 
     def _listener(
         self,
-        q: "multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output]]",
+        q: "multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]",
         output_f: Path | None,
-    ) -> list[results.algorithm_output] | None:
+    ) -> None:
         writing_started = False
-        return_list: list[results.algorithm_output] = []
+        return_list: list[results.algorithm_output | results.error] = []
         while True:
-            output = q.get()
+            output: None | results.algorithm_output | results.error | list[results.algorithm_output | results.error]= q.get()
             if output is None:
                 q.put(return_list)
                 break
@@ -510,3 +503,5 @@ class bgap_rna:
                     logger.warning(
                         f"Prediction {output.id} finished with error: {output.error.strip()}"
                     )
+                    return_list.append(output)
+                    

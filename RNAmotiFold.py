@@ -19,9 +19,9 @@ logger = logging.getLogger("RNAmotiFold")
 # Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
     runtime_arguments: args.script_parameters,
-) -> list[results.algorithm_output | results.error | list[results.algorithm_output]]:
-    """Function is an infinite while Loop that always does one prediction, returns the results and waits for a new input."""
-    result_list:list[results.algorithm_output | results.error | list[results.algorithm_output]] = []
+) -> list[results.algorithm_output | results.error]:
+    """Function is an infinite while Loop that always does one prediction, appends the result to a list and waits for a new input. List of results is returned"""
+    result_list:list[list[results.algorithm_output | results.error]] = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
@@ -36,28 +36,38 @@ def _interactive_session(
             )
         else:
             try:
-                realtime_input = _input_check(user_input, runtime_arguments.id)
-            except ValueError as error:
-                print(error)
+                realtime_input: FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord = _input_check(user_input, runtime_arguments.id)
+            except ValueError as v_error:
+                print(v_error)
+            except OSError as os_error:
+                print(os_error)
             else:
-                result = proc_obj.auto_run(
+                result:  list[results.algorithm_output | results.error ] = proc_obj.auto_run(
                     realtime_input,
                     o_file=runtime_arguments.output,
                     pool_workers=runtime_arguments.workers,
                     output_csv_separator=runtime_arguments.separator,
                 )
                 result_list.append(result)
-    return result_list  # Added result outputting just in case I wanna do something with that down the line.
+    flat_list = flatten(result_list)
+    return flat_list  # Added result outputting just in case I wanna do something with that down the line.
+
+#List flattening
+def flatten(xss:list[list[results.algorithm_output|results.error]]) -> list[results.algorithm_output|results.error]:
+    '''
+    Used to flatten a lists of lists into a single list, typed specifically for interactive session outputs
+    '''
+    return [x for xs in xss for x in xs]
 
 
 # Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
     runtime_arguments: args.script_parameters,
-) -> results.algorithm_output | results.error | list[results.algorithm_output]:
+) -> list[results.algorithm_output | results.error]:
     runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id) #type:ignore cause we can only get here by argument not being None in main
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
-    result = proc_obj.auto_run(
+    result: list[results.algorithm_output | results.error] = proc_obj.auto_run(
         user_input=runtime_input,
         o_file=runtime_arguments.output,
         pool_workers=runtime_arguments.workers,
@@ -119,21 +129,25 @@ def _read_input_file(
 
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
-def _input_check(user_input: str, id: str):
-    if Path(user_input).resolve().is_file():
-        logger.info("Recognized input as filepath, reading...")
-        return _read_input_file(Path(user_input).resolve())
+def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord:
+    try:
+        pathd = Path(user_input)
+        if pathd.resolve().is_file():
+            logger.info("Recognized input as filepath, reading...")
+            return _read_input_file(Path(user_input).resolve())
+    except OSError as e:
+        logger.debug("Input could not be converted to a Pathlib path object:",e)
+        raise OSError
+    if any(c not in "AUCGTaucgt+" for c in set(user_input)):
+        raise ValueError(
+            "Input string was neither a viable file path nor a viable RNA or DNA sequence"
+        )
     else:
-        if any(c not in "AUCGTaucgt+" for c in set(user_input)):
-            raise ValueError(
-                "Input string was neither a viable file path nor a viable RNA or DNA sequence"
-            )
-        else:
-            return SeqRecord(seq=Seq(user_input), id=id)
+        return SeqRecord(seq=Seq(user_input), id=id)
 
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
-def configure_logs(loglevel: str, logfile: Optional[Path]):
+def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
     if logfile is not None:
         logging.basicConfig(
             filename=logfile,
@@ -152,17 +166,17 @@ def configure_logs(loglevel: str, logfile: Optional[Path]):
 
 
 if __name__ == "__main__":
-    rt_args = args.get_cmdarguments()
+    rt_args: bgap.script_parameters = args.get_cmdarguments()
     try:
-        configure_logs(rt_args.loglevel, rt_args.logfile)
+        configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
         if not rt_args.no_update:
-            setup.updates(rt_args.version, rt_args.workers)
+            setup.updates(motif_version=rt_args.version, workers=rt_args.workers)
     except ValueError as error:
         raise error
     logger.debug("Input args: " + repr(rt_args))
     if rt_args.input is not None:
         logger.info("Input is set, starting calculations")
-        out = _uninteractive_session(rt_args)
+        out: list[results.algorithm_output | results.error] = _uninteractive_session(rt_args)
     else:
         logger.info("No input set, starting interactive session")
-        out = _interactive_session(rt_args)
+        out: list[results.algorithm_output | results.error] = _interactive_session(runtime_arguments=rt_args)
