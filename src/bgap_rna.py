@@ -2,7 +2,7 @@ import sys
 import subprocess
 import multiprocessing
 from pathlib import Path
-from typing import Iterator, Optional, Generator, Any
+from typing import Iterator, Optional, Generator, Any, Literal 
 from Bio.SeqIO import FastaIO, QualityIO
 import logging
 from Bio.SeqRecord import SeqRecord
@@ -43,7 +43,7 @@ class bgap_rna:
                 break
             else:
                 if "T" in str(record.seq):
-                    record.seq = record.seq.transcribe()
+                    record.seq = record.seq.transcribe() #type:ignore This throws a transcribe is not Part of none error, though record.seq can't be None at this point 
                 logger.debug(f"Running prediction: {record.id}:{call+str(record.seq)}")
                 subprocess_output = subprocess.run(
                     call + str(record.seq), text=True, capture_output=True, shell=True
@@ -82,7 +82,7 @@ class bgap_rna:
 
     def __init__(
         self,
-        alg: str,
+        alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes"],
         motif_source: Optional[int] = None,
         motif_orientation: Optional[int] = None,
         kvalue: Optional[int] = None,
@@ -93,10 +93,10 @@ class bgap_rna:
         custom_hairpins: Optional[str] = None,
         custom_internals: Optional[str] = None,
         custom_bulges: Optional[str] = None,
-        allowLonelyBasepairs: bool = False,
-        replace_hairpins: bool = False,
-        replace_internals: bool = False,
-        replace_bulges: bool = False,
+        allowLonelyBasepairs: Optional[bool] = None,
+        replace_hairpins: Optional[bool] = None,
+        replace_internals: Optional[bool] = None,
+        replace_bulges: Optional[bool] = None,
         subopt: bool = False,
         pfc: bool = False,
         low_prob_filter: Optional[float] = None,
@@ -170,8 +170,10 @@ class bgap_rna:
         return self._allowLonelyBasepairs
 
     @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: bool):
-        if val:
+    def allowLonelyBasepairs(self, val: Optional[bool]):
+        if val is None:
+            self._allowLonelyBasepairs = None
+        elif val:
             self._allowLonelyBasepairs = 1
         else:
             self._allowLonelyBasepairs = 0
@@ -181,8 +183,10 @@ class bgap_rna:
         return self._replace_hairpins
 
     @replace_hairpins.setter
-    def replace_hairpins(self, val: bool):
-        if val:
+    def replace_hairpins(self, val: Optional[bool]):
+        if val is None:
+            self._replace_hairpins = None
+        elif val:
             self._replace_hairpins = 1
         else:
             self._replace_hairpins = 0
@@ -192,8 +196,10 @@ class bgap_rna:
         return self._replace_internals
 
     @replace_internals.setter
-    def replace_internals(self, val: bool):
-        if val:
+    def replace_internals(self, val: Optional[bool]):
+        if val is None:
+            self._replace_internals = None
+        elif val:
             self._replace_internals = 1
         else:
             self._replace_internals = 0
@@ -203,8 +209,10 @@ class bgap_rna:
         return self._replace_bulges
 
     @replace_bulges.setter
-    def replace_bulges(self, val: bool):
-        if val:
+    def replace_bulges(self, val: Optional[bool]):
+        if val is None:
+            self._replace_bulges = None
+        elif val:
             self._replace_bulges = 1
         else:
             self._replace_bulges = 0
@@ -375,12 +383,13 @@ class bgap_rna:
         self,
         user_input: (
             SeqRecord
+            | list[SeqRecord]
             | Iterator[str]
             | FastaIO.FastaIterator
             | QualityIO.FastqPhredIterator
             | Generator[SeqRecord, None, None]
         ),
-        o_file: Optional[Path] = None,
+        o_file: Optional[Path | str] = None,
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
     ) -> list[results.algorithm_output | results.error ]:
@@ -398,12 +407,12 @@ class bgap_rna:
     def _run_single_process(
         self,
         user_input: SeqRecord,
-        output_f: Path | None = None,
+        output_f: Optional[Path|str] = None,
     ) -> list[results.algorithm_output | results.error]:
         """Single sequence input running function, silently transcribes DNA to RNA"""
         if "T" in str(user_input):
             logger.info("Detected DNA sequence as input, transcribing to RNA")
-            user_input.seq = user_input.seq.transcribe()
+            user_input.seq = user_input.seq.transcribe() #type:ignore Same case as above, throws transcribe is not part of none error but it can't be None here
             logger.info(f"Transcription complete, new input:{str(user_input.seq)}")
         logger.debug(f"Running prediction:{self.id}:{self.call} {str(user_input.seq)}")
         subproc_out = subprocess.run(
@@ -435,12 +444,13 @@ class bgap_rna:
     def _run_multi_process(
         self,
         user_input: (
-            Iterator[str]
+            list[SeqRecord]
+            | Iterator[str]
             | FastaIO.FastaIterator
             | QualityIO.FastqPhredIterator
             | Generator[SeqRecord, None, None]
         ),
-        output_file: Optional[Path] = None,
+        output_file: Optional[Path| str] = None,
         workers: int = multiprocessing.cpu_count(),
     ) -> list[results.algorithm_output | results.error]:
 
@@ -475,10 +485,10 @@ class bgap_rna:
         listener_results: list[results.algorithm_output | results.error] = listener_q.get() #type:ignore This will always be a list of results since it's what the listener "returns"
         return listener_results
 
+    @staticmethod
     def _listener(
-        self,
         q: "multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]",
-        output_f: Path | None,
+        output_f: Optional[Path | str] = None,
     ) -> None:
         writing_started = False
         return_list: list[results.algorithm_output | results.error] = []
@@ -489,15 +499,14 @@ class bgap_rna:
                 break
             else:
                 if isinstance(output, results.algorithm_output):
-                    if isinstance(output_f, Path):
-                        logger.info(f"Prediction {output.id} finished.")
+                    logger.info(f"Prediction {output.id} finished successfully.")
+                    if isinstance(output_f, (Path,str)):
                         with open(output_f, "a+") as file:
                             with redirect_stdout(file):
                                 writing_started = output.write_results(writing_started)
                     else:
                         writing_started = output.write_results(writing_started)
-                        sys.stdout.flush()
-                        logger.info(f"Prediction {output.id} finished.")
+                        sys.stdout.flush()   
                     return_list.append(output)
                 if isinstance(output, results.error):
                     logger.warning(

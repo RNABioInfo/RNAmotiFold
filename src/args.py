@@ -5,7 +5,7 @@ from pathlib import Path
 from os import cpu_count, access, W_OK
 from dataclasses import dataclass
 import sys
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Literal
 
 def is_path_creatable(pathname: str) -> bool:
     """
@@ -130,12 +130,11 @@ class AlgorithmMatching(argparse.Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str |Sequence[Any] | None, option_string:Optional[str] = None):
-        setattr(namespace, self.dest, AlgorithmMatchingFunction(value)) #type:ignore
+        setattr(namespace, self.dest, AlgorithmMatchingFunction(value)) #type:ignore , ignored cause of the base value typing
 
 
-def AlgorithmMatchingFunction(value: Optional[str]) -> Optional[str]:
-    if value is not None:
-        match value.strip().lower():
+def AlgorithmMatchingFunction(value: str) -> Literal["RNAmoSh","RNAmotiCes","RNAmotiFold"]:
+    match value.strip().lower():
             case "rnamosh":
                 return "RNAmoSh"
             case "rnamotices":
@@ -143,8 +142,7 @@ def AlgorithmMatchingFunction(value: Optional[str]) -> Optional[str]:
             case "rnamotifold":
                 return "RNAmotiFold"
             case _:
-                return value
-    return None
+                raise ValueError(f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes and RNAmotiFold")
 
 
 def config_check(parser: configparser.ConfigParser, section_name: str = "VARIABLES"):
@@ -165,7 +163,7 @@ class script_parameters:
     id: str
     input: Optional[str]
     output: Optional[Path]
-    algorithm: str
+    algorithm: Literal["RNAmoSh","RNAmotiCes","RNAmotiFold"]
     subopt: bool
     motif_source: int
     motif_orientation: int
@@ -252,7 +250,7 @@ class script_parameters:
             id=confs.get("VARIABLES", "id"),
             input=confs.get("VARIABLES", "input"),
             output=outpath,
-            algorithm=confs.get("VARIABLES", "algorithm"),
+            algorithm=AlgorithmMatchingFunction(confs.get("VARIABLES", "algorithm")),
             subopt=confs.getboolean("VARIABLES", "subopt"),
             motif_source=confs.getint("VARIABLES", "motif_source"),
             motif_orientation=confs.getint("VARIABLES", "motif_orientation"),

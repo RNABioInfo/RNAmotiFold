@@ -30,7 +30,15 @@ def get_cmd_args():
         epilog="Does anyone read these anyways?",
     )
     parser.add_argument(
-        "--preinstalled_gapc_path",
+        "--cmake_path",
+        nargs="?",
+        dest="cmake_path",
+        default=shutil.which("cmake"),
+        type=str,
+        help="If you don't have cmake installed globally or are using a specific CMake version you can set the path here. Default is the cmake version return by 'which cmake'"
+    )    
+    parser.add_argument(
+        "--gapc_path",
         nargs="?",
         action=preinstalled_check,
         dest="preinstalled_gapc_path",
@@ -41,7 +49,7 @@ def get_cmd_args():
     parser.add_argument(
         "--perl_interpreter",
         nargs="?",
-        dest="preinstalled_perl_path",
+        dest="perl_path",
         default=shutil.which("perl"),
         type=str,
         help="if you have an alternative perl interpreter you can set the path to it here. Otherwise this script will use the one returned by which perl.",
@@ -159,12 +167,12 @@ def _check_submodule(submodule: str) -> Path:
         return SUBMOD_DIR
 
 
-def run_cmake() -> Path:
+def run_cmake(cmake_path:str) -> Path:
     BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
     BUILD_PATH.mkdir(exist_ok=True)
     try:
         build_process = subprocess.run(
-            f"cmake ..",
+            f"{cmake_path} ..",
             shell=True,
             check=True,
             stdout=sys.stdout,
@@ -176,7 +184,7 @@ def run_cmake() -> Path:
         raise error
     try:
         build_process = subprocess.run(
-            f"cmake --build .",
+            f"{cmake_path} --build .",
             shell=True,
             check=True,
             stdout=sys.stdout,
@@ -226,18 +234,18 @@ def main():
         auto_gapc_path = _detect_gapc()
         if auto_gapc_path is None:
             print("No installed gapc found, installing...")
-            cmake_generated_gapc_path = run_cmake()
+            cmake_generated_gapc_path = run_cmake(args.cmake_path) #type:ignore
             print("gap compiler installed, installing algorithms...")
             motifs._uninteractive_update(args.version) #type:ignore
-            done=setup_algorithms(cmake_generated_gapc_path, args.preinstalled_perl_path, args.workers)
+            done=setup_algorithms(cmake_generated_gapc_path, args.perl_path, args.workers)
         else:
             print(f"gap compiler found in {auto_gapc_path}. Using it to set up algorithms...")
             motifs._uninteractive_update(args.version) #type:ignore
-            done=setup_algorithms(auto_gapc_path, args.preinstalled_perl_path, args.workers)
+            done=setup_algorithms(auto_gapc_path, args.perl_path, args.workers)
     else:
         print("Preinstalled gap compiler given, using it to install RNAmotiFold...")
         motifs._uninteractive_update(args.version) #type:ignore
-        done=setup_algorithms(args.preinstalled_gapc_path, args.preinstalled_perl_path, args.workers)
+        done=setup_algorithms(args.preinstalled_gapc_path, args.perl_path, args.workers)
     if done:
         print("Algorithms are all set up, you can now use RNAmotiFold")
     else:
