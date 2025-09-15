@@ -19,7 +19,10 @@ logger = logging.getLogger("bgap_rna")
 
 
 class bgap_rna:
-
+    '''
+    Main class for running RNAmotiFold algortihms through python, just hand your arguments to this class (everything else will be defaults) and use [your class obj].auto_run([input]) to run predictions.)
+    To be agile with 
+    '''
     def __repr__(self):
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
@@ -32,7 +35,7 @@ class bgap_rna:
         return self.call
 
     @staticmethod
-    def _worker_funct(
+    def _worker(
         call: str,
         iq: "multiprocessing.Queue[SeqRecord|None]",
         listenerq: "multiprocessing.Queue[results.algorithm_output|results.error]",
@@ -55,6 +58,35 @@ class bgap_rna:
             else:
                 result = results.error(str(record.id), subprocess_output.stderr)
             listenerq.put(result)
+
+    @staticmethod
+    def _listener(
+        q: "multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]",
+        output_f: Optional[Path | str] = None,
+    ) -> None:
+        writing_started = False
+        return_list: list[results.algorithm_output | results.error] = []
+        while True:
+            output: None | results.algorithm_output | results.error | list[results.algorithm_output | results.error]= q.get()
+            if output is None:
+                q.put(return_list)
+                break
+            else:
+                if isinstance(output, results.algorithm_output):
+                    logger.info(f"Prediction {output.id} finished successfully.")
+                    if isinstance(output_f, (Path,str)):
+                        with open(output_f, "a+") as file:
+                            with redirect_stdout(file):
+                                writing_started = output.write_results(writing_started)
+                    else:
+                        writing_started = output.write_results(writing_started)
+                        sys.stdout.flush()   
+                    return_list.append(output)
+                if isinstance(output, results.error):
+                    logger.warning(
+                        f"Prediction {output.id} finished with error: {output.error.strip()}"
+                    )
+                    return_list.append(output)
 
     @classmethod
     def from_script_parameters(cls, params: script_parameters):
@@ -83,23 +115,23 @@ class bgap_rna:
     def __init__(
         self,
         alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes"],
-        motif_source: Optional[int] = None,
-        motif_orientation: Optional[int] = None,
-        kvalue: Optional[int] = None,
-        shape_level: Optional[int] = None,
+        motif_source: int = 1,
+        motif_orientation: int = 1,
+        kvalue: int = 5,
+        shape_level: int = 3,
         energy: Optional[str] = None,
-        temperature: Optional[float] = None,
-        energy_percent: Optional[float] = None,
+        temperature: float = 37.0,
+        energy_percent: float = 5.0,
         custom_hairpins: Optional[str] = None,
         custom_internals: Optional[str] = None,
         custom_bulges: Optional[str] = None,
-        allowLonelyBasepairs: Optional[bool] = None,
+        allowLonelyBasepairs: bool = False,
         replace_hairpins: Optional[bool] = None,
         replace_internals: Optional[bool] = None,
         replace_bulges: Optional[bool] = None,
         subopt: bool = False,
         pfc: bool = False,
-        low_prob_filter: Optional[float] = None,
+        low_prob_filter: float = 0.000001,
         session_id: str = "N/A",
     ):
         self.id = session_id
@@ -142,14 +174,12 @@ class bgap_rna:
         return self._temperature
 
     @temperature.setter
-    def temperature(self, temp: Optional[float]):
-        if temp is not None:
-            if -273 < temp < 100:
-                self._temperature = temp
-            else:
-                raise ValueError("Temperature can only be between -273°C and 100°C")
-        else:
+    def temperature(self, temp: float):
+        if -273 < temp < 100:
             self._temperature = temp
+        else:
+            raise ValueError("Temperature can only be between -273°C and 100°C")
+
 
     @property
     def energy_percent(self):
@@ -170,10 +200,8 @@ class bgap_rna:
         return self._allowLonelyBasepairs
 
     @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: Optional[bool]):
-        if val is None:
-            self._allowLonelyBasepairs = None
-        elif val:
+    def allowLonelyBasepairs(self, val: bool):
+        if val:
             self._allowLonelyBasepairs = 1
         else:
             self._allowLonelyBasepairs = 0
@@ -223,8 +251,8 @@ class bgap_rna:
         return self._motif_source
 
     @motif_source.setter
-    def motif_source(self, Q: Optional[int]):
-        if Q is None or Q in [1, 2, 3]:
+    def motif_source(self, Q: int):
+        if Q in [1, 2, 3]:
             self._motif_source = Q
         else:
             raise ValueError(
@@ -237,8 +265,8 @@ class bgap_rna:
         return self._motif_orientation
 
     @motif_orientation.setter
-    def motif_orientation(self, b: Optional[int]):
-        if b is None or b in [1, 2, 3]:
+    def motif_orientation(self, b: int):
+        if b in [1, 2, 3]:
             self._motif_orientation = b
         else:
             raise ValueError("Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both.")
@@ -249,8 +277,8 @@ class bgap_rna:
         return self._shape_level
 
     @shape_level.setter
-    def shape_level(self, q: Optional[int]):
-        if q is None or q in [1, 2, 3, 4, 5]:
+    def shape_level(self, q: int):
+        if q in [1, 2, 3, 4, 5]:
             self._shape_level = q
         else:
             raise ValueError(
@@ -280,11 +308,8 @@ class bgap_rna:
         return self._kvalue
 
     @kvalue.setter
-    def kvalue(self, k: Optional[int]):
-        if k is not None:
-            if k > 0:
-                self._kvalue = k
-        elif k is None:
+    def kvalue(self, k: int):
+        if k > 0:
             self._kvalue = k
         else:
             raise ValueError("Kvalue cannot be 0 or lower.")
@@ -294,11 +319,8 @@ class bgap_rna:
         return self._low_probability_filter
 
     @low_probability_filter.setter
-    def low_probability_filter(self, value: Optional[float]):
-        if value is not None:
-            if 0 < value < 1:
-                self._low_probability_filter = value
-        elif value is None:
+    def low_probability_filter(self, value: float):
+        if 0 < value < 1:
             self._low_probability_filter = value
         else:
             raise ValueError("Probability filter cannot be below 0 or above 1")
@@ -471,12 +493,11 @@ class bgap_rna:
         worker_list: list[Any] = []
 
         for i in range(workers):  #type:ignore Populate the pool
-            work = Pool.apply_async(bgap_rna._worker_funct, (self.call, input_q, listener_q))
+            work = Pool.apply_async(bgap_rna._worker, (self.call, input_q, listener_q))
             worker_list.append(work)
-
-        for i in range(workers):  #type:ignore Tell the workers to stop
             input_q.put(None)
-        for work in worker_list:  # Let workers finish their iterables
+    
+        for work in worker_list:  # Let workers finish
             work.get()
         Pool.close()
         Pool.join()
@@ -484,33 +505,3 @@ class bgap_rna:
         listening.join()
         listener_results: list[results.algorithm_output | results.error] = listener_q.get() #type:ignore This will always be a list of results since it's what the listener "returns"
         return listener_results
-
-    @staticmethod
-    def _listener(
-        q: "multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]",
-        output_f: Optional[Path | str] = None,
-    ) -> None:
-        writing_started = False
-        return_list: list[results.algorithm_output | results.error] = []
-        while True:
-            output: None | results.algorithm_output | results.error | list[results.algorithm_output | results.error]= q.get()
-            if output is None:
-                q.put(return_list)
-                break
-            else:
-                if isinstance(output, results.algorithm_output):
-                    logger.info(f"Prediction {output.id} finished successfully.")
-                    if isinstance(output_f, (Path,str)):
-                        with open(output_f, "a+") as file:
-                            with redirect_stdout(file):
-                                writing_started = output.write_results(writing_started)
-                    else:
-                        writing_started = output.write_results(writing_started)
-                        sys.stdout.flush()   
-                    return_list.append(output)
-                if isinstance(output, results.error):
-                    logger.warning(
-                        f"Prediction {output.id} finished with error: {output.error.strip()}"
-                    )
-                    return_list.append(output)
-                    

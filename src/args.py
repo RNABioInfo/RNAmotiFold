@@ -424,6 +424,7 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "-u",
+        "--allow_lonely_basepairs",
         help=f"Allow lonely base pairs, True = yes, False = no. Default is {config.get(config.default_section, "basepairs")}",
         dest="basepairs",
         action="store_true",
