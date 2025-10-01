@@ -71,6 +71,8 @@ def get_cmd_args():
         help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is 5.",
     )
     args = parser.parse_known_args()
+    if args[0].cmake_path is None:
+        raise FileNotFoundError("CMake was not found, please install it or set the path with --cmake_path")
     return args[0]
 
 
