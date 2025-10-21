@@ -1,9 +1,17 @@
 import sys
 from dataclasses import dataclass
 import logging
-from typing import Literal
+from typing import Literal,Any
+import re
 
 logger = logging.getLogger("results")
+
+#List flattening
+def flatten(xss:list[list[Any]]) -> list[Any]:
+    '''
+    Used to flatten a lists of lists into a single list
+    '''
+    return [x for xs in xss for x in xs]
 
 
 class result:
@@ -15,7 +23,7 @@ class result:
 
     def __str__(self) -> str:
         return self.tsv
-
+    
     @property
     def tsv(self) -> str:
         """Returns tsv string of itself"""
@@ -24,14 +32,133 @@ class result:
 
 class result_mfe(result):
 
-    def __init__(self, id: str, result_list: list[str]) -> None:
+    def __eq__(self,other:'result_mfe') -> bool: #type:ignore
+        return self.free_energy == other.free_energy and self.mot_bracket == other.mot_bracket and self.classifier == other.classifier
+
+    def __hash__(self) -> int:
+        return hash((self.free_energy,self.mot_bracket,self.classifier))
+    
+    @classmethod
+    def merge_structures(cls,compatibles:list['result_mfe']) ->'result_mfe|None':
+        base_structure = list(compatibles[0].dot_bracket)
+        insertions:set[int] = set()
+        motifs:set[tuple[str,str]] = set()
+        for result in compatibles:
+            for c in set(sorted(result.classifier)):
+                locations = list(result_mfe.find_all(result.mot_bracket,c))
+                for loc in locations:
+                    if loc in insertions and base_structure[loc] != c:
+                        motifs.add((c.lower(),result.motif_type))
+                        logger.warning(f"Overlap detected during merge at position {loc} between motifs {base_structure[loc]} and {c} on sequence: {result.id}, marking as lowercase and inserting {c.lower()}")
+                        motifs.discard((base_structure[loc],result.motif_type)) #silent remove from set since this case will happen a lot but is intended behavior
+                        base_structure[loc] = c.lower()
+                    else:
+                        motifs.add((c,result.motif_type))
+                        base_structure[loc] = c
+                    insertions.add(loc)
+        merged_bracket = "".join(base_structure)
+        foundslist:list[tuple[int,tuple[str,str]]] = []
+        for m in motifs:
+            founds = re.finditer(f"[()]{m[0]}+",merged_bracket)
+            for f in founds:
+                foundslist.append((f.start(),m))
+        foundslist.sort(key=lambda tup:tup[0])
+        new_classifier = result_mfe.build_new_classifier([x[1] for x in foundslist])
+        if merged_bracket not in [x.mot_bracket for x in compatibles]:
+            return cls(compatibles[0].id+"_merged",[new_classifier,str(compatibles[0].free_energy),merged_bracket],"all")
+        else:
+            return None
+
+    @staticmethod
+    def build_new_classifier(foundslist:list[tuple[str,str]]) -> str:
+        new_classifier = ""
+        for found in foundslist:
+            if found[1] == "hairpin":
+                new_classifier += found[0]
+            elif found[1] == "bulge":
+                new_classifier += found[0]
+            elif found[1] == "internal":
+                new_classifier += found[0]
+                foundslist.reverse()
+                foundslist.remove(found)
+                foundslist.reverse()
+            else:
+                raise ValueError("Invalid motif type detected during merge")
+        return new_classifier
+
+    @staticmethod
+    def find_all(a_str:str, sub:str):
+        start = 0
+        while True:
+            start = a_str.find(sub, start)
+            if start == -1: return
+            yield start
+            start += 1 # use start += 1 to find overlapping matches
+
+    @staticmethod
+    def get_compatible_structures(struc_list:list['result_mfe']) -> list[list[int]]:
+        collecting:dict[int,list[int]] = {}
+        for i in range(len(struc_list)):
+            for j in range(len(struc_list)):
+                if i >= j:
+                    continue
+                first = struc_list[i]
+                second = struc_list[j]
+                if first.dot_bracket == second.dot_bracket:
+                    if first not in collecting.keys():
+                        collecting[i] = [j]
+                    else:
+                        collecting[i].append(j)
+        compatible = [[k]+v for k,v in collecting.items()]
+        return compatible
+
+    def __init__(self, id: str, result_list: list[str],motif_type:Literal["hairpin","internal","bulge","all"]) -> None:
         super().__init__(id, result_list)
+        self.classifier = self.cols[0]
+        self.free_energy = self.cols[1]
+        self.mot_bracket = self.cols[2]
+        self.dot_bracket = self.cols[2]
+        self.motif_type:Literal["hairpin","internal","bulge","all"] = motif_type
+        
+    @property
+    def dot_bracket(self) -> str:
+        return self._dot_bracket
+    
+    @dot_bracket.setter
+    def dot_bracket(self,structure_string:str) -> None:
+        for c in set(self.classifier):
+            structure_string = structure_string.replace(c,".")
+        self._dot_bracket = structure_string
 
     @property
     def header(self, classifier: str = "Class") -> str:
         """Returns header string of itself, adapted to currently set algorithm"""
         _header: list[str] = ["ID", classifier, "mfe", "motBracket"]
         return result.separator.join(_header) + "\n"
+
+    @property
+    def classifier(self) -> str:
+        return self._classifier
+    
+    @classifier.setter
+    def classifier(self,class_string:str):
+        self._classifier = class_string
+
+    @property
+    def free_energy(self) -> int:
+        return self._free_energy
+    
+    @free_energy.setter
+    def free_energy(self, new_energy:str) -> None:
+        self._free_energy = int(new_energy)
+
+    @property
+    def mot_bracket(self) -> str:
+        return self._mot_bracket
+    
+    @mot_bracket.setter
+    def mot_bracket(self,motbracket_string:str) -> None:
+        self._mot_bracket = motbracket_string
 
 
 class result_pfc(result):
@@ -91,11 +218,12 @@ class algorithm_output:
     def __init__(
         self,
         name: str,
-        result_str: str,
-        stderr: str,
+        result_str: str|list[result_mfe|result_pfc|result_alignment],
+        stderr: list[str],
+        motif_type:Literal["hairpin","internal","bulge","all"] = "all",
     ) -> None:
         self.id = name
-        self.results = result_str
+        self.results = (result_str,motif_type)
         self.stderr = stderr
         self._index = 0
 
@@ -112,10 +240,29 @@ class algorithm_output:
     def results(self) -> list[result_mfe | result_pfc | result_alignment]:
         return self._results
 
+    @property
+    def stderr(self) -> list[str]:
+        return self._stderr
+    
+    @stderr.setter
+    def stderr(self,err:str|list[str]) -> None:
+        if isinstance(err,list):
+            self._stderr = err
+        else:
+            if err:
+                errlist:list[str] = []
+                errlist.append(err.strip())
+                self._stderr = errlist
+            else:
+                self._stderr = []
+
     @results.setter
-    def results(self, result_str: str) -> None:
+    def results(self, result:tuple[str|list[result_mfe|result_pfc|result_alignment],Literal["hairpin","internal","bulge","all"]]) -> None:
+        if isinstance(result[0],list):
+            self._results = result[0]
+            return None
         reslist: list[result_mfe | result_pfc | result_alignment] = []
-        split = result_str.strip().split("\n")
+        split = result[0].strip().split("\n")
         for output in split:
             split_result = output.split("|")
             split_stripped_results = [x.strip() for x in split_result]
@@ -123,7 +270,7 @@ class algorithm_output:
                 case "pfc":
                     res = result_pfc(self.id, split_stripped_results)
                 case "mfe":
-                    res = result_mfe(self.id, split_stripped_results)
+                    res = result_mfe(self.id, split_stripped_results,result[1])
                 case "alignment":
                     res = result_alignment(self.id, split_stripped_results)
                 case _:
@@ -136,10 +283,11 @@ class algorithm_output:
     # If not initiated function writes a header and then all it's results as csv
     def write_results(self, initiated: bool) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
+        for err in self.stderr:
+            if len(err.strip()) > 0:
+                logger.warning(self.id+": "+err)
         if not initiated:
-            if self.stderr.strip():
-                logger.warning(self.stderr.strip())
-                sys.stdout.write(self.results[0].header)
+            sys.stdout.write(self.results[0].header)
         for result_obj in self.results:
             sys.stdout.write(result_obj.tsv)
         return True
@@ -153,3 +301,15 @@ class algorithm_output:
         pfc_sum = sum(pfc_list)
         for result_obj in self.results:
             result_obj.cols.append(str(round(float(result_obj.cols[-1]) / pfc_sum, 4)))
+    
+    @classmethod
+    def merge_outputs(cls,objs:list['algorithm_output']) -> 'algorithm_output':
+        '''
+        Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
+        '''
+        result_set:set[result_mfe |result_pfc | result_alignment] = set()
+        for obj in objs:
+            for res in obj.results:
+                if isinstance(res,result_mfe):
+                    result_set.add(res)
+        return cls(objs[0].id,list(result_set),stderr=flatten([x.stderr for x in objs]))

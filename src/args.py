@@ -17,7 +17,6 @@ def is_path_creatable(pathname: str) -> bool:
     dirname = Path(pathname).resolve().parent or Path.cwd()
     return access(dirname, W_OK)
 
-
 def is_path_exists_or_creatable(pathname: str) -> bool:
     """
     `True` if the passed pathname is a valid pathname for the current OS _and_
@@ -43,7 +42,6 @@ class MotifFileCkeck(argparse.Action):
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str]|Sequence[Any], option_string:Optional[str] = None):
         setattr(namespace, self.dest, MotifFileCheckFunction(str(value)))
 
-
 def MotifFileCheckFunction(value: Optional[str]) -> str:
     if value is not None and value != "":
         if Path(value).resolve().is_file():
@@ -59,7 +57,6 @@ class LogCheck(argparse.Action):
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str]|Sequence[Any], option_string:Optional[str] = None):
         setattr(namespace, self.dest, LogCheckFunction(str(value)))
 
-
 def LogCheckFunction(value: str) -> str:
     if not isinstance(getattr(logging, value.upper(), None), int):
         raise ValueError(f"Invalid log level: {value}")
@@ -73,7 +70,6 @@ class WorkerCheck(argparse.Action):
 
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str|Sequence[Any]], option_string:Optional[str] = None):
         setattr(namespace, self.dest, WorkerCheckFunction(value)) #type:ignore 
-
 
 def WorkerCheckFunction(value: Optional[str]) -> Optional[int]:
     cpus:int|None = cpu_count()
@@ -113,7 +109,6 @@ class OutputFileCheck(argparse.Action):
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str| Sequence[Any] | None, option_string:Optional[str]=None):
         setattr(namespace, self.dest, OutputFileCheckFunction(value)) #type:ignore
 
-
 def OutputFileCheckFunction(value: Optional[str]):
     if value is None:
         return None
@@ -131,7 +126,6 @@ class AlgorithmMatching(argparse.Action):
 
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str |Sequence[Any] | None, option_string:Optional[str] = None):
         setattr(namespace, self.dest, AlgorithmMatchingFunction(value)) #type:ignore , ignored cause of the base value typing
-
 
 def AlgorithmMatchingFunction(value: str) -> Literal["RNAmoSh","RNAmotiCes","RNAmotiFold"]:
     match value.strip().lower():
@@ -187,6 +181,7 @@ class script_parameters:
     separator: str
     no_update: bool
     version: str
+    fast_mode:bool
 
     def __repr__(self):
         classname = type(self).__name__
@@ -234,6 +229,7 @@ class script_parameters:
             separator=args.separator,
             no_update=args.no_update,
             version=args.version,
+            fast_mode = args.fast_mode
         )
 
     @classmethod
@@ -274,10 +270,11 @@ class script_parameters:
             separator=confs.get("VARIABLES", "separator"),
             no_update=confs.getboolean("VARIABLES", "no_update"),
             version=confs.get("VARIABLES", "version"),
+            fast_mode=confs.getboolean("VARIABLES","fast_mode")
         )
 
 
-def get_cmdarguments() -> script_parameters:
+def get_cmdarguments() -> tuple[script_parameters,list[str]]:
     config = configparser.ConfigParser(allow_no_value=True)
     config.read_file(open(script_parameters.defaults_config_path))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
@@ -288,14 +285,15 @@ def get_cmdarguments() -> script_parameters:
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
-        description="A RNA secondary structure prediction programm with multiple functionalities for your convenience. Starting the algorithm without an input starts an interactive session, which can be ended by inputting Exit. No interactive session will be started if you specify a RNA/DNA sequence or filepath with -i",
+        description="A RNA secondary structure prediction programm with multiple functionalities for your convenience. Starting the algorithm without an input starts an interactive session, which can be ended by inputting Exit. No interactive session will be started if you specify a RNA/DNA sequence or filepath with -i. Defaults are set in RNAmotiFold/src/data/defaults.ini and count for both config files and commandline arguments.",
         epilog="GONDOR CALLS FOR AID! AND ROHAN WILL ANSWER!",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     pfc_or_subopt = parser.add_mutually_exclusive_group()
     parser.add_argument(
         "-n",
         "--name",
-        help=f"For interactive sessions or with single sequence as input set an ID for the output. Default is {config.get(config.default_section, "id")}",
+        help=f"For interactive sessions or with single sequence as input set an ID for the output.",
         dest="id",
         type=str,
         default=config.get(config.default_section, "id"),
@@ -312,7 +310,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "--output",
         "-o",
-        help="Set file to write results to. Results will be appended to file if it already exists! Default is stdout.",
+        help="Set file to write results to. Results will be appended to file if it already exists! If set to None results will be printed to stdout.",
         type=str,
         default=config.get(config.default_section, "output"),
         action=OutputFileCheck,
@@ -321,19 +319,27 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "--conf",
-        help=f"Specify a config file path, if no path is given this defaults to the prewritten config file in {script_parameters.user_config_path}. Defaults are set in RNAmotiFold/src/data/defaults.ini. If --conf is set other commandline arguments will be ignored.",
+        help=f"Specify a config file path, if no path is given this defaults to the prewritten config file at {script_parameters.user_config_path}.  If --conf is set other commandline arguments will be ignored.",
         type=str,
         action=ConfigCheck,
         const=script_parameters.user_config_path,
         nargs="?",
         dest="config",
     )
+    parser.add_argument(
+    "-f",
+    "--fast",
+    default=config.getboolean(config.default_section,"fast_mode"),
+    action="store_true",
+    dest="fast_mode",
+    help=f"Enables fast motif prediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards. Decreases runtime but might impact outputs."
+    )
     # Command line arguments that control which algorithm is called with which options.
     # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
     parser.add_argument(
         "-a",
         "--algorithm",
-        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5].. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy. Default is {config.get(config.default_section, "algorithm")}",
+        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5].. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy.",
         type=str,
         action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
@@ -343,7 +349,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-v",
         "--version",
-        help=f"Specify which RNA 3D Motif sequence version you want to use. Default is the newest version. Use --no_update to disabled checking for new motif versions.",
+        help=f"Specify which RNA 3D Motif sequence version you want to use. Use --no_update to disabled checking for new motif versions.",
         dest="version",
         type=str,
         default="current",
@@ -351,7 +357,7 @@ def get_cmdarguments() -> script_parameters:
     pfc_or_subopt.add_argument(
         "-s",
         "--subopt",
-        help=f"Specify if subopt folding should be used. Not useable with partition function implementations. Default is {config.get(config.default_section, "subopt")}",
+        help=f"Specify if subopt folding should be used. Not useable with partition function implementations.",
         action="store_true",
         default=config.getboolean(config.default_section, "subopt"),
         dest="subopt",
@@ -359,7 +365,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-Q",
         "--motif_source",
-        help=f"Specify from which database motifs should be used, 1 = RNA 3D Motif Atlas, 2 = Rfam, 3 = both. Default is {config.get(config.default_section, "motif_source")}",
+        help=f"Specify from which database motifs should be used, 1 = RNA 3D Motif Atlas, 2 = Rfam, 3 = both.",
         choices=[
             1,
             2,
@@ -372,7 +378,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-b",
         "--orientation",
-        help=f"Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both. Default is {config.get(config.default_section, "motif_orientation")}.",
+        help=f"Specify motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both.",
         choices=[
             1,
             2,
@@ -385,7 +391,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-k",
         "--kvalue",
-        help=f"Specify k to classify only the k lowest free energy classes. Default is {config.get(config.default_section, "kvalue")}.",
+        help=f"Specify k to classify only the k lowest free energy classes.",
         type=int,
         default=config.getint(config.default_section, "kvalue"),
         dest="kvalue",
@@ -393,7 +399,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-q",
         "--shape_level",
-        help=f"Set shape abstraction level. Default is {config.get(config.default_section, "shape_level")}.",
+        help=f"Set shape abstraction level.",
         choices=[
             1,
             2,
@@ -409,7 +415,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-e",
         "--energy",
-        help="Specify energy range if subopt is used. Default is None (so you can actually use the -c parameters).",
+        help="Specify energy range if subopt is used. Defaults to None so you can actually use the -c parameters.",
         type=str,
         default=config.get(config.default_section, "energy"),
         dest="energy",
@@ -417,7 +423,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-t",
         "--temperature",
-        help=f"Scale energy parameters for folding to given temperature in Celsius. Default is {config.get(config.default_section, "temperature")} °C.",
+        help=f"Scale energy parameters for folding to given temperature in Celsius.",
         type=float,
         default=config.getfloat(config.default_section, "temperature"),
         dest="temperature",
@@ -425,28 +431,28 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-u",
         "--allow_lonely_basepairs",
-        help=f"Allow lonely base pairs, True = yes, False = no. Default is {config.get(config.default_section, "basepairs")}",
+        help=f"Allow lonely base pairs, True = yes, False = no.",
         dest="basepairs",
         action="store_true",
         default=config.getboolean(config.default_section, "basepairs"),
     )
     parser.add_argument(
         "-c",
-        help=f"Set energy range in %%. Gets overruled by -e. Default is {config.get(config.default_section, "energy_percent")}",
+        help=f"Set energy range in %%. Gets overruled by -e.",
         type=float,
         dest="energy_percent",
         default=config.getfloat(config.default_section, "energy_percent"),
     )
     pfc_or_subopt.add_argument(
         "--pfc",
-        help=f"If set, calculates cumulative partition function value for each class instead of default minimum free energy predictions. Can lead to long runtimes. Default is {config.get(config.default_section, "pfc")}.",
+        help=f"If set, calculates cumulative partition function value for each class instead of default minimum free energy predictions.",
         dest="pfc",
         action="store_true",
         default=config.getboolean(config.default_section, "pfc"),
     )
     parser.add_argument(
         "--low_prob_filter",
-        help=f"Set probability cutoff for partition function, filters out results with lower probability during calculation. Default is {config.get(config.default_section, "low_prob_filter")}.",
+        help=f"Set probability cutoff for partition function, filters out results with lower probability during calculation.",
         type=float,
         dest="low_prob_filter",
         default=config.getfloat(config.default_section, "low_prob_filter"),
@@ -479,7 +485,7 @@ def get_cmdarguments() -> script_parameters:
         "-L",
         "--replace_hairpins",
         dest="replace_hairpins",
-        help=f"If set, instead of appending custom hairpins to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_hairpins")}",
+        help=f"If set, instead of appending custom hairpins to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_hairpins"),
     )
@@ -487,7 +493,7 @@ def get_cmdarguments() -> script_parameters:
         "-E",
         "--replace_internals",
         dest="replace_internals",
-        help=f"If set, instead of appending custom internals to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_internals")}",
+        help=f"If set, instead of appending custom internals to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_internals"),
     )
@@ -495,7 +501,7 @@ def get_cmdarguments() -> script_parameters:
         "-G",
         "--replace_bulges",
         dest="replace_bulges",
-        help=f"If set, instead of appending custom bulges to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them. Default is {config.get(config.default_section,"replace_bulges")}",
+        help=f"If set, instead of appending custom bulges to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
         default=config.getboolean(config.default_section, "replace_bulges"),
     )
@@ -503,7 +509,7 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "-w",
         "--workers",
-        help=f"Specify how many predictions should be done in parallel for file input. Default is {config.get(config.default_section, "workers")}",
+        help=f"Specify how many predictions should be done in parallel for file input.",
         type=int,
         action=WorkerCheck,
         default=config.getint(config.default_section, "workers"),
@@ -511,7 +517,7 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "--loglevel",
-        help=f"Set log level. Default is {config.get(config.default_section,"loglevel")}.",
+        help=f"Set log level.",
         action=LogCheck,
         type=str,
         default=config.get(config.default_section, "loglevel"),
@@ -519,7 +525,7 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "--logfile",
-        help=f"Set filepath as destination for log entries. Default is stderr stream.",
+        help=f"Set filepath as destination for log entries. If set to None error messages are printed to stderr.",
         type=str,
         action=OutputFileCheck,
         default=config.get(config.default_section, "logfile"),
@@ -527,7 +533,7 @@ def get_cmdarguments() -> script_parameters:
     )
     parser.add_argument(
         "--sep",
-        help="Specify separation character for output. Default is tab for human readability.",
+        help="Specify separation character for output.",
         type=str,
         default=config.get(config.default_section, "separator"),
         dest="separator",
@@ -536,16 +542,18 @@ def get_cmdarguments() -> script_parameters:
     parser.add_argument(
         "--nu",
         "--no_update",
-        help=f"Blocks checking for new RNA 3D Motif Atlas version. Default is {config.get(config.default_section, "no_update")}",
+        help=f"Blocks checking for new RNA 3D Motif Atlas version (saves quite some time on startup cause the server is slow).",
         default=config.getboolean(config.default_section, "no_update"),
         action="store_true",
         dest="no_update",
     )
 
-    args = parser.parse_args()
-    if args.config is not None:
-        config.read_file(open(args.config))
+    args = parser.parse_known_args()
+    if args[0].fast_mode and args[0].pfc: #This would be much nicer if I could resolve the situation through mutually exclusive groups but this is clean and easy too.
+        raise parser.error("Can't use pfc and fast mode together, sorry!")
+    if args[0].config is not None:
+        config.read_file(open(args[0].config))
         config_check(config)
-        return script_parameters.from_configparser(config)
+        return (script_parameters.from_configparser(config),args[1])
     else:
-        return script_parameters.from_argparser(args)
+        return (script_parameters.from_argparser(args[0]),args[1])

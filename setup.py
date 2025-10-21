@@ -47,7 +47,7 @@ def get_cmd_args():
         help="You may input the absolute path to a preinstalled gapcM version. If you don't the script will check if there is already a gapc installed (globally or locally) and if it isn't it will run a CMake Script to set it up locally.",
     )
     parser.add_argument(
-        "--perl_interpreter",
+        "--perl_path",
         nargs="?",
         dest="perl_path",
         default=shutil.which("perl"),
@@ -119,8 +119,7 @@ def _detect_gapc() -> Path|None:
         except IndexError:
             return None
 
-
-def setup_algorithms(gapc_path: Path, perl_path: str, poolboys: int) -> bool:
+def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
@@ -149,7 +148,6 @@ def setup_algorithms(gapc_path: Path, perl_path: str, poolboys: int) -> bool:
         compilation_success_list.append(obj.successful())
     return all(compilation_success_list)
 
-
 def work_func(call:str):
     try:
         subprocess.run(call, shell=True, check=True)
@@ -157,8 +155,6 @@ def work_func(call:str):
     except subprocess.CalledProcessError as error:
         raise error
     
-
-
 def _check_submodule(submodule: str) -> Path:
     SUBMOD_DIR = Path.joinpath(ROOT_DIR, "submodules", f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
@@ -167,7 +163,6 @@ def _check_submodule(submodule: str) -> Path:
         )
     else:
         return SUBMOD_DIR
-
 
 def run_cmake(cmake_path:str) -> Path:
     BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
@@ -201,24 +196,33 @@ def run_cmake(cmake_path:str) -> Path:
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
     raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
 
-
 # Does all the updating with tradeoffs between update algorithms and no update
-def updates(motif_version: str, workers: int) -> bool:
+def updates(RNAmotiFold_paramteres:list[str],motif_version: str, workers: int) -> bool:
+    update_parser = argparse.ArgumentParser()
+    update_parser.add_argument('--perl_path',default=None,dest='perl')
+    update_parser.add_argument('--gapc_path',default=None,dest='gapc')
+    namespace = update_parser.parse_args(RNAmotiFold_paramteres)
     update = motifs._uninteractive_update(version=motif_version) #type:ignore
     if update:
-        perl_interpreter = shutil.which("perl")
-        if perl_interpreter is None:
-            print(
-                "Could not find a global perl interpreter, please input path to your perl interpreter: ",
-                end="",
-            )
-            perl_interpreter = input()
-        gapcM_path = _detect_gapc()
-        if gapcM_path is None:
-            print(
-                "Could not identify global or local gapc, please enter path to your gapcM: ", end=""
-            )
-            gapcM_path = Path(input())
+        if namespace.perl:
+            perl_interpreter = namespace.perl
+        else:
+            perl_interpreter = shutil.which("perl")
+            if perl_interpreter is None:
+                print(
+                    "Could not find a perl interpreter, please input path to your perl interpreter: ",
+                    end="",
+                )
+            perl_interpreter = Path(input())
+        if namespace.gapc:
+            gapcM_path = namespace.gapc
+        else:
+            gapcM_path = _detect_gapc()
+            if gapcM_path is None:
+                print(
+                "Could not find gapc, please enter path to your gapcM executeable: ", end=""
+                )
+                gapcM_path = Path(input())
         setup_algorithms(perl_path=perl_interpreter, gapc_path=gapcM_path, poolboys=workers)
         return True
     else:

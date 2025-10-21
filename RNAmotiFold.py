@@ -15,6 +15,12 @@ from typing import Optional
 
 logger = logging.getLogger("RNAmotiFold")
 
+try:
+    import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
+except ImportError as e:
+    raise ImportError(
+        f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {Path(__file__).absolute().parent}"
+    )
 
 # Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
@@ -44,20 +50,16 @@ def _interactive_session(
             else:
                 result:  list[results.algorithm_output | results.error ] = proc_obj.auto_run(
                     realtime_input,
+                    version=runtime_arguments.version,
                     o_file=runtime_arguments.output,
                     pool_workers=runtime_arguments.workers,
                     output_csv_separator=runtime_arguments.separator,
                 )
                 result_list.append(result)
-    flat_list = flatten(result_list)
+    flat_list = results.flatten(result_list)
     return flat_list  # Added result outputting just in case I wanna do something with that down the line.
 
-#List flattening
-def flatten(xss:list[list[results.algorithm_output|results.error]]) -> list[results.algorithm_output|results.error]:
-    '''
-    Used to flatten a lists of lists into a single list, typed specifically for interactive session outputs
-    '''
-    return [x for xs in xss for x in xs]
+
 
 
 # Uninteractive session in case of preset input, just does the calculation and exits
@@ -69,6 +71,7 @@ def _uninteractive_session(
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     result: list[results.algorithm_output | results.error] = proc_obj.auto_run(
         user_input=runtime_input,
+        version=runtime_arguments.version,
         o_file=runtime_arguments.output,
         pool_workers=runtime_arguments.workers,
         output_csv_separator=runtime_arguments.separator,
@@ -137,30 +140,30 @@ def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
             filename=logfile,
             filemode="a+",
             level=loglevel,
-            format="%(asctime)s:%(name)s:%(levelname)s: %(message)s",
+            format="%(asctime)s:%(name)s:%(levelname)s:%(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
     else:
         logging.basicConfig(
             stream=sys.stderr,
             level=loglevel,
-            format="%(asctime)s:%(name)s:%(levelname)s: %(message)s",
+            format="%(asctime)s:%(name)s:%(levelname)s:%(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-
 if __name__ == "__main__":
-    rt_args: bgap.script_parameters = args.get_cmdarguments()
+    (rt_args,additional_parameter)= args.get_cmdarguments()
     try:
         configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
         if not rt_args.no_update:
-            setup.updates(motif_version=rt_args.version, workers=rt_args.workers)
+            setup.updates(additional_parameter,motif_version=rt_args.version, workers=rt_args.workers)
+        rt_args.version = motifs.currently_installed().replace(".","_")
     except ValueError as error:
         raise error
     logger.debug("Input args: " + repr(rt_args))
     if rt_args.input is not None:
         logger.info("Input is set, starting calculations")
-        out: list[results.algorithm_output | results.error] = _uninteractive_session(rt_args)
+        out: list[results.algorithm_output | results.error] = _uninteractive_session(runtime_arguments=rt_args)
     else:
         logger.info("No input set, starting interactive session")
         out: list[results.algorithm_output | results.error] = _interactive_session(runtime_arguments=rt_args)

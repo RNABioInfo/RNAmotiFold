@@ -2,7 +2,7 @@ import sys
 import subprocess
 import multiprocessing
 from pathlib import Path
-from typing import Iterator, Optional, Generator, Any, Literal 
+from typing import Optional, Generator, Any, Literal 
 from Bio.SeqIO import FastaIO, QualityIO
 import logging
 from Bio.SeqRecord import SeqRecord
@@ -53,7 +53,7 @@ class bgap_rna:
                 )
             if not subprocess_output.returncode:
                 result = results.algorithm_output(
-                    str(record.id), subprocess_output.stdout, subprocess_output.stderr
+                    str(record.id), subprocess_output.stdout, [subprocess_output.stderr]
                 )
             else:
                 result = results.error(str(record.id), subprocess_output.stderr)
@@ -110,6 +110,7 @@ class bgap_rna:
             replace_bulges=params.replace_bulges,
             subopt=params.subopt,
             session_id=params.id,
+            fast_mode=params.fast_mode,
         )
 
     def __init__(
@@ -122,9 +123,9 @@ class bgap_rna:
         energy: Optional[str] = None,
         temperature: float = 37.0,
         energy_percent: float = 5.0,
-        custom_hairpins: Optional[str] = None,
-        custom_internals: Optional[str] = None,
-        custom_bulges: Optional[str] = None,
+        custom_hairpins: Optional[Path|str] = None,
+        custom_internals: Optional[Path|str] = None,
+        custom_bulges: Optional[Path|str] = None,
         allowLonelyBasepairs: bool = False,
         replace_hairpins: Optional[bool] = None,
         replace_internals: Optional[bool] = None,
@@ -133,6 +134,7 @@ class bgap_rna:
         pfc: bool = False,
         low_prob_filter: float = 0.000001,
         session_id: str = "N/A",
+        fast_mode:bool = False,
     ):
         self.id = session_id
         self.subopt = subopt
@@ -154,6 +156,7 @@ class bgap_rna:
         self.replace_hairpins = replace_hairpins
         self.replace_internals = replace_internals
         self.replace_bulges = replace_bulges
+        self.fast_mode = fast_mode
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -179,7 +182,6 @@ class bgap_rna:
             self._temperature = temp
         else:
             raise ValueError("Temperature can only be between -273°C and 100°C")
-
 
     @property
     def energy_percent(self):
@@ -348,11 +350,53 @@ class bgap_rna:
         self._algorithm = alg
 
     @property
+    def custom_hairpins(self) -> Path|None:
+        return self._custom_hairpins
+    
+    @custom_hairpins.setter
+    def custom_hairpins(self,path:str|Path|None) -> None:
+        if path is not None:
+            if Path(path).is_file():
+                self._custom_hairpins = Path(path)
+            else:
+                raise FileNotFoundError("Unabled to find specified custom hairpin file, please check the file path")
+        else:
+            self._custom_hairpins = None
+
+    @property
+    def custom_internals(self) -> Path|None:
+        return self._custom_internals
+    
+    @custom_internals.setter
+    def custom_internals(self,path:str|Path|None) -> None:
+        if path is not None:
+            if Path(path).is_file():
+                self._custom_internals = Path(path)
+            else:
+                raise FileNotFoundError("Unabled to find specified custom internals file, please check the file path")
+        else:
+            self._custom_internals = None
+
+    @property
+    def custom_bulges(self) -> Path|None:
+        return self._custom_bulges
+    
+    @custom_bulges.setter
+    def custom_bulges(self,path:str|Path|None) -> None:
+        if path is not None:
+            if Path(path).is_file():
+                self._custom_bulges = Path(path)
+            else:
+                raise FileNotFoundError("Unabled to find specified custom bulges file, please check the file path")
+        else:
+            self._custom_bulges = None
+
+    @property
     def call(self):
         """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
-        runtime_dictionary: dict[str, Optional[str] | Optional[int] | Optional[float]] = {
+        runtime_dictionary: dict[str, Optional[str] | Optional[int] | Optional[float] | Path] = {
             "-F": self.low_probability_filter,
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
@@ -383,7 +427,7 @@ class bgap_rna:
         ]
 
         seq_free_call = " ".join(
-            [self.algorithm_path, " ".join(arguments), ""]
+            [self.algorithm_path, " ".join(arguments), ""] #"/usr/bin/time"
         )  # Creates call string without a sequence
         return seq_free_call
 
@@ -406,11 +450,11 @@ class bgap_rna:
         user_input: (
             SeqRecord
             | list[SeqRecord]
-            | Iterator[str]
             | FastaIO.FastaIterator
             | QualityIO.FastqPhredIterator
             | Generator[SeqRecord, None, None]
         ),
+        version:str,
         o_file: Optional[Path | str] = None,
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
@@ -420,6 +464,8 @@ class bgap_rna:
         if output_csv_separator == r"\t":
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
+        if self.fast_mode:
+            return self.run_separate_processes(user_input,version,o_file,pool_workers)
         if isinstance(user_input, SeqRecord):
             return self._run_single_process(user_input, o_file)
         else:
@@ -446,7 +492,7 @@ class bgap_rna:
         )
         if not subproc_out.returncode:
             return_val = results.algorithm_output(
-                str(user_input.id), subproc_out.stdout, subproc_out.stderr
+                str(user_input.id), subproc_out.stdout, [subproc_out.stderr]
             )
             logger.info(f"Prediction finished successfully")
             if isinstance(output_f, Path):
@@ -467,7 +513,6 @@ class bgap_rna:
         self,
         user_input: (
             list[SeqRecord]
-            | Iterator[str]
             | FastaIO.FastaIterator
             | QualityIO.FastqPhredIterator
             | Generator[SeqRecord, None, None]
@@ -504,4 +549,155 @@ class bgap_rna:
         listener_q.put(None)
         listening.join()
         listener_results: list[results.algorithm_output | results.error] = listener_q.get() #type:ignore This will always be a list of results since it's what the listener "returns"
+        return listener_results
+    
+    @staticmethod
+    def get_motif_files(version:str)->list[Path]:
+        motif_dir_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated")
+        files = Path(motif_dir_path).rglob("*.csv")
+        return list(files)
+    
+    @staticmethod
+    def set_customs(bgap_obj:'bgap_rna',motif_path:Path) -> tuple['bgap_rna', Literal['hairpin', 'internal', 'bulge']]:
+        path_to_empty_file=Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions","empty.csv")
+        match motif_path.parent.name:
+            case "hairpins":
+                bgap_obj.custom_hairpins = motif_path
+                bgap_obj.custom_internals = path_to_empty_file
+                bgap_obj.custom_bulges = path_to_empty_file
+                motif_type ="hairpin"
+            case "internals":
+                bgap_obj.custom_hairpins = path_to_empty_file
+                bgap_obj.custom_internals = motif_path
+                bgap_obj.custom_bulges = path_to_empty_file
+                motif_type="internal"
+            case "bulges":
+                bgap_obj.custom_hairpins = path_to_empty_file
+                bgap_obj.custom_internals = path_to_empty_file
+                bgap_obj.custom_bulges = motif_path
+                motif_type="bulge"
+            case _:
+                raise FileNotFoundError("Something went wrong with the files paths, unable to find motif files")
+        return (bgap_obj, motif_type)
+    
+    @staticmethod
+    def sep_motif_worker_func(bgap_obj:'bgap_rna',input_q:'multiprocessing.JoinableQueue[tuple[SeqRecord,Path]|None]',listener_q:'multiprocessing.Queue[results.algorithm_output|results.error]') -> None:
+        #Initialization of each worker, set all replacements to True, assign the right path
+        bgap_obj.replace_hairpins = True
+        bgap_obj.replace_internals = True
+        bgap_obj.replace_bulges = True
+        while True:
+            record= input_q.get()
+            if record is None:
+                input_q.task_done()
+                break
+            record,path = record
+            (bgap_obj,motif_type) = bgap_rna.set_customs(bgap_obj,path)
+            record.seq = record.seq.transcribe() #type:ignore
+            subprocess_output = subprocess.run(bgap_obj.call + str(record.seq),text=True,capture_output=True,shell=True)
+            if not subprocess_output.returncode:
+                res = results.algorithm_output(str(record.id),subprocess_output.stdout,[subprocess_output.stderr],motif_type)
+            else:
+                res = results.error(str(record.id),subprocess_output.stderr)
+            listener_q.put(res)
+            input_q.task_done()
+
+    @staticmethod
+    def postprocessing(merged_output:results.algorithm_output) -> results.algorithm_output:
+        '''
+        Postprocessing function for merging outputs of the seperated motif predictions
+        '''
+        mfe_dict:dict[int,list[results.result_mfe]] = {}
+        for res in merged_output.results:
+            if isinstance(res,results.result_mfe): #this is a little unnecessary but it gets rid of warnings
+                if res.free_energy not in mfe_dict.keys():
+                    mfe_dict[res.free_energy] = [res]
+                else:
+                    mfe_dict[res.free_energy].append(res)
+        for key in mfe_dict.keys():
+            if len(mfe_dict[key]) > 1:
+                merge_candidates = results.result_mfe.get_compatible_structures(mfe_dict[key])
+                for compatible_structures in merge_candidates:
+                    new_result = results.result_mfe.merge_structures([mfe_dict[key][i] for i in compatible_structures])
+                    if new_result is not None:
+                        merged_output.results.append(new_result)
+            else:
+                continue
+        merged_output.results.sort(key=lambda x: int(x.free_energy)) #type:ignore
+        return merged_output
+
+    @staticmethod
+    def _listener_sep_motifs(motif_amount:int,q: 'multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]',output_f: Path | None) -> None:
+        output_dict:dict[str,list[results.algorithm_output]] = {}
+        writing_started = False
+        return_list: list[results.algorithm_output|results.error] = []
+        while True:
+            output: 'results.algorithm_output | results.error | list[results.algorithm_output | results.error] | None' = q.get()
+            if output is None:
+                q.put(return_list)
+                break
+            else:
+                if isinstance(output, results.algorithm_output):
+                    if output.id not in output_dict.keys():
+                        output_dict[output.id] = [output]
+                    else:
+                        output_dict[output.id].append(output)
+                    if len(output_dict[output.id]) == motif_amount:
+                        logger.info(f"Motif predictions for sequence {output.id} finished, merging results.")
+                        output = results.algorithm_output.merge_outputs(output_dict[output.id])
+                        logger.info(f"Merging finished for {output.id}, postprocessing...")
+                        output = bgap_rna.postprocessing(output)
+                        if isinstance(output_f, Path):
+                            with open(output_f, "a+") as file:
+                                with redirect_stdout(file):
+                                    writing_started = output.write_results(writing_started)
+                        else:
+                            writing_started = output.write_results(writing_started)
+                            sys.stdout.flush()
+                        return_list.append(output)
+                    if isinstance(output, results.error):
+                        return_list.append(output)
+
+    def run_separate_processes(self,user_input: (list[SeqRecord]| FastaIO.FastaIterator| QualityIO.FastqPhredIterator| Generator[SeqRecord, None, None] | SeqRecord), version:str, output_file: Optional[Path| str] = None,workers: int = multiprocessing.cpu_count(),output_csv_separator: str = "\t"):
+        #First we get the motif files we need from our motif sets (I should also change this in get_motif_sequences down the line, concat the files and make a hexdump that way for normal)
+        file_list = bgap_rna.get_motif_files(version=version)
+
+        #setup shared object manager for communication between processes, with a list of input sequences
+        Manager = multiprocessing.Manager()
+        input_q: multiprocessing.JoinableQueue[tuple[SeqRecord,Path]|None] = Manager.JoinableQueue() #type:ignore
+
+        #setup listener and listener queue --> put postprocessing into listener
+        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output | results.error]] = Manager.Queue()  # type: ignore
+        listening = multiprocessing.Process(target=self._listener_sep_motifs, args=(len(file_list),listener_q, output_file))
+        listening.start()
+
+        #Populate the input_list, allocate file paths to each sequences so every sequence gets run with every motif file
+        if not isinstance(user_input,SeqRecord):
+            for seq in user_input:
+                for file in file_list:
+                    pair = seq,file
+                    input_q.put(pair)
+        else:
+            for file in file_list:
+                pair = user_input,file
+                input_q.put(pair)
+
+        #Populate pool with the workers
+        Pool = multiprocessing.Pool(processes=workers)
+        worker_list2:list[Any] = []
+
+        for _ in range(workers):
+            work = Pool.apply_async(func=bgap_rna.sep_motif_worker_func,args=(self,input_q,listener_q))
+            worker_list2.append(work)
+
+        for _ in range(len(worker_list2)):
+            input_q.put(None)
+
+        #Wait for all tasks to be done and close everything
+        input_q.join()
+        Pool.close()
+        Pool.join()
+        listener_q.put(None) #Shuts down the listener after all work is done
+        listening.join()
+        listener_results: list[results.algorithm_output|results.error] = listener_q.get() #type:ignore This will always be a list of results since the listener puts a list of results into the queue when it shuts down
         return listener_results
