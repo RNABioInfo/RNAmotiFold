@@ -609,8 +609,8 @@ class bgap_rna:
         '''
         mfe_dict:dict[int,list[results.result_mfe]] = {}
         for res in merged_output.results:
-            if isinstance(res,results.result_mfe): #this is a little unnecessary but it gets rid of warnings
-                if res.free_energy not in mfe_dict.keys():
+            if isinstance(res,results.result_mfe) and res.classifier: #this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
+                if res.free_energy not in mfe_dict.keys():                               #-> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
                     mfe_dict[res.free_energy] = [res]
                 else:
                     mfe_dict[res.free_energy].append(res)

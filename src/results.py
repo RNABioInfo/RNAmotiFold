@@ -40,21 +40,21 @@ class result_mfe(result):
     
     @classmethod
     def merge_structures(cls,compatibles:list['result_mfe']) ->'result_mfe|None':
+        compatibles.sort(key= lambda x: x.classifier[0]) #sort list in place alternative would be new = sorted(compatibles,key=...)
         base_structure = list(compatibles[0].dot_bracket)
         insertions:set[int] = set()
         motifs:set[tuple[str,str]] = set()
         for result in compatibles:
-            for c in set(sorted(result.classifier)):
-                locations = list(result_mfe.find_all(result.mot_bracket,c))
+                motif= result.classifier[0]
+                locations = list(result_mfe.find_all(result.mot_bracket,motif))
                 for loc in locations:
-                    if loc in insertions and base_structure[loc] != c:
-                        motifs.add((c.lower(),result.motif_type))
-                        logger.warning(f"Overlap detected during merge at position {loc} between motifs {base_structure[loc]} and {c} on sequence: {result.id}, marking as lowercase and inserting {c.lower()}")
-                        motifs.discard((base_structure[loc],result.motif_type)) #silent remove from set since this case will happen a lot but is intended behavior
-                        base_structure[loc] = c.lower()
+                    if loc in insertions and base_structure[loc] != motif:
+                        motifs.add((motif.lower(),result.motif_type))
+                        logger.warning(f"Overlap detected during merge at position {loc} between motifs {base_structure[loc]} and {motif} on sequence: {result.id}, marking as lowercase and inserting {base_structure[loc]}")
+                        base_structure[loc] = base_structure[loc].lower()
                     else:
-                        motifs.add((c,result.motif_type))
-                        base_structure[loc] = c
+                        motifs.add((motif,result.motif_type))
+                        base_structure[loc] = motif
                     insertions.add(loc)
         merged_bracket = "".join(base_structure)
         foundslist:list[tuple[int,tuple[str,str]]] = []

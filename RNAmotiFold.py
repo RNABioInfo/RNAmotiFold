@@ -59,9 +59,6 @@ def _interactive_session(
     flat_list = results.flatten(result_list)
     return flat_list  # Added result outputting just in case I wanna do something with that down the line.
 
-
-
-
 # Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
     runtime_arguments: args.script_parameters,
@@ -102,7 +99,6 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
     logger.debug(f"Recognized filetype as {filetype}.")
     return (input_zipped, filetype)
 
-
 # Read input file
 def _read_input_file(
     file_path: Path,
@@ -113,7 +109,6 @@ def _read_input_file(
     else:
         with gzip.open(file_path, "rt") as handle:
             return SeqIO.parse(handle, filetype)  # type:ignore
-
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
 def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord:
@@ -131,7 +126,6 @@ def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.
         )
     else:
         return SeqRecord(seq=Seq(user_input), id=id)
-
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
 def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
