@@ -54,6 +54,7 @@ def _interactive_session(
                     o_file=runtime_arguments.output,
                     pool_workers=runtime_arguments.workers,
                     output_csv_separator=runtime_arguments.separator,
+                    merge=runtime_arguments.fast_mode_merge
                 )
                 result_list.append(result)
     flat_list = results.flatten(result_list)
@@ -72,6 +73,7 @@ def _uninteractive_session(
         o_file=runtime_arguments.output,
         pool_workers=runtime_arguments.workers,
         output_csv_separator=runtime_arguments.separator,
+        merge=runtime_arguments.fast_mode_merge
     )
     return result
 

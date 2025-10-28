@@ -182,6 +182,7 @@ class script_parameters:
     no_update: bool
     version: str
     fast_mode:bool
+    fast_mode_merge:bool
 
     def __repr__(self):
         classname = type(self).__name__
@@ -229,7 +230,8 @@ class script_parameters:
             separator=args.separator,
             no_update=args.no_update,
             version=args.version,
-            fast_mode = args.fast_mode
+            fast_mode = args.fast_mode,
+            fast_mode_merge = args.merge
         )
 
     @classmethod
@@ -270,7 +272,8 @@ class script_parameters:
             separator=confs.get("VARIABLES", "separator"),
             no_update=confs.getboolean("VARIABLES", "no_update"),
             version=confs.get("VARIABLES", "version"),
-            fast_mode=confs.getboolean("VARIABLES","fast_mode")
+            fast_mode=confs.getboolean("VARIABLES","fast_mode"),
+            fast_mode_merge = confs.getboolean("VARIABLES","merge")
         )
 
 
@@ -327,13 +330,21 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
         dest="config",
     )
     parser.add_argument(
-    "-f",
-    "--fast",
-    default=config.getboolean(config.default_section,"fast_mode"),
-    action="store_true",
-    dest="fast_mode",
-    help=f"Enables fast motif prediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards. Decreases runtime but might impact outputs."
+        "-f",
+        "--fast",
+        default=config.getboolean(config.default_section,"fast_mode"),
+        action="store_true",
+        dest="fast_mode",
+        help=f"Enables fast motif prediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards. Decreases runtime but might impact outputs."
     )
+    parser.add_argument(
+        "-m",
+        "--fast_mode_merge",
+        action="store_true",
+        default=config.getboolean(config.default_section,"fast_mode_merge"),
+        dest="merge",
+        help="Enables merging of structures during fast mode, allowing for combined motif outputs even with fast mode. Currently only implemented with RNAmotiFold!"
+        )
     # Command line arguments that control which algorithm is called with which options.
     # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
     parser.add_argument(
@@ -549,8 +560,11 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
     )
 
     args = parser.parse_known_args()
+    #Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
     if args[0].fast_mode and args[0].pfc: #This would be much nicer if I could resolve the situation through mutually exclusive groups but this is clean and easy too.
         raise parser.error("Can't use pfc and fast mode together, sorry!")
+    if args[0].algorithm != "RNAmotiFold" and args[0].merge:
+        raise parser.error("Fast mode merging is only implemented for RNAmotiFold currently, sorry!")
     if args[0].config is not None:
         config.read_file(open(args[0].config))
         config_check(config)

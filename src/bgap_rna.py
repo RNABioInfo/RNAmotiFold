@@ -7,6 +7,7 @@ from Bio.SeqIO import FastaIO, QualityIO
 import logging
 from Bio.SeqRecord import SeqRecord
 from src.args import script_parameters
+from src.results import algorithm_output,error
 import src.results as results
 from contextlib import redirect_stdout
 
@@ -458,6 +459,7 @@ class bgap_rna:
         o_file: Optional[Path | str] = None,
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
+        merge:bool = False,
     ) -> list[results.algorithm_output | results.error ]:
         """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
 
@@ -465,7 +467,7 @@ class bgap_rna:
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
         if self.fast_mode:
-            return self.run_separate_processes(user_input,version,o_file,pool_workers)
+            return self.run_separate_processes(user_input,version,o_file,pool_workers,merge)
         if isinstance(user_input, SeqRecord):
             return self._run_single_process(user_input, o_file)
         else:
@@ -627,7 +629,7 @@ class bgap_rna:
         return merged_output
 
     @staticmethod
-    def _listener_sep_motifs(motif_amount:int,q: 'multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]',output_f: Path | None) -> None:
+    def _listener_sep_motifs(motif_amount:int,q: 'multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]',output_f: Path | None,merge:bool = False) -> None:
         output_dict:dict[str,list[results.algorithm_output]] = {}
         writing_started = False
         return_list: list[results.algorithm_output|results.error] = []
@@ -645,8 +647,9 @@ class bgap_rna:
                     if len(output_dict[output.id]) == motif_amount:
                         logger.info(f"Motif predictions for sequence {output.id} finished, merging results.")
                         output = results.algorithm_output.merge_outputs(output_dict[output.id])
-                        logger.info(f"Merging finished for {output.id}, postprocessing...")
-                        output = bgap_rna.postprocessing(output)
+                        if merge:
+                            logger.info(f"Merging finished for {output.id}, postprocessing...")
+                            output = bgap_rna.postprocessing(output)
                         if isinstance(output_f, Path):
                             with open(output_f, "a+") as file:
                                 with redirect_stdout(file):
@@ -658,7 +661,10 @@ class bgap_rna:
                     if isinstance(output, results.error):
                         return_list.append(output)
 
-    def run_separate_processes(self,user_input: (list[SeqRecord]| FastaIO.FastaIterator| QualityIO.FastqPhredIterator| Generator[SeqRecord, None, None] | SeqRecord), version:str, output_file: Optional[Path| str] = None,workers: int = multiprocessing.cpu_count(),output_csv_separator: str = "\t"):
+    def run_separate_processes(self,user_input: (list[SeqRecord]| FastaIO.FastaIterator| QualityIO.FastqPhredIterator| Generator[SeqRecord, None, None] | SeqRecord), version:str, output_file: Optional[Path| str] = None,workers: int = multiprocessing.cpu_count(),merge:bool = False) -> list[algorithm_output | error]:
+        '''
+        Fast mode multi processing function, fast mode is always multi-processed since parallelizing motifs is what makes it fast (duh).
+        '''
         #First we get the motif files we need from our motif sets (I should also change this in get_motif_sequences down the line, concat the files and make a hexdump that way for normal)
         file_list = bgap_rna.get_motif_files(version=version)
 
@@ -667,8 +673,8 @@ class bgap_rna:
         input_q: multiprocessing.JoinableQueue[tuple[SeqRecord,Path]|None] = Manager.JoinableQueue() #type:ignore
 
         #setup listener and listener queue --> put postprocessing into listener
-        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output | results.error]] = Manager.Queue()  # type: ignore
-        listening = multiprocessing.Process(target=self._listener_sep_motifs, args=(len(file_list),listener_q, output_file))
+        listener_q: multiprocessing.Queue[results.algorithm_output | results.error | None | list[results.algorithm_output | results.error]] = Manager.Queue()  # type: ignore Weird Any typing of Queue throws type error
+        listening = multiprocessing.Process(target=self._listener_sep_motifs, args=(len(file_list),listener_q, output_file,merge))
         listening.start()
 
         #Populate the input_list, allocate file paths to each sequences so every sequence gets run with every motif file
