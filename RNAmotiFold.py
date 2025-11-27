@@ -120,9 +120,8 @@ def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.
             logger.info("Recognized input as filepath, reading...")
             return _read_input_file(Path(user_input).resolve())
     except OSError as e:
-        logger.debug("Input could not be converted to a Pathlib path object:",e)
-        raise OSError
-    if any(c not in "AUCGTaucgt+" for c in set(user_input)):
+        logger.debug("Input could not be converted to a Pathlib path object:"+str(e))
+    if any(c not in "NAUCGTnaucgt+" for c in set(user_input)):
         raise ValueError(
             "Input string was neither a viable file path nor a viable RNA or DNA sequence"
         )

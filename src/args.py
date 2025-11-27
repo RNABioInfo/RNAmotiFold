@@ -165,7 +165,7 @@ class script_parameters:
     shape_level: int
     energy: str
     temperature: float
-    basepairs: bool
+    basepairs: int
     energy_percent: float
     pfc: bool
     low_prob_filter: float
@@ -256,7 +256,7 @@ class script_parameters:
             shape_level=confs.getint("VARIABLES", "shape_level"),
             energy=confs.get("VARIABLES", "energy"),
             temperature=confs.getfloat("VARIABLES", "temperature"),
-            basepairs=confs.getboolean("VARIABLES", "basepairs"),
+            basepairs=confs.getint("VARIABLES", "basepairs"),
             energy_percent=confs.getfloat("VARIABLES", "energy_percent"),
             pfc=confs.getboolean("VARIABLES", "pfc"),
             low_prob_filter=confs.getfloat("VARIABLES", "low_prob_filter"),
@@ -366,7 +366,7 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
         default="current",
     )
     pfc_or_subopt.add_argument(
-        "-s",
+        "--s",
         "--subopt",
         help=f"Specify if subopt folding should be used. Not useable with partition function implementations.",
         action="store_true",
@@ -442,10 +442,11 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
     parser.add_argument(
         "-u",
         "--allow_lonely_basepairs",
-        help=f"Allow lonely base pairs, True = yes, False = no.",
+        help=f"Allow lonely base pairs can only be set to 0 (no lonely base pairs), 1 (allow all lonely base pairs),2 (allow lonely base pairs around motifs only)",
         dest="basepairs",
-        action="store_true",
-        default=config.getboolean(config.default_section, "basepairs"),
+        choices=[0,1,2],
+        type=int,
+        default=config.getint(config.default_section, "basepairs"),
     )
     parser.add_argument(
         "-c",

@@ -50,7 +50,7 @@ class result_mfe(result):
                 for loc in locations:
                     if loc in insertions and base_structure[loc] != motif:
                         motifs.add((motif.lower(),result.motif_type))
-                        logger.warning(f"Overlap detected during merge at position {loc} between motifs {base_structure[loc]} and {motif} on sequence: {result.id}, marking as lowercase and inserting {base_structure[loc]}")
+                        logger.warning(f"Overlap detected during merge at position {loc} between motifs {base_structure[loc]} and {motif} on sequence: {result.id}, marking as lowercase and inserting {base_structure[loc].lower()}")
                         base_structure[loc] = base_structure[loc].lower()
                     else:
                         motifs.add((motif,result.motif_type))
@@ -285,7 +285,7 @@ class algorithm_output:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
         for err in self.stderr:
             if len(err.strip()) > 0:
-                logger.warning(self.id+": "+err)
+                logger.warning(self.id+": "+err.strip())
         if not initiated:
             sys.stdout.write(self.results[0].header)
         for result_obj in self.results:

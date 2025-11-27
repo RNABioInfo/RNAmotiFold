@@ -126,7 +126,7 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     compilation_list:list[str] = []
     algorithms = [
         "".join(x)
-        for x in list(product(["RNAmotiFold", "RNAmoSh", "RNAmotiCes"], ["", "_subopt", "_pfc"]))
+        for x in list(product(["RNAmotiFold", "RNAmoSh", "RNAmotiCes"], ["","Motmicro","_motmacro_pfc","_motmacro_subopt", "_subopt", "_pfc"]))
     ]
     for algorithm in algorithms:
         if "_" in algorithm:
