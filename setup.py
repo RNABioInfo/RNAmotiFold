@@ -14,9 +14,8 @@ ROOT_DIR = Path(__file__).absolute().parent
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
 except ImportError as e:
-    print(
-        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {ROOT_DIR}"
-    )
+    print(f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {ROOT_DIR}")
+    raise e        
 
 
 logger = logging.getLogger("RNAmotiFold")
@@ -71,8 +70,6 @@ def get_cmd_args():
         help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is 5.",
     )
     args = parser.parse_known_args()
-    if args[0].cmake_path is None:
-        raise FileNotFoundError("CMake was not found, please install it or set the path with --cmake_path")
     return args[0]
 
 
@@ -164,7 +161,9 @@ def _check_submodule(submodule: str) -> Path:
     else:
         return SUBMOD_DIR
 
-def run_cmake(cmake_path:str) -> Path:
+def run_cmake(cmake_path:Optional[str]) -> Path:
+    if cmake_path is None:
+        raise FileNotFoundError("CMake was not found, please install it or set the path with --cmake_path")
     BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
     BUILD_PATH.mkdir(exist_ok=True)
     try:
