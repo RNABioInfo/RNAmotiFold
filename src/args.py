@@ -562,8 +562,6 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
 
     args = parser.parse_known_args()
     #Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
-    if args[0].fast_mode and args[0].pfc: #This would be much nicer if I could resolve the situation through mutually exclusive groups but this is clean and easy too.
-        raise parser.error("Can't use pfc and fast mode together, sorry!")
     if args[0].algorithm != "RNAmotiFold" and args[0].merge:
         raise parser.error("Fast mode merging is only implemented for RNAmotiFold currently, sorry!")
     if args[0].config is not None:

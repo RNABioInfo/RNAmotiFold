@@ -8,12 +8,12 @@ from typing import Generator
 from Bio import SeqIO
 from Bio.SeqIO import FastaIO, QualityIO
 from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+from Bio.SeqRecord import SeqRecord 
 import gzip
 import sys
 from typing import Optional
 
-logger = logging.getLogger("RNAmotiFold")
+logger = logging.getLogger("RNAmotiFold")  
 
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs

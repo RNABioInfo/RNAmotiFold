@@ -141,7 +141,7 @@ class bgap_rna:
             input_q.task_done()
 
     @staticmethod
-    def postprocessing(merged_output:results.algorithm_output) -> results.algorithm_output:
+    def postprocessing_mfe(merged_output:results.algorithm_output) -> results.algorithm_output:
         '''
         Postprocessing function for merging outputs of the seperated motif predictions
         '''
@@ -165,6 +165,16 @@ class bgap_rna:
         return merged_output
 
     @staticmethod
+    def postprocessing_pfc(merged_output:list[results.algorithm_output]) -> list[results.algorithm_output]:
+        returnlist= []
+        checklist = []
+        for output in merged_output:
+            if str(output) not in checklist and len(output.results) > 1:
+                checklist.append(str(output))
+                returnlist.append(output)
+        return returnlist
+
+    @staticmethod
     def _listener_sep_motifs(motif_amount:int,q: 'multiprocessing.Queue[results.algorithm_output | results.error | list[results.algorithm_output|results.error] | None]',output_f: Path | None,merge:bool = False) -> None:
         output_dict:dict[str,list[results.algorithm_output]] = {}
         writing_started = False
@@ -176,26 +186,43 @@ class bgap_rna:
                 break
             else:
                 if isinstance(output, results.algorithm_output):
-                    if output.id not in output_dict.keys():
-                        output_dict[output.id] = [output]
-                    else:
+                    if output.id in output_dict.keys():
                         output_dict[output.id].append(output)
+                    else:
+                        output_dict[output.id] = [output]
                     if len(output_dict[output.id]) == motif_amount:
                         logger.info(f"Motif predictions for sequence {output.id} finished, merging results.")
-                        output = results.algorithm_output.merge_outputs(output_dict[output.id])
-                        if merge:
-                            logger.info(f"Merging finished for {output.id}, postprocessing...")
-                            output = bgap_rna.postprocessing(output)
+                        match output_dict[output.id][0].Status:
+                            case "mfe":
+                                full_output = results.algorithm_output.merge_mfe_outputs(output_dict[output.id])
+                                if merge:
+                                    logger.info(f"Merging finished for {output.id}, postprocessing...")
+                                    full_output = bgap_rna.postprocessing_mfe(full_output)
+                            case "pfc":
+                                full_output = output_dict[output.id]
+                                full_output = bgap_rna.postprocessing_pfc(full_output)
+                            case _:
+                                raise ValueError(f"Why does my output have Status: {output_dict[output.id][0].Status} ? ")
                         if isinstance(output_f, Path):
                             with open(output_f, "a+") as file:
                                 with redirect_stdout(file):
-                                    writing_started = output.write_results(writing_started)
+                                    if isinstance(full_output,list):
+                                        for element in full_output:
+                                            element.add_column("motif_type",element.motif_type)
+                                            element.write_results(writing_started)
+                                    else:
+                                        writing_started = full_output.write_results(writing_started)
                         else:
-                            writing_started = output.write_results(writing_started)
+                            if isinstance(full_output,list):
+                                        for element in full_output:
+                                            element.add_column("motif_type",element.motif_type)
+                                            element.write_results(writing_started) #by literally just not recording that we already started we can easily output each individually
+                            else:
+                                writing_started = full_output.write_results(writing_started)
                             sys.stdout.flush()
                         return_list.append(output)
-                    if isinstance(output, results.error):
-                        return_list.append(output)
+                elif isinstance(output, results.error):
+                    return_list.append(output)
 
     @classmethod
     def from_script_parameters(cls, params: script_parameters):

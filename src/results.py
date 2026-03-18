@@ -20,6 +20,7 @@ class result:
     def __init__(self, id: str, result_list: list[str]) -> None:
         self.id: str = id
         self.cols: list[str] = result_list
+        self.header_cols = ["ID","class"]
 
     def __str__(self) -> str:
         return self.tsv
@@ -119,6 +120,7 @@ class result_mfe(result):
         self.mot_bracket = self.cols[2]
         self.dot_bracket = self.cols[2]
         self.motif_type:Literal["hairpin","internal","bulge","all"] = motif_type
+        self.header_cols.extend(["mfe", "motBracket"])
         
     @property
     def dot_bracket(self) -> str:
@@ -131,10 +133,9 @@ class result_mfe(result):
         self._dot_bracket = structure_string
 
     @property
-    def header(self, classifier: str = "Class") -> str:
+    def header(self) -> str:
         """Returns header string of itself, adapted to currently set algorithm"""
-        _header: list[str] = ["ID", classifier, "mfe", "motBracket"]
-        return result.separator.join(_header) + "\n"
+        return result.separator.join(self.header_cols) + "\n"
 
     @property
     def classifier(self) -> str:
@@ -164,12 +165,12 @@ class result_mfe(result):
 class result_pfc(result):
     def __init__(self, id: str, result_list: list[str]) -> None:
         super().__init__(id, result_list)
+        self.header_cols.extend(["pfc","Probability"])
 
     @property
     def header(self, classifier: str = "Class") -> str:
         """Returns header string of itself, adapted to currently set algorithm"""
-        _header: list[str] = ["ID", classifier, "pfc", "Probability"]
-        return result.separator.join(_header) + "\n"
+        return result.separator.join(self.header_cols) + "\n"
 
 
 class result_alignment(result):
@@ -226,6 +227,30 @@ class algorithm_output:
         self.results = (result_str,motif_type)
         self.stderr = stderr
         self._index = 0
+        self._motif_type = motif_type
+
+    @property
+    def motif_type(self) -> str:
+        return self._motif_type
+    
+    @motif_type.setter
+    def motif_type(self,new_type:Literal["hairpin","internal","bulge","all"]) -> None:
+        self.motif_type = new_type
+
+
+    def add_column(self,name:str,values:str|list):
+        if isinstance(values,list):
+            if len(values) != len(self.results):
+                raise ValueError("Unable to add values, unequal length of result objects and new values")        
+            else:
+                for i in range(len(values)):
+                    self.results[i].cols.append(values[i])
+        else:
+            for element in self.results:
+                element.cols.append(values)
+        for element in self.results:
+            element.header_cols.append(name)
+
 
     # Formats results from the mgapc output formatting to a list of result objects
     @property
@@ -301,9 +326,9 @@ class algorithm_output:
         pfc_sum = sum(pfc_list)
         for result_obj in self.results:
             result_obj.cols.append(str(round(float(result_obj.cols[-1]) / pfc_sum, 4)))
-    
+
     @classmethod
-    def merge_outputs(cls,objs:list['algorithm_output']) -> 'algorithm_output':
+    def merge_mfe_outputs(cls,objs:list['algorithm_output']) -> 'algorithm_output':
         '''
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         '''
