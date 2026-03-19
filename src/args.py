@@ -583,6 +583,7 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
         dest="motif_list")
 
     args = parser.parse_known_args()
+    #Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
     if args[0].algorithm != "RNAmotiFold" and args[0].merge:
         raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")
     if args[0].config is not None:
