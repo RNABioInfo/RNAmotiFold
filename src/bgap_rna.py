@@ -6,10 +6,14 @@ from typing import Optional, Generator, Any, Literal
 from Bio.SeqIO import FastaIO, QualityIO
 import logging
 from Bio.SeqRecord import SeqRecord
+import tempfile
 from src.args import script_parameters
 from src.results import algorithm_output,error
 import src.results as results
 from contextlib import redirect_stdout
+from collections import defaultdict
+import itertools
+import os
 
 logger = logging.getLogger("bgap_rna")
 
@@ -220,6 +224,7 @@ class bgap_rna:
             subopt=params.subopt,
             session_id=params.id,
             fast_mode=params.fast_mode,
+            motif_string=params.motif_list
         )
 
     def __init__(
@@ -244,6 +249,7 @@ class bgap_rna:
         low_prob_filter: float = 0.000001,
         session_id: str = "N/A",
         fast_mode:bool = False,
+        motif_string:str = ""
     ):
         self.id = session_id
         self.subopt = subopt
@@ -266,6 +272,7 @@ class bgap_rna:
         self.replace_internals = replace_internals
         self.replace_bulges = replace_bulges
         self.fast_mode = fast_mode
+        self.motif_string = motif_string
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -553,6 +560,17 @@ class bgap_rna:
     def call(self):
         raise ValueError("Please use the custom_call property so set a custom call.")
 
+    @property
+    def motif_string(self) -> str:
+        return self._motif_string
+    
+    @motif_string.setter
+    def motif_string(self,motif_str:Optional[str]) -> None:
+        if motif_str is None:
+            self._motif_string = ""
+        else:
+            self._motif_string = motif_str
+    
     # Calibrate results.algorithm objects based on the current status of the bgap_rna class instance
     def _calibrate_result_objects(self, sep: str = "\t"):
         """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
@@ -561,6 +579,95 @@ class bgap_rna:
             results.algorithm_output.Status = "pfc"
         else:
             results.algorithm_output.Status = "mfe"
+
+    def _calibrate_self(self,version:str) -> list[Path]:
+        '''Function to set up all the individual motif files for using motif_string, writes sequences into tem'''
+        file_list:list[Path] = bgap_rna.get_motif_files(version=version)
+
+        #Paths to all files containing relevant motif files based on version and custom motif settings
+        hairpins = bgap_rna._make_file_list(self.replace_hairpins,self.custom_hairpins,"hairpins",file_list,self.motif_string)
+        internals = bgap_rna._make_file_list(self.replace_internals,self.custom_internals,"internals",file_list,self.motif_string)
+        bulges = bgap_rna._make_file_list(self.replace_bulges,self.custom_bulges,"bulges",file_list,self.motif_string)
+
+        if not self.fast_mode:
+            #Create temporary files with all the sequences from file lists, filtered based on the motif string
+            self.custom_hairpins = bgap_rna.write_chosen_sequences(hairpins,self.motif_string,version,"hairpins")
+            self.custom_internals = bgap_rna.write_chosen_sequences(internals,self.motif_string,version,"internals")
+            self.custom_bulges = bgap_rna.write_chosen_sequences(bulges,self.motif_string,version,"bulges")
+
+            #Set all replacements to true after setting custom motif strings to the temp file paths, where all motifs specified by the motif string/all the motifs are collected
+            self.replace_hairpins = True
+            self.replace_internals = True
+            self.replace_bulges = True
+        
+        else:
+            #I think all of the stuff below is bs, why not just read all the files and then separate them?
+            hairpins  = bgap_rna.combine_files(hairpins,self.motif_string,version=version,motif_type="hairpins")
+            internals = bgap_rna.combine_files(internals,self.motif_string,version=version,motif_type="internals")
+            bulges    = bgap_rna.combine_files(bulges,self.motif_string,version=version,motif_type="bulges")
+
+        return hairpins + internals + bulges
+
+    @staticmethod
+    def combine_files(file_list:list[Path],motif_string:str,version:str,motif_type:str) -> list[Path]:
+        '''
+        Literally just read all the files in the list and make separate files for each motif ?
+        '''
+        tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
+        seqs:list[str] = []
+        returnlist:list[Path] = []
+        for path in file_list:
+            with open(path,"r") as file:
+                seqs.extend(file.readlines())
+        for motif in motif_string:
+            isolated_seqs = [x for x in seqs if x.strip()[-1] == motif]
+            if len(isolated_seqs) > 0:
+                temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix=f"{motif}_",suffix=".tmp")
+                with open(temporary.name,"w") as tmp_file:
+                    tmp_file.writelines(isolated_seqs)
+                returnlist.append(Path(temporary.name))
+        return returnlist
+    
+    @staticmethod
+    def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges']) -> Path:
+        '''
+        Writes sequences from csv files into a temp file based on the motifs chosen with motif_string, returns path to the temp file.
+        '''
+        legit_motifs:list[str] = []
+        for file in files:
+            with open(file,"r") as open_file:
+                lines = open_file.readlines()
+                if len(motif_string):
+                    legit_motifs.extend([x.strip() for x in lines if x.split(",")[1].strip() in motif_string])
+                else:
+                    legit_motifs.extend(lines)
+        legit_motifs =[x+"\n" for x in legit_motifs]
+        tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
+        temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix="motifs_tmp_",suffix=".tmp")
+        with open(temporary.name,"w") as temp_file:
+                temp_file.writelines(legit_motifs)
+        return Path(temporary.name)
+        
+    @staticmethod
+    def _make_file_list(replace_motifs:Optional[int],custom_motifs:Optional[Path],motif_type:str,files:list[Path],motif_string:str) -> list[Path]:
+        if not replace_motifs: #This catches both cases, 0 for no replacing and None (which also means no replacing)
+            motif_paths = [x for x in files if motif_type in x.parent.name and bgap_rna.check_abb(x, motif_string)]
+            if custom_motifs is not None:
+                motif_paths.append(custom_motifs)
+            return motif_paths
+        else:
+            if custom_motifs is not None:
+                return [custom_motifs]
+            raise ValueError(f"Replacement of {motif_type} motifs was set to True but no custom motif file was provided, please provide a custom motif file or set replacement to False")#I kinda want to just let this slide and make the software just use no motifs in this case
+
+    @staticmethod
+    def check_abb(filepath:Path,motif_string:str):
+        if len(motif_string) == 0:
+            return True
+        with open(filepath,"r") as motif_seq_file:
+            lines = motif_seq_file.readlines()
+            abbreviations = set([x.split(",")[1].strip() for x in lines])
+            return all([x in motif_string for x in abbreviations])
 
     # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
     def auto_run(
@@ -583,12 +690,24 @@ class bgap_rna:
         if output_csv_separator == r"\t":
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
+        motif_files = self._calibrate_self(version=version)
+
         if self.fast_mode:
-            return self.run_separate_processes(user_input,version,o_file,pool_workers,merge)
-        if isinstance(user_input, SeqRecord):
-            return self._run_single_process(user_input, o_file)
+            output = self.run_separate_processes(user_input,motif_files,o_file,pool_workers,merge)
+        elif isinstance(user_input, SeqRecord):
+            output =  self._run_single_process(user_input, o_file)
         else:
-            return self._run_multi_process(user_input, o_file, workers=pool_workers)
+            output = self._run_multi_process(user_input, o_file, workers=pool_workers)
+        self.cleanup_temp_files(version)
+        return output
+
+    @staticmethod
+    def cleanup_temp_files(version:str):
+        motif_dir_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated")
+        files = Path(motif_dir_path).rglob("*.tmp")
+        for file in files:
+            os.remove(file)
+        return list(files)
 
     # single process function utilizing subprocess to run a single prediction and return the output
     def _run_single_process(
@@ -670,13 +789,10 @@ class bgap_rna:
         listener_results: list[results.algorithm_output | results.error] = listener_q.get() #type:ignore This will always be a list of results since it's what the listener "returns"
         return listener_results
 
-    def run_separate_processes(self,user_input: (list[SeqRecord]| FastaIO.FastaIterator| QualityIO.FastqPhredIterator| Generator[SeqRecord, None, None] | SeqRecord), version:str, output_file: Optional[Path| str] = None,workers: int = multiprocessing.cpu_count(),merge:bool = False) -> list[algorithm_output | error]:
+    def run_separate_processes(self,user_input: (list[SeqRecord]| FastaIO.FastaIterator| QualityIO.FastqPhredIterator| Generator[SeqRecord, None, None] | SeqRecord), file_list:list[Path], output_file: Optional[Path| str] = None,workers: int = multiprocessing.cpu_count(),merge:bool = False) -> list[algorithm_output | error]:
         '''
         Fast mode multi processing function, fast mode is always multi-processed since parallelizing motifs is what makes it fast (duh).
         '''
-        #First we get the motif files we need from our motif sets (I should also change this in get_motif_sequences down the line, concat the files and make a hexdump that way for normal)
-        file_list = bgap_rna.get_motif_files(version=version)
-
         #setup shared object manager for communication between processes, with a list of input sequences
         Manager = multiprocessing.Manager()
         input_q: multiprocessing.JoinableQueue[tuple[SeqRecord,Path]|None] = Manager.JoinableQueue() #type:ignore

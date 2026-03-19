@@ -85,6 +85,18 @@ def WorkerCheckFunction(value: Optional[str]) -> Optional[int]:
     print("Could not count cpus, playing it safe and setting CPU_count to 1")
     return 1
 
+class MotifListCheck(argparse.Action):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
+        super().__init__(option_strings, dest, **kwargs)
+        
+    def __call__(self, parser:argparse.ArgumentParser,namespace:argparse.Namespace,value:Optional[str|Sequence[Any]],option_string:Optional[str]=None):
+        setattr(namespace,self.dest,MotifListCheckFunction(value))
+    
+def MotifListCheckFunction(value:Optional[str]) -> str:
+    if value is None:
+        return ""
+    else:
+        return value
 
 class ConfigCheck(argparse.Action):
     def __init__(self, option_strings:str, dest:str, **kwargs:Any):
@@ -183,6 +195,7 @@ class script_parameters:
     version: str
     fast_mode:bool
     fast_mode_merge:bool
+    motif_list:str
 
     def __repr__(self):
         classname = type(self).__name__
@@ -231,7 +244,8 @@ class script_parameters:
             no_update=args.no_update,
             version=args.version,
             fast_mode = args.fast_mode,
-            fast_mode_merge = args.merge
+            fast_mode_merge = args.merge,
+            motif_list = args.motif_list
         )
 
     @classmethod
@@ -273,7 +287,8 @@ class script_parameters:
             no_update=confs.getboolean("VARIABLES", "no_update"),
             version=confs.get("VARIABLES", "version"),
             fast_mode=confs.getboolean("VARIABLES","fast_mode"),
-            fast_mode_merge = confs.getboolean("VARIABLES","merge")
+            fast_mode_merge = confs.getboolean("VARIABLES","merge"),
+            motif_list = confs.get("VARIABLES","motif_list")
         )
 
 
@@ -559,13 +574,17 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
         action="store_true",
         dest="no_update",
     )
+    parser.add_argument(
+        "--motifs",
+        help=f"Specify which motifs should be recognized during prediction. Works with custom motifs and all modes.",
+        default=config.get(config.default_section,"motif_list"),
+        type=str,
+        action=MotifListCheck,
+        dest="motif_list")
 
     args = parser.parse_known_args()
-    #Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
-    if args[0].fast_mode and args[0].pfc: #This would be much nicer if I could resolve the situation through mutually exclusive groups but this is clean and easy too.
-        raise parser.error("Can't use pfc and fast mode together, sorry!")
     if args[0].algorithm != "RNAmotiFold" and args[0].merge:
-        raise parser.error("Fast mode merging is only implemented for RNAmotiFold currently, sorry!")
+        raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")
     if args[0].config is not None:
         config.read_file(open(args[0].config))
         config_check(config)
