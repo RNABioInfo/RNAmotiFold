@@ -11,8 +11,6 @@ from src.args import script_parameters
 from src.results import algorithm_output,error
 import src.results as results
 from contextlib import redirect_stdout
-from collections import defaultdict
-import itertools
 import os
 
 logger = logging.getLogger("bgap_rna")
@@ -170,8 +168,8 @@ class bgap_rna:
 
     @staticmethod
     def postprocessing_pfc(merged_output:list[results.algorithm_output]) -> list[results.algorithm_output]:
-        returnlist= []
-        checklist = []
+        returnlist:list[results.algorithm_output] = []
+        checklist:list[str] = []
         for output in merged_output:
             if str(output) not in checklist and len(output.results) > 1:
                 checklist.append(str(output))
@@ -640,6 +638,8 @@ class bgap_rna:
         '''
         Literally just read all the files in the list and make separate files for each motif ?
         '''
+        if len(motif_string) == 0:
+            return file_list
         tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
         seqs:list[str] = []
         returnlist:list[Path] = []
