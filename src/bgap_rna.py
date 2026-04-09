@@ -147,7 +147,7 @@ class bgap_rna:
         '''
         Postprocessing function for merging outputs of the seperated motif predictions
         '''
-        mfe_dict:dict[int,list[results.result_mfe]] = {}
+        mfe_dict:dict[float,list[results.result_mfe]] = {}
         for res in merged_output.results:
             if isinstance(res,results.result_mfe) and res.classifier: #this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
                 if res.free_energy not in mfe_dict.keys():                               #-> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
@@ -163,7 +163,7 @@ class bgap_rna:
                         merged_output.results.append(new_result)
             else:
                 continue
-        merged_output.results.sort(key=lambda x: int(x.free_energy)) #type:ignore
+        merged_output.results.sort(key=lambda x: x.free_energy) #type:ignore
         return merged_output
 
     @staticmethod
@@ -210,14 +210,14 @@ class bgap_rna:
                                 with redirect_stdout(file):
                                     if isinstance(full_output,list):
                                         for element in full_output:
-                                            element.add_column("motif_type",element.motif_type)
+                                            element.add_column_to_all("motif_type",element.motif_type)
                                             element.write_results(writing_started)
                                     else:
                                         writing_started = full_output.write_results(writing_started)
                         else:
                             if isinstance(full_output,list):
                                         for element in full_output:
-                                            element.add_column("motif_type",element.motif_type)
+                                            element.add_column_to_all("motif_type",element.motif_type)
                                             element.write_results(writing_started) #by literally just not recording that we already started we can easily output each individually
                             else:
                                 writing_started = full_output.write_results(writing_started)
