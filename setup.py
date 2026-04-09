@@ -126,7 +126,7 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
         for x in list(product(["RNAmotiFold", "RNAmoSh", "RNAmotiCes"], ["","Motmicro","_motmacro_pfc","_motmacro_subopt", "_subopt", "_pfc"]))
     ]
     for algorithm in algorithms:
-        if "_" in algorithm:
+        if "_" in algorithm: #There are no motmicro versions of subopt or pfc because of equal structures with different energies in Microstate, see paper Lost in Folding space for details
             options = "-t"
             compilation = f'{Path.joinpath(RNALOOPS_PATH,"Misc","Applications","RNAmotiFold","compile.sh")} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold_subopt_pfc.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
         else:
