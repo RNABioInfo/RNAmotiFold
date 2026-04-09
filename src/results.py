@@ -17,18 +17,43 @@ def flatten(xss:list[list[Any]]) -> list[Any]:
 class result:
     separator: str = ","
 
-    def __init__(self, id: str, result_list: list[str]) -> None:
-        self.id: str = id
-        self.cols: list[str] = result_list
-        self.header_cols = ["ID","class"]
+    def __init__(self,id:str,classifier:str,motif_type:Literal["hairpin","internal","bulge","all"]) -> None:
+        self.values:dict[str,str|int|float] = dict()
+        self.values["ID"] = id
+        self.values["class"] = classifier
+        self.motif_type:Literal["hairpin","internal","bulge","all"] = motif_type
+
+    @property
+    def id(self) -> str:
+        return self.values["ID"] #type:ignore Can't be anything but string because setter only permits string
+    
+    @id.setter
+    def id(self, new_id:str) -> None:
+        self.values["ID"] = new_id
+        
+    @property
+    def classifier(self) -> str:
+        return self.values["class"] #type:ignore Can't be anything but string because setter only permits string
+    
+    @classifier.setter
+    def classifier(self, new_classifier:str) -> None:
+        self.values["class"] = new_classifier
 
     def __str__(self) -> str:
         return self.tsv
     
+    def add_coloumn(self,name:str,value:str|int|float) -> None:
+        self.values[name] = value
+
     @property
     def tsv(self) -> str:
         """Returns tsv string of itself"""
-        return self.id + result.separator + result.separator.join(map(str, self.cols)) + "\n"
+        return result.separator.join([str(x) for x in self.values.values()]) + "\n"
+    
+    @property
+    def header(self) -> str:
+        """Returns header string of itself, adapted to currently set algorithm"""
+        return result.separator.join(self.values.keys()) + "\n"
 
 
 class result_mfe(result):
@@ -66,9 +91,15 @@ class result_mfe(result):
         foundslist.sort(key=lambda tup:tup[0])
         new_classifier = result_mfe.build_new_classifier([x[1] for x in foundslist])
         if merged_bracket not in [x.mot_bracket for x in compatibles]:
-            return cls(compatibles[0].id+"_merged",[new_classifier,str(compatibles[0].free_energy),merged_bracket],"all")
+            return cls(id=compatibles[0].id+"_merged",classifier=new_classifier,free_energy=str(compatibles[0].free_energy),mot_bracket=merged_bracket,motif_type=compatibles[0].motif_type)
         else:
             return None
+
+    @classmethod
+    def from_string(cls,id:str,result_string:str,motif_type:Literal["hairpin","internal","bulge","all"]) -> 'result_mfe':
+        split_result = result_string.strip().split("|")
+        split_stripped_results = [x.strip() for x in split_result]
+        return cls(id=id,classifier=split_stripped_results[0],free_energy=split_stripped_results[1],mot_bracket=split_stripped_results[2],motif_type=motif_type)
 
     @staticmethod
     def build_new_classifier(foundslist:list[tuple[str,str]]) -> str:
@@ -113,15 +144,11 @@ class result_mfe(result):
         compatible = [[k]+v for k,v in collecting.items()]
         return compatible
 
-    def __init__(self, id: str, result_list: list[str],motif_type:Literal["hairpin","internal","bulge","all"]) -> None:
-        super().__init__(id, result_list)
-        self.classifier = self.cols[0]
-        self.free_energy = self.cols[1]
-        self.mot_bracket = self.cols[2]
-        self.dot_bracket = self.cols[2]
-        self.motif_type:Literal["hairpin","internal","bulge","all"] = motif_type
-        self.header_cols.extend(["mfe", "motBracket"])
-        
+    def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str, motif_type:Literal["hairpin","internal","bulge","all"]) -> None:      
+        super().__init__(id,classifier,motif_type)
+        self.free_energy = free_energy
+        self.mot_bracket = mot_bracket
+
     @property
     def dot_bracket(self) -> str:
         return self._dot_bracket
@@ -133,45 +160,51 @@ class result_mfe(result):
         self._dot_bracket = structure_string
 
     @property
-    def header(self) -> str:
-        """Returns header string of itself, adapted to currently set algorithm"""
-        return result.separator.join(self.header_cols) + "\n"
-
-    @property
-    def classifier(self) -> str:
-        return self._classifier
-    
-    @classifier.setter
-    def classifier(self,class_string:str):
-        self._classifier = class_string
-
-    @property
-    def free_energy(self) -> int:
-        return self._free_energy
-    
-    @free_energy.setter
-    def free_energy(self, new_energy:str) -> None:
-        self._free_energy = int(new_energy)
-
-    @property
     def mot_bracket(self) -> str:
-        return self._mot_bracket
-    
+        return self.values["motBracket"] #type:ignore Can't be anything but string because setter only permits string
+
     @mot_bracket.setter
     def mot_bracket(self,motbracket_string:str) -> None:
-        self._mot_bracket = motbracket_string
+        self.values["motBracket"] = motbracket_string
+
+    @property
+    def free_energy(self) -> float:
+        return self.values["mfe"] #type:ignore Can't be anything but float because setter only permits float
+
+    @free_energy.setter
+    def free_energy(self, new_energy:str) -> None:
+        self.values["mfe"] = float(int(new_energy)/100)
 
 
 class result_pfc(result):
-    def __init__(self, id: str, result_list: list[str]) -> None:
-        super().__init__(id, result_list)
-        self.header_cols.extend(["pfc","Probability"])
+    def __init__(self, id: str, classifier:str, pfc_value:str|int|float,motif_type:Literal["hairpin","internal","bulge","all"]) -> None:
+        super().__init__(id, classifier,motif_type)
+        self.pfc_value = pfc_value
+    
+    @property
+    def pfc_value(self) -> float:
+        return self.values["pfc"] #type:ignore Can't be anything but float because setter only permits float
+    
+    @pfc_value.setter
+    def pfc_value(self, new_pfc:str|float|int) -> None:
+        self.values["pfc"] = float(new_pfc)
 
     @property
-    def header(self, classifier: str = "Class") -> str:
-        """Returns header string of itself, adapted to currently set algorithm"""
-        return result.separator.join(self.header_cols) + "\n"
+    def probability(self) -> float:
+        return self.values["probability"] #type:ignore Can't be anything but float because setter only permits float
+    
+    @probability.setter
+    def probability(self, prob:float) -> None:
+        self.values["probability"] = prob
 
+    @classmethod
+    def from_string(cls,id:str,result_string:str,motif_type:Literal["hairpin","internal","bulge","all"]) -> 'result_pfc':
+        split_result = result_string.strip().split("|")
+        split_stripped_results = [x.strip() for x in split_result]
+        return cls(id=id,classifier=split_stripped_results[0],pfc_value=split_stripped_results[1],motif_type=motif_type)
+
+    def set_probability(self,pfc_sum:float) -> None:
+        self.probability = round(self.pfc_value / pfc_sum, 4)
 
 class result_alignment(result):
     """Dummy class for compatibility, fill out later"""
@@ -219,38 +252,23 @@ class algorithm_output:
     def __init__(
         self,
         name: str,
-        result_str: str|list[result_mfe|result_pfc|result_alignment],
+        result_str: str|list[result_mfe|result_pfc],
         stderr: list[str],
-        motif_type:Literal["hairpin","internal","bulge","all"] = "all",
+        motif:Literal["hairpin","internal","bulge","all"] = "all",
     ) -> None:
         self.id = name
-        self.results = (result_str,motif_type)
+        self.motif_type = motif
+        self.results = result_str
         self.stderr = stderr
         self._index = 0
-        self._motif_type = motif_type
 
     @property
-    def motif_type(self) -> str:
+    def motif_type(self) -> Literal["hairpin","internal","bulge","all"]:
         return self._motif_type
     
     @motif_type.setter
     def motif_type(self,new_type:Literal["hairpin","internal","bulge","all"]) -> None:
-        self.motif_type = new_type
-
-
-    def add_column(self,name:str,values:str|list):
-        if isinstance(values,list):
-            if len(values) != len(self.results):
-                raise ValueError("Unable to add values, unequal length of result objects and new values")        
-            else:
-                for i in range(len(values)):
-                    self.results[i].cols.append(values[i])
-        else:
-            for element in self.results:
-                element.cols.append(values)
-        for element in self.results:
-            element.header_cols.append(name)
-
+        self._motif_type:Literal["hairpin","internal","bulge","all"] = new_type
 
     # Formats results from the mgapc output formatting to a list of result objects
     @property
@@ -258,12 +276,35 @@ class algorithm_output:
         return self._Status
 
     @Status.setter
-    def Status(self, status: Literal["pfc", "mfe", "alignment"]):
+    def Status(self, status: Literal["pfc", "mfe", "alignment"]) -> None:
         self._Status = status
 
     @property
-    def results(self) -> list[result_mfe | result_pfc | result_alignment]:
+    def results(self) -> list[result_mfe | result_pfc]:
         return self._results
+
+    @results.setter
+    def results(self, result:str|list[result_mfe|result_pfc]) -> None:
+        if isinstance(result,list):
+            self._results = result
+        else:
+            reslist: list[result_mfe | result_pfc] = []
+            split = result.strip().split("\n")
+            for output in split:
+                match self.Status:
+                    case "pfc":
+                        res = result_pfc.from_string(self.id,output,self.motif_type)
+                    case "mfe":
+                        res = result_mfe.from_string(self.id,output,self.motif_type)
+                    case "alignment":
+                        raise ValueError("Alignment result type not yet implemented")
+                    case _:
+                        raise ValueError(f"Invalid result status detected: {self.Status}")
+                reslist.append(res)
+            self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value)
+            if self.Status == "pfc":
+                self.results.reverse() #pfc has to be flipped because bigger pfc  --> more probable
+                self.add_pfc_probabilities()
 
     @property
     def stderr(self) -> list[str]:
@@ -281,29 +322,9 @@ class algorithm_output:
             else:
                 self._stderr = []
 
-    @results.setter
-    def results(self, result:tuple[str|list[result_mfe|result_pfc|result_alignment],Literal["hairpin","internal","bulge","all"]]) -> None:
-        if isinstance(result[0],list):
-            self._results = result[0]
-            return None
-        reslist: list[result_mfe | result_pfc | result_alignment] = []
-        split = result[0].strip().split("\n")
-        for output in split:
-            split_result = output.split("|")
-            split_stripped_results = [x.strip() for x in split_result]
-            match self.Status:
-                case "pfc":
-                    res = result_pfc(self.id, split_stripped_results)
-                case "mfe":
-                    res = result_mfe(self.id, split_stripped_results,result[1])
-                case "alignment":
-                    res = result_alignment(self.id, split_stripped_results)
-                case _:
-                    raise ValueError(f"Invalid result status detected: {self.Status}")
-            reslist.append(res)
-        self._results = reslist
-        if self.Status == "pfc":
-            self.calculate_pfc_probabilities()
+    def add_column_to_all(self,name:str,value:str|int|float) -> None:
+        for res in self.results:
+            res.add_coloumn(name,value)
 
     # If not initiated function writes a header and then all it's results as csv
     def write_results(self, initiated: bool) -> Literal[True]:
@@ -318,23 +339,23 @@ class algorithm_output:
         return True
 
     # Calculates partition function probabilities for me so I don't have to manually do it every time for all the outputs
-    def calculate_pfc_probabilities(self) -> None:
-        pfc_list: list[float] = []
-        for result_obj in self.results:
-            pfc_val = float(result_obj.cols[-1])
-            pfc_list.append(pfc_val)
-        pfc_sum = sum(pfc_list)
-        for result_obj in self.results:
-            result_obj.cols.append(str(round(float(result_obj.cols[-1]) / pfc_sum, 4)))
+    def add_pfc_probabilities(self) -> None:
+        if any(not isinstance(x,result_pfc) for x in self.results):
+            raise ValueError("Unable to add probabilities, not all results are of type pfc")
+        else:
+            pfc_sum:float = float(sum([result_obj.pfc_value for result_obj in self.results])) #type:ignore 
+            for result_obj in self.results:
+                result_obj.set_probability(pfc_sum) #type:ignore Always pfc cause we check beforehand
 
     @classmethod
     def merge_mfe_outputs(cls,objs:list['algorithm_output']) -> 'algorithm_output':
         '''
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         '''
-        result_set:set[result_mfe |result_pfc | result_alignment] = set()
+        result_set:set[result_mfe |result_pfc] = set()
         for obj in objs:
             for res in obj.results:
                 if isinstance(res,result_mfe):
                     result_set.add(res)
-        return cls(objs[0].id,list(result_set),stderr=flatten([x.stderr for x in objs]))
+        sorted_results = sorted(list(result_set),key=lambda x: x.free_energy if isinstance(x,result_mfe) else 0)
+        return cls(objs[0].id,sorted_results,stderr=flatten([x.stderr for x in objs]))
