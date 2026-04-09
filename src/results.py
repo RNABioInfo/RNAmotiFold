@@ -183,11 +183,11 @@ class result_pfc(result):
     
     @property
     def pfc_value(self) -> float:
-        return self.values["pfc"] #type:ignore Can't be anything but float because setter only permits float
+        return float(self.values["pfc"])
     
     @pfc_value.setter
     def pfc_value(self, new_pfc:str|float|int) -> None:
-        self.values["pfc"] = float(new_pfc)
+        self.values["pfc"] = new_pfc
 
     @property
     def probability(self) -> float:
@@ -290,17 +290,19 @@ class algorithm_output:
         else:
             reslist: list[result_mfe | result_pfc] = []
             split = result.strip().split("\n")
-            for output in split:
-                match self.Status:
-                    case "pfc":
+            match self.Status:
+                case "pfc":
+                    for output in split:
                         res = result_pfc.from_string(self.id,output,self.motif_type)
-                    case "mfe":
+                        reslist.append(res)
+                case "mfe":
+                    for output in split:
                         res = result_mfe.from_string(self.id,output,self.motif_type)
-                    case "alignment":
-                        raise ValueError("Alignment result type not yet implemented")
-                    case _:
-                        raise ValueError(f"Invalid result status detected: {self.Status}")
-                reslist.append(res)
+                        reslist.append(res)
+                case "alignment":
+                    raise ValueError("Alignment result type not yet implemented")
+                case _:
+                    raise ValueError(f"Invalid result status detected: {self.Status}")         
             self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value)
             if self.Status == "pfc":
                 self.results.reverse() #pfc has to be flipped because bigger pfc  --> more probable
