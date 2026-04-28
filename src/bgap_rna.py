@@ -319,10 +319,9 @@ class bgap_rna:
 
     @temperature.setter
     def temperature(self, temp: float):
-        if -273 < temp < 100:
-            self._temperature = temp
-        else:
-            raise ValueError("Temperature can only be between -273°C and 100°C")
+        if not -273 < temp < 100:
+            logger.info("Temperature outside realistic range, beware results may be inaccurate")
+        self._temperature = temp
 
     @property
     def energy_percent(self):
@@ -563,7 +562,7 @@ class bgap_rna:
             runtime_dictionary["-e"] = self.absolute_energy
         else:
             runtime_dictionary["-k"] = self.kvalue
-        if self.algorithm in ["RNAmoSh", "RNAmoSh_subopt", "RNAmoSh_pfc"]:
+        if "RNAmoSh" in self.algorithm :
             runtime_dictionary["-q"] = self.shape_level
         if self.allowLonelyBasepairs in [0,1]:
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
