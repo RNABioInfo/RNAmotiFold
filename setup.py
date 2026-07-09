@@ -2,6 +2,7 @@ import multiprocessing.pool
 import shutil
 from pathlib import Path
 from typing import Optional,Any,Sequence
+import configparser
 import subprocess
 import argparse
 import sys
@@ -23,6 +24,10 @@ logger = logging.getLogger("RNAmotiFold")
 
 def get_cmd_args():
     """Contains cmd_argument parsing solely for the purpose of checking if an already installed gapc is given"""
+    config= configparser.ConfigParser(allow_no_value=True)
+    config.read_file(open(Path.joinpath(ROOT_DIR,"src","data","defaults.ini")))
+    for option in [x for x in config["SETUP"] if config["SETUP"][x] == ""]:
+        config.set("SETUP", option, None)
     parser = argparse.ArgumentParser(
         prog="SetUp.py",
         description="Set up script for RNAmotiFold. Checks if a modified Bellman's GAP compiler is installed and prepares algorithms.",
@@ -32,26 +37,27 @@ def get_cmd_args():
         "--cmake_path",
         nargs="?",
         dest="cmake_path",
-        default=shutil.which("cmake"),
+        default=config.get("SETUP","cmake_path"), #shutil.which("cmake"),
         type=str,
-        help="If you don't have cmake installed globally or are using a specific CMake version you can set the path here. Default is the cmake version return by 'which cmake'"
+        help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,'src','data','defaults.ini'))} under 'SETUP'. If nod default is set the script will try to find a cmake with which."
     )    
     parser.add_argument(
         "--gapc_path",
         nargs="?",
         action=preinstalled_check,
         dest="preinstalled_gapc_path",
-        default=None,
+        default=config.get("SETUP","gapc_path"),#_detect_gapc(),
         type=str,
-        help="You may input the absolute path to a preinstalled gapcM version. If you don't the script will check if there is already a gapc installed (globally or locally) and if it isn't it will run a CMake Script to set it up locally.",
+        help=f"GAPC Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))} under 'SETUP'.If no default is set the script will try to find a gapc with which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
     )
     parser.add_argument(
         "--perl_path",
         nargs="?",
         dest="perl_path",
-        default=shutil.which("perl"),
+        action=perl_check,
+        default=config.get("SETUP","perl_path"),#shutil.which("perl"),
         type=str,
-        help="if you have an alternative perl interpreter you can set the path to it here. Otherwise this script will use the one returned by which perl.",
+        help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))} under 'SETUP'. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
     )
     parser.add_argument(
         "-v",
@@ -66,12 +72,39 @@ def get_cmd_args():
         "-workers",
         type=int,
         dest="workers",
-        default=5,
-        help="Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is 5.",
+        default=config.get("SETUP","setup_workers"),
+        help=f"Specify how many parallel processes may be spawned to speed up algorithm compilation. Default is {config.get("SETUP","workers"),}.",
     )
     args = parser.parse_known_args()
     return args[0]
 
+class cmake_check(argparse.Action):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: Optional[str|Sequence[Any]], option_string:Optional[str]=None):
+        if value is None:
+            detected_cmake_path = shutil.which("cmake")
+            if detected_cmake_path is None:
+                raise FileNotFoundError("CMake was not found, please install it or set the path with --cmake_path")
+            setattr(namespace, self.dest, detected_cmake_path)
+        else:
+            if Path(str(value)).is_file():
+                try:
+                    version_check = subprocess.run(
+                        [f"{value}", "--version"], capture_output=True, check=True
+                    )
+                except (subprocess.CalledProcessError, PermissionError) as error:
+                    raise RuntimeError(
+                        "Unable to open file, check the above error for more information."
+                    ) from error
+                else:
+                    if "cmake version" in version_check.stdout.decode().lower():
+                        setattr(namespace, self.dest, value)
+                    else:
+                        raise RuntimeError(
+                            "The given file is not an instance of CMake."
+                        )
 
 class preinstalled_check(argparse.Action):
     def __init__(self, option_strings:str, dest:str, **kwargs:Any):
@@ -79,6 +112,10 @@ class preinstalled_check(argparse.Action):
 
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: Optional[str|Sequence[Any]], option_string:Optional[str]=None):
         if value is None:
+            try:
+                value = str(_detect_gapc())
+            except RuntimeError as error:
+                logger.critical("No gapc detected, trying to install with cmake")
             setattr(namespace, self.dest, value)
         elif isinstance(value,str):
             if Path(value).is_file():
@@ -91,7 +128,7 @@ class preinstalled_check(argparse.Action):
                         "Unable to open file, check the above error for more information."
                     ) from error
                 else:
-                    if version_check.stdout.decode()[:4] == "gapc":
+                    if "gapc" in version_check.stdout.decode()[:4]:
                         setattr(namespace, self.dest, Path(value))
                     else:
                         raise RuntimeError(
@@ -102,9 +139,27 @@ class preinstalled_check(argparse.Action):
         else:
             raise ValueError("Why is my value a Sequence ?")
 
+class perl_check(argparse.Action):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
+        super().__init__(option_strings, dest, **kwargs)
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: Optional[str|Sequence[Any]], option_string:Optional[str]=None):
+        setattr(namespace,self.dest,PerlCheckFunction(value))
 
-# Checks if gapc is installed with which or locally
-def _detect_gapc() -> Path|None:
+def PerlCheckFunction(value:Optional[str|Sequence[Any]]) -> Path|None:
+    if value is None:
+        try:
+            return fallback_perl_finder()
+        except RuntimeError as error:
+            logger.critical(error)
+            raise error
+    elif isinstance(value,str):
+        answer = subprocess.run([f"{value}", "-v"],capture_output=True,check=True)
+        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
+            return Path(value).resolve()
+        else:
+            raise RuntimeError("The given file is not a perl interpreter.")
+
+def _detect_gapc() -> Path:
     """Checks for a gapc installation with which and globs RNAmotiFold folder for any gapc instance (which is presumed to be a modified gapc, if you have a different gapc in here that's on you)"""
     global_gapc = shutil.which("gapc")
     if global_gapc is not None:
@@ -114,7 +169,18 @@ def _detect_gapc() -> Path|None:
         try:
             return local_gapc[0]
         except IndexError:
-            return None
+            raise RuntimeError("Could not find insalled gapc, install gapc if necessary or set path to your gapcM executable with --gapc_path")
+
+def fallback_perl_finder() -> Path:
+    whichpath = shutil.which("perl")
+    if whichpath is not None:
+        return Path(whichpath).resolve()
+    else:
+        answer = subprocess.run("/usr/bin/perl -v",shell=True,check=True,capture_output=True)
+        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
+            return Path("/usr/bin/perl").resolve()
+        else:
+            raise RuntimeError("Could not find a perl interpreter, please set path to your perl interpreter with --perl_path or install perl you haven't done so")
 
 def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
@@ -195,62 +261,56 @@ def run_cmake(cmake_path:Optional[str]) -> Path:
         return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
     raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
 
-# Does all the updating with tradeoffs between update algorithms and no update
-def updates(RNAmotiFold_paramteres:list[str],motif_version: str, workers: int) -> bool:
-    update_parser = argparse.ArgumentParser()
-    update_parser.add_argument('--perl_path',default=None,dest='perl')
-    update_parser.add_argument('--gapc_path',default=None,dest='gapc')
-    namespace = update_parser.parse_args(RNAmotiFold_paramteres)
+def updates(motif_version: str) -> bool:
+    '''Does all the updating, fetches perl and gapc paths from defaults or detects them and uses to set up algorithms, returns True if algorithms were updated, False if not'''
+    config= configparser.ConfigParser(allow_no_value=True)
+    config.read_file(open(file=Path.joinpath(ROOT_DIR,"src","data","defaults.ini")))
+
     update = motifs._uninteractive_update(version=motif_version) #type:ignore
     if update:
-        if namespace.perl:
-            perl_interpreter = namespace.perl
+        if config.get("SETUP","perl_path"):
+            perl_path = Path(config.get("SETUP","perl_path"))
         else:
-            perl_interpreter = shutil.which("perl")
-            if perl_interpreter is None:
-                print(
-                    "Could not find a perl interpreter, please input path to your perl interpreter: ",
-                    end="",
-                )
-            perl_interpreter = Path(input())
-        if namespace.gapc:
-            gapcM_path = namespace.gapc
+            try:
+                perl_path = fallback_perl_finder()
+            except RuntimeError as error:
+                logger.critical(error)
+                raise error
+        if config.get("SETUP","gapc_path"):
+            gapc_path = Path(config.get("SETUP","gapc_path"))
         else:
-            gapcM_path = _detect_gapc()
-            if gapcM_path is None:
-                print(
-                "Could not find gapc, please enter path to your gapcM executeable: ", end=""
-                )
-                gapcM_path = Path(input())
-        setup_algorithms(perl_path=perl_interpreter, gapc_path=gapcM_path, poolboys=workers)
+            try:
+                gapc_path = _detect_gapc()
+            except RuntimeError as error:
+                logger.critical(error)
+                raise error
+        if config.get("SETUP","setup_workers"):
+            poolboys = config.getint("SETUP","setup_workers")
+        else:
+            try:
+                poolboys = multiprocessing.cpu_count() - 1
+            except NotImplementedError as error:
+                logger.critical("Could not count cpus, playing it safe and setting CPU_count to 2")
+                poolboys = 2
+        setup_algorithms(gapc_path=gapc_path, perl_path=perl_path, poolboys=poolboys)
         return True
     else:
         return False
-
 
 def main():
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
     args = get_cmd_args()
     done:bool=False
     if args.preinstalled_gapc_path is None:
-        print(
-            "No preinstalled gap compiler set in commandline, checking with which and searching RNAmotiFold folder..."
-        )
-        auto_gapc_path = _detect_gapc()
-        if auto_gapc_path is None:
-            print("No installed gapc found, installing...")
-            cmake_generated_gapc_path = run_cmake(args.cmake_path) #type:ignore
-            print("gap compiler installed, installing algorithms...")
-            motifs._uninteractive_update(args.version) #type:ignore
-            done=setup_algorithms(cmake_generated_gapc_path, args.perl_path, args.workers)
-        else:
-            print(f"gap compiler found in {auto_gapc_path}. Using it to set up algorithms...")
-            motifs._uninteractive_update(args.version) #type:ignore
-            done=setup_algorithms(auto_gapc_path, args.perl_path, args.workers)
+        logger.critical("No gapc given or detected, trying to install with cmake")
+        gapc_path = run_cmake(args.cmake_path) #type:ignore
+        logger.critical("gap compiler installed, setting up algorithms")
+        print("gap compiler installed, setting up algorithms")
     else:
-        print("Preinstalled gap compiler given, using it to install RNAmotiFold...")
-        motifs._uninteractive_update(args.version) #type:ignore
-        done=setup_algorithms(args.preinstalled_gapc_path, args.perl_path, args.workers)
+        logger.critical(f"Preinstalled gap compiler given as {args.preinstalled_gapc_path}")
+        gapc_path = args.preinstalled_gapc_path   
+    motifs._uninteractive_update(args.version) #type:ignore
+    done=setup_algorithms(gapc_path, args.perl_path, args.workers)
     if done:
         print("Algorithms are all set up, you can now use RNAmotiFold")
     else:

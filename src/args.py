@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import sys
 from typing import Any, Optional, Sequence, Literal
 
+loggers = logging.getLogger("RNAmotiFold.args")
+
 def is_path_creatable(pathname: str) -> bool:
     """
     `True` if the current user has sufficient permissions to create the passed
@@ -29,7 +31,7 @@ def is_path_exists_or_creatable(pathname: str) -> bool:
         # invalid pathnames, is_pathname_valid() is explicitly called first.
         return Path(pathname).resolve().parent.exists() and is_path_creatable(pathname)
     except OSError:
-        print(
+        loggers.error(
             f"Given output file path is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
         )
         return False
@@ -76,13 +78,13 @@ def WorkerCheckFunction(value: Optional[str]) -> Optional[int]:
     if cpus is not None:
         if value is not None:
             if int(value) > cpus:
-                print("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
+                loggers.info("Given worker number exceeds detected cpu count, setting workers to cpu_count - 1")
                 return int(cpus - 1)
             else:
                 return int(value)
         else:
             return None
-    print("Could not count cpus, playing it safe and setting CPU_count to 1")
+    loggers.info("Could not count cpus, playing it safe and setting CPU_count to 1")
     return 1
 
 class MotifListCheck(argparse.Action):
@@ -104,9 +106,7 @@ class ConfigCheck(argparse.Action):
 
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str | Sequence[Any] | None, option_string:Optional[str]=None):
         if value == "":
-            sys.stderr.write(
-                f"Using default config: {script_parameters.defaults_config_path}"
-            )  # Make this into a log, no need to print
+            loggers.info(f"Using default config: {script_parameters.defaults_config_path}")
             setattr(namespace, self.dest, value)
         elif Path(str(value)).resolve().is_file():
             setattr(namespace, self.dest, Path(str(value)))
@@ -346,11 +346,11 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
     )
     parser.add_argument(
         "-f",
-        "--fast",
+        "--single-motif",
         default=config.getboolean(config.default_section,"fast_mode"),
         action="store_true",
         dest="fast_mode",
-        help=f"Enables fast motif prediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards. Decreases runtime but might impact outputs."
+        help=f"Enables single-motif mode rediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards."
     )
     parser.add_argument(
         "-m",

@@ -151,7 +151,7 @@ if __name__ == "__main__":
     try:
         configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
         if not rt_args.no_update:
-            setup.updates(additional_parameter,motif_version=rt_args.version, workers=rt_args.workers)
+            setup.updates(motif_version=rt_args.version)
         rt_args.version = motifs.currently_installed().replace(".","_")
     except ValueError as error:
         raise error
