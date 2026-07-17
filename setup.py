@@ -309,7 +309,7 @@ def main():
     args = get_cmd_args()
     done:bool=False
     motifs._uninteractive_update(args.version) #type:ignore
-    done=setup_algorithms(args.gapc_path, args.perl_path, args.workers)
+    done=setup_algorithms(args.gapc_path, args.perl_path, int(args.workers))
     if done:
         print("Algorithms are all set up, you can now use RNAmotiFold")
     else:
