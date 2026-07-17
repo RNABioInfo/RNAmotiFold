@@ -1,7 +1,8 @@
 # Introduction
 
-``RNAmotiFold`` is an RNA secondary structure prediction algorithm that parallely recognizes RNA 3D Motifs through sequence matching. It comes pre-set with a number of motifs build into the algorithm. These are taken from the RNA 3D Motif Atlas, which is updated semi regularly, and a manually extracted set of RNA 3D Motifs from the Rfam database. You can add your own custom motifs as csv files, the required formatting for hairpin, internal and bulge loops is shown when calling -h in the respective commandline arguments. 
-This package comes with a python wrapper (``RNAmotiFold.py``) for the underlying algorithms implemented in Bellman's GAP. If you want to directly work with the compiled algorithm binaries they will be located under `/RNAmotiFold/Build/bin` after installation.
+``RNAmotiFold`` is an RNA secondary structure prediction algorithm that parallely recognizes RNA 3D Motifs through sequence matching. It comes pre-set with a number of motifs build into the algorithm. These are taken from the RNA 3D Motif Atlas, which is updated regularly, and there is a manually extracted set of RNA 3D Motifs from the Rfam database available as well. You can add your own custom motifs as csv files, the required formatting for hairpin, internal and bulge loops is shown in the respective commandline arguments when calling -h. 
+This package comes with a python wrapper (``RNAmotiFold.py``) for the underlying algorithms implemented in Bellman's GAP. If you want to directly work with the compiled algorithm binaries they will be located under `/RNAmotiFold/Build/bin` after installation. Any instances for RNAmotiFold can be found under /submodules/RNALoops/RNAmotiFold_subopt_pfc.gap and /submodules/RNALoops/RNAmotiFold.gap.
+
 
 For further information you read: [INSERT FINISHED PAPER HERE]
 If you have any questions please reach out to me through my public email address: marius.sebeke@ibmg.uni-stuttgart.de
@@ -35,15 +36,14 @@ Tested on the following dependencies:
 ---
 
 # Setup
-RNAmotiFold should be compatible with most UNIX system, but it is not windows compatible.
-You do not need admin rights for your system to install it, everything will be installed locally.
+RNAmotiFold should be compatible with most UNIX systems, but it is not windows compatible.
+You do not need admin rights for your system to install RNAmotiFold, everything necessary will be installed locally.
 
 
-
-0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules`
-1. Run `pip install -r requirements.txt` to install non-default python packages into your python environment.
+0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules` and set up a Build Folder with `cd RNAmotiFold && mkdir Build`
+1. Optinally create a virtual environment with `cd Build && python3 -m venv . && cd ..` and activate it with `source Build/bin/activate`. Run `pip install -r requirements.txt` to install non-default python packages into your python environment.
 2. Run `python3 setup.py` (this may take a couple minutes).
-3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAmotiCes`` or run any of them directly from ``/RNAmotifold/Build/bin/``.
+3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAmotiCes`` or run any of them directly from `/RNAmotifold/Build/bin/`.
 
 ### Usage
 1. Be sure to check out all the available commandline parameters with ``python RNAmotiFold.py -h``!
