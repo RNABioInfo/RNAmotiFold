@@ -249,12 +249,15 @@ class bgap_rna:
             subopt=params.subopt,
             session_id=params.id,
             fast_mode=params.fast_mode,
-            motif_string=params.motif_list
+            motif_string=params.motif_list,
+            weight = params.motif_weight,
+            fraction = params.motif_fraction
+
         )
 
     def __init__(
         self,
-        alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes"],
+        alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes","RNAmotiAlign"],
         motif_source: int = 1,
         motif_orientation: int = 1,
         kvalue: int = 5,
@@ -274,7 +277,10 @@ class bgap_rna:
         low_prob_filter: float = 0.000001,
         session_id: str = "N/A",
         fast_mode:bool = False,
-        motif_string:str = ""
+        motif_string:str = "",
+        weight:float = 1.0,
+        fraction:float = 0.7
+
     ):
         self.id = session_id
         self.subopt = subopt
@@ -298,6 +304,8 @@ class bgap_rna:
         self.replace_bulges = replace_bulges
         self.fast_mode = fast_mode
         self.motif_string = motif_string
+        self.motif_weighting = weight
+        self.motif_fraction = fraction
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -483,18 +491,20 @@ class bgap_rna:
 
     @algorithm.setter
     def algorithm(self, alg: str):
-        if self.allowLonelyBasepairs == 2:
-            if self.pfc or self.subopt:
-                alg = alg + "_motmacro"
-            else:
-                alg = alg +  "Motmicro"
-        if self.subopt:
-            alg = alg + "_subopt"
-        elif self.pfc:
-            alg = alg + "_pfc"
+        if alg == "RNAmotiAlign":
+            pass
+        else:
+            if self.allowLonelyBasepairs == 2:
+                if self.pfc or self.subopt:
+                    alg = alg + "_motmacro"
+                else:
+                    alg = alg +  "Motmicro"
             if self.subopt:
-                raise ValueError("Partition function can't be used in combination with subopt")
-        
+                alg = alg + "_subopt"
+            elif self.pfc:
+                alg = alg + "_pfc"
+                if self.subopt:
+                    raise ValueError("Partition function can't be used in combination with subopt")
         self._algorithm = alg
 
     @property
@@ -562,8 +572,11 @@ class bgap_rna:
             runtime_dictionary["-e"] = self.absolute_energy
         else:
             runtime_dictionary["-k"] = self.kvalue
-        if "RNAmoSh" in self.algorithm :
+        if self.algorithm == "RNAmoSh":
             runtime_dictionary["-q"] = self.shape_level
+        if self.algorithm == "RNAmotiAlign":
+            runtime_dictionary["-W"] = self.motif_weighting
+            runtime_dictionary["-D"] = self.motif_fraction
         if self.allowLonelyBasepairs in [0,1]:
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
         arguments = [
@@ -601,6 +614,8 @@ class bgap_rna:
         results.result.separator = sep
         if self.pfc:
             results.algorithm_output.Status = "pfc"
+        elif self.algorithm == "RNAmotiAlign":
+            results.algorithm_output.Status = "alignment"
         else:
             results.algorithm_output.Status = "mfe"
 
@@ -710,6 +725,7 @@ class bgap_rna:
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
         merge:bool = False,
+        name:str = "N/A"
     ) -> list[results.algorithm_output | results.error ]:
         """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
 
@@ -717,7 +733,9 @@ class bgap_rna:
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
         motif_files = self._calibrate_self(version=version)
-
+        if self.algorithm == "RNAmotiAlign" and (isinstance(user_input,FastaIO.FastaIterator) or isinstance(user_input,list)):
+            output = self._run_alignment_folding(user_input,o_file,name)
+            return output
         if self.fast_mode:
             output = self.run_separate_processes(user_input,motif_files,o_file,pool_workers,merge)
         elif isinstance(user_input, SeqRecord):
@@ -734,6 +752,40 @@ class bgap_rna:
         for file in files:
             os.remove(file)
         return list(files)
+    
+    @staticmethod
+    def format_alignment_seqs(sequences:list[SeqRecord]|FastaIO.FastaIterator,concater:str = "#"):
+        if not isinstance(sequences,list):
+            sequences = list(sequences)
+        if all(isinstance(x,SeqRecord) for x in sequences):
+            seqs = [str(x.seq).replace("-","_").replace("T","U").upper() for x in sequences if x.seq]#type:ignore Will always be all SeqRecords
+        #elif all(isinstance(x,str) for x in sequences):
+        #    seqs = [x.replace("-","_").replace("T","U").upper() for x in sequences] #type:ignore Will always be all Strings
+        else:
+            raise TypeError("My User input has different types??")
+        concat = concater.join(seqs)
+        return concat
+
+    def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f,name:str) -> list[results.algorithm_output|results.error]:
+        """Single alignment folding"""
+        seq_str = self.format_alignment_seqs(user_input)
+        subproc_out = subprocess.run(self.call + seq_str, text=True,capture_output=True,shell=True,timeout=None)
+        if not subproc_out.returncode:
+            return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
+            logger.info(f"Alignment Prediction finished successfully")
+            if isinstance(output_f,Path):
+                with open(output_f,"a+") as file:
+                    with redirect_stdout(file):
+                        return_val.write_results(initiated=False)
+                        return [return_val]
+            else:
+                return_val.write_results(initiated=False)
+                sys.stdout.flush()
+                return [return_val]
+        else:
+            logger.warning(f"Process {name} finished with error: {subproc_out.stderr}")
+            return [results.error(name,subproc_out.stderr)]
+
 
     # single process function utilizing subprocess to run a single prediction and return the output
     def _run_single_process(

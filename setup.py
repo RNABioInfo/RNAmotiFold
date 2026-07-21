@@ -194,6 +194,7 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
+    COMPILE_SCRIPT=Path.joinpath(RNALOOPS_PATH,"Misc","Applications","RNAmotiFold","compile.sh")
     compilation_list:list[str] = []
     algorithms = [
         "".join(x)
@@ -202,12 +203,14 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     for algorithm in algorithms:
         if "_" in algorithm: #There are no motmicro versions of subopt or pfc because of equal structures with different energies in Microstate, see paper Lost in Folding space for details
             options = "-t"
-            compilation = f'{Path.joinpath(RNALOOPS_PATH,"Misc","Applications","RNAmotiFold","compile.sh")} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold_subopt_pfc.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
+            compilation = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold_subopt_pfc.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
         else:
             options = "-t --kbacktrace --kbest --no-coopt-class"
-            compilation = f'{Path.joinpath(RNALOOPS_PATH,"Misc","Applications","RNAmotiFold","compile.sh")} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
+            compilation = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
         compilation_list.append(compilation)
+    align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t" FILE="RNAmotiAlign.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv "RNAmotiAlign" {RNAMOTIFOLD_BIN}'
     The_Pool = multiprocessing.Pool(processes=poolboys)
+    compilation_list.append(align)
     joblist:list[multiprocessing.pool.AsyncResult[bool]]=[]
     compilation_success_list:list[bool] = []
     for job in compilation_list:

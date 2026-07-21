@@ -73,7 +73,8 @@ def _uninteractive_session(
         o_file=runtime_arguments.output,
         pool_workers=runtime_arguments.workers,
         output_csv_separator=runtime_arguments.separator,
-        merge=runtime_arguments.fast_mode_merge
+        merge=runtime_arguments.fast_mode_merge,
+        name=runtime_arguments.id
     )
     return result
 
@@ -113,18 +114,21 @@ def _read_input_file(
             return SeqIO.parse(handle, filetype)  # type:ignore
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
-def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord:
+def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord | list[SeqRecord]:
     try:
-        pathd = Path(user_input)
+        pathd = Path(user_input.strip())
         if pathd.resolve().is_file():
             logger.info("Recognized input as filepath, reading...")
-            return _read_input_file(Path(user_input).resolve())
+            return _read_input_file(pathd.resolve())
     except OSError as e:
         logger.debug("Input could not be converted to a Pathlib path object:"+str(e))
-    if any(c not in "NAUCGTnaucgt+" for c in set(user_input)):
+    if any(c not in "NAUCGTnaucgt+_#" for c in set(user_input.strip())):
         raise ValueError(
             "Input string was neither a viable file path nor a viable RNA or DNA sequence"
         )
+    elif "#" in user_input:
+        seqs = user_input.strip().split("#")
+        return [SeqRecord(seq=Seq(x),id=id) for x in seqs]
     else:
         return SeqRecord(seq=Seq(user_input), id=id)
 
