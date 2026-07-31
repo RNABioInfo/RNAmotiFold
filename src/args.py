@@ -73,7 +73,7 @@ class FloatCheck(argparse.Action):
         setattr(namespace, self.dest, FloatCheckFunction(str(value)))
 
 def FloatCheckFunction(value: str) -> float:
-    if float(value) < 0 and float(value) >= 1:
+    if 1.0 - float(value) > 0 or float(value) == 1:
         return float(value)
     else:
         raise ValueError("Invalid Float Value, detected. Please set a value between 0 and 1")
