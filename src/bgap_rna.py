@@ -641,33 +641,48 @@ class bgap_rna:
         
         else:
             #I think all of the stuff below is bs, why not just read all the files and then separate them?
-            hairpins  = bgap_rna.combine_files(hairpins,self.motif_string,version=version,motif_type="hairpins")
-            internals = bgap_rna.combine_files(internals,self.motif_string,version=version,motif_type="internals")
-            bulges    = bgap_rna.combine_files(bulges,self.motif_string,version=version,motif_type="bulges")
+            hairpins  = bgap_rna.combine_files(file_list=hairpins,motif_string=self.motif_string,version=version,motif_type="hairpins",orientation=self.motif_orientation)
+            internals = bgap_rna.combine_files(file_list=internals,motif_string=self.motif_string,version=version,motif_type="internals",orientation=self.motif_orientation)
+            bulges    = bgap_rna.combine_files(file_list=bulges,motif_string=self.motif_string,version=version,motif_type="bulges",orientation=self.motif_orientation)
 
         return hairpins + internals + bulges
 
     @staticmethod
-    def combine_files(file_list:list[Path],motif_string:str,version:str,motif_type:str) -> list[Path]:
+    def combine_files(file_list:list[Path],motif_string:str,version:str,motif_type:str,orientation:Literal[1,2,3]) -> list[Path]:
         '''
         Literally just read all the files in the list and make separate files for each motif ?
         '''
-        if len(motif_string) == 0:
-            return file_list
         tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
         seqs:list[str] = []
         returnlist:list[Path] = []
+        isolated_seqs:list[str] = []
         for path in file_list:
             with open(path,"r") as file:
                 seqs.extend(file.readlines())
-        for motif in motif_string:
-            isolated_seqs = [x for x in seqs if x.strip()[-1] == motif]
-            if len(isolated_seqs) > 0:
+        for seq in seqs:
+            if seq.strip().split(",")[1] in motif_string or len(motif_string) == 0 or motif_string is None:
+                match orientation:
+                    case 1:
+                        isolated_seqs.append(seq.strip()+"\n")
+                        break
+                    case 2:
+                        isolated_seqs.append(seq.split(",")[0][::-1]+","+seq.strip().split(",")[1]+"\n")
+                    case 3:
+                        isolated_seqs.append(seq.strip()+"\n")
+                        isolated_seqs.append(seq.split(",")[0][::-1]+","+seq.strip().split(",")[1] + "\n")
+            else:
+                pass
+        if len(isolated_seqs) > 0:
+            motifs = list(set([x.strip().split(",")[1] for x in isolated_seqs]))
+            for motif in motifs:
+                motif_seqs = [x for x in isolated_seqs if x.strip()[-1] == motif]
                 temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix=f"{motif}_",suffix=".tmp")
                 with open(temporary.name,"w") as tmp_file:
-                    tmp_file.writelines(isolated_seqs)
+                    tmp_file.writelines(motif_seqs)
                 returnlist.append(Path(temporary.name))
-        return returnlist
+            return returnlist
+        else:
+            return []
     
     @staticmethod
     def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges'],orientation:Literal[1,2,3]) -> Path:
