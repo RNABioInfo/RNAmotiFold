@@ -186,7 +186,7 @@ class script_parameters:
     algorithm: Literal["RNAmoSh","RNAmotiCes","RNAmotiFold","RNAmotiAlign"]
     subopt: bool
     motif_source: int
-    motif_orientation: int
+    motif_orientation: Literal[1,2,3]
     kvalue: int
     shape_level: int
     energy: str
@@ -283,7 +283,7 @@ class script_parameters:
             algorithm=AlgorithmMatchingFunction(confs.get("VARIABLES", "algorithm")),
             subopt=confs.getboolean("VARIABLES", "subopt"),
             motif_source=confs.getint("VARIABLES", "motif_source"),
-            motif_orientation=confs.getint("VARIABLES", "motif_orientation"),
+            motif_orientation=confs.getint("VARIABLES", "motif_orientation"), #type:ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=confs.getint("VARIABLES", "kvalue"),
             shape_level=confs.getint("VARIABLES", "shape_level"),
             energy=confs.get("VARIABLES", "energy"),

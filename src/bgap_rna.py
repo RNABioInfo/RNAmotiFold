@@ -259,7 +259,7 @@ class bgap_rna:
         self,
         alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes","RNAmotiAlign"],
         motif_source: int = 1,
-        motif_orientation: int = 1,
+        motif_orientation: Literal[1,2,3] = 1,
         kvalue: int = 5,
         shape_level: int = 3,
         energy: Optional[str] = None,
@@ -413,13 +413,13 @@ class bgap_rna:
 
     # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
     @property
-    def motif_orientation(self):
+    def motif_orientation(self) -> Literal[1,2,3]:
         return self._motif_orientation
 
     @motif_orientation.setter
-    def motif_orientation(self, b: int):
+    def motif_orientation(self, b: Literal[1,2,3]):
         if b in [1, 2, 3]:
-            self._motif_orientation = b
+            self._motif_orientation: Literal[1] | Literal[2] | Literal[3] = b
         else:
             raise ValueError("Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both.")
 
@@ -620,7 +620,7 @@ class bgap_rna:
             results.algorithm_output.Status = "mfe"
 
     def _calibrate_self(self,version:str) -> list[Path]:
-        '''Function to set up all the individual motif files for using motif_string, writes sequences into tem'''
+        '''Function to set up all the individual motif files for using motif_string, writes sequences into temp files '''
         file_list:list[Path] = bgap_rna.get_motif_files(version=version)
 
         #Paths to all files containing relevant motif files based on version and custom motif settings
@@ -630,9 +630,9 @@ class bgap_rna:
 
         if not self.fast_mode:
             #Create temporary files with all the sequences from file lists, filtered based on the motif string
-            self.custom_hairpins = bgap_rna.write_chosen_sequences(hairpins,self.motif_string,version,"hairpins")
-            self.custom_internals = bgap_rna.write_chosen_sequences(internals,self.motif_string,version,"internals")
-            self.custom_bulges = bgap_rna.write_chosen_sequences(bulges,self.motif_string,version,"bulges")
+            self.custom_hairpins = bgap_rna.write_chosen_sequences(hairpins,self.motif_string,version,"hairpins",self.motif_orientation)
+            self.custom_internals = bgap_rna.write_chosen_sequences(internals,self.motif_string,version,"internals",self.motif_orientation)
+            self.custom_bulges = bgap_rna.write_chosen_sequences(bulges,self.motif_string,version,"bulges",self.motif_orientation)
 
             #Set all replacements to true after setting custom motif strings to the temp file paths, where all motifs specified by the motif string/all the motifs are collected
             self.replace_hairpins = True
@@ -670,7 +670,7 @@ class bgap_rna:
         return returnlist
     
     @staticmethod
-    def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges']) -> Path:
+    def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges'],orientation:Literal[1,2,3]) -> Path:
         '''
         Writes sequences from csv files into a temp file based on the motifs chosen with motif_string, returns path to the temp file.
         '''
@@ -682,6 +682,15 @@ class bgap_rna:
                     legit_motifs.extend([x.strip() for x in lines if x.split(",")[1].strip() in motif_string])
                 else:
                     legit_motifs.extend(lines)
+        match orientation:
+            case 1:
+                pass
+            case 2:
+                legit_motifs = [x.split(",")[0][::-1]+","+x.split(",")[1] for x in legit_motifs]
+            case 3:
+                legit_motifs_reverse = [x.split(",")[0][::-1]+","+x.split(",")[1] for x in legit_motifs]
+                legit_motifs += legit_motifs_reverse
+
         legit_motifs =[x+"\n" for x in legit_motifs]
         tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
         temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix="motifs_tmp_",suffix=".tmp")
