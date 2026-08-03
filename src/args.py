@@ -65,6 +65,18 @@ def LogCheckFunction(value: str) -> str:
     else:
         return value.upper()
 
+class FloatCheck(argparse.Action):
+    def __init__(self, option_strings:str, dest:str, **kwargs:Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value:Optional[str]|Sequence[Any], option_string:Optional[str] = None):
+        setattr(namespace, self.dest, FloatCheckFunction(str(value)))
+
+def FloatCheckFunction(value: str) -> float:
+    if 1.0 - float(value) > 0 or float(value) == 1:
+        return float(value)
+    else:
+        raise ValueError("Invalid Float Value, detected. Please set a value between 0 and 1")
 
 class WorkerCheck(argparse.Action):
     def __init__(self, option_strings:str, dest:str, **kwargs:Any):
@@ -94,11 +106,11 @@ class MotifListCheck(argparse.Action):
     def __call__(self, parser:argparse.ArgumentParser,namespace:argparse.Namespace,value:Optional[str|Sequence[Any]],option_string:Optional[str]=None):
         setattr(namespace,self.dest,MotifListCheckFunction(value))
     
-def MotifListCheckFunction(value:Optional[str]) -> str:
+def MotifListCheckFunction(value:Optional[str|Sequence[Any]]) -> str:
     if value is None:
         return ""
     else:
-        return value
+        return str(value)
 
 class ConfigCheck(argparse.Action):
     def __init__(self, option_strings:str, dest:str, **kwargs:Any):
@@ -139,7 +151,7 @@ class AlgorithmMatching(argparse.Action):
     def __call__(self, parser:argparse.ArgumentParser, namespace:argparse.Namespace, value: str |Sequence[Any] | None, option_string:Optional[str] = None):
         setattr(namespace, self.dest, AlgorithmMatchingFunction(value)) #type:ignore , ignored cause of the base value typing
 
-def AlgorithmMatchingFunction(value: str) -> Literal["RNAmoSh","RNAmotiCes","RNAmotiFold"]:
+def AlgorithmMatchingFunction(value: str) -> Literal["RNAmoSh","RNAmotiCes","RNAmotiFold","RNAmotiAlign"]:
     match value.strip().lower():
             case "rnamosh":
                 return "RNAmoSh"
@@ -147,8 +159,10 @@ def AlgorithmMatchingFunction(value: str) -> Literal["RNAmoSh","RNAmotiCes","RNA
                 return "RNAmotiCes"
             case "rnamotifold":
                 return "RNAmotiFold"
+            case "rnamotialign":
+                return "RNAmotiAlign"
             case _:
-                raise ValueError(f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes and RNAmotiFold")
+                raise ValueError(f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold")
 
 
 def config_check(parser: configparser.ConfigParser, section_name: str = "VARIABLES"):
@@ -169,10 +183,10 @@ class script_parameters:
     id: str
     input: Optional[str]
     output: Optional[Path]
-    algorithm: Literal["RNAmoSh","RNAmotiCes","RNAmotiFold"]
+    algorithm: Literal["RNAmoSh","RNAmotiCes","RNAmotiFold","RNAmotiAlign"]
     subopt: bool
     motif_source: int
-    motif_orientation: int
+    motif_orientation: Literal[1,2,3]
     kvalue: int
     shape_level: int
     energy: str
@@ -196,6 +210,8 @@ class script_parameters:
     fast_mode:bool
     fast_mode_merge:bool
     motif_list:str
+    motif_weight:float
+    motif_fraction:float
 
     def __repr__(self):
         classname = type(self).__name__
@@ -245,7 +261,9 @@ class script_parameters:
             version=args.version,
             fast_mode = args.fast_mode,
             fast_mode_merge = args.merge,
-            motif_list = args.motif_list
+            motif_list = args.motif_list,
+            motif_weight = args.motif_weight,
+            motif_fraction = args.motif_fraction
         )
 
     @classmethod
@@ -265,7 +283,7 @@ class script_parameters:
             algorithm=AlgorithmMatchingFunction(confs.get("VARIABLES", "algorithm")),
             subopt=confs.getboolean("VARIABLES", "subopt"),
             motif_source=confs.getint("VARIABLES", "motif_source"),
-            motif_orientation=confs.getint("VARIABLES", "motif_orientation"),
+            motif_orientation=confs.getint("VARIABLES", "motif_orientation"), #type:ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=confs.getint("VARIABLES", "kvalue"),
             shape_level=confs.getint("VARIABLES", "shape_level"),
             energy=confs.get("VARIABLES", "energy"),
@@ -288,7 +306,9 @@ class script_parameters:
             version=confs.get("VARIABLES", "version"),
             fast_mode=confs.getboolean("VARIABLES","fast_mode"),
             fast_mode_merge = confs.getboolean("VARIABLES","merge"),
-            motif_list = confs.get("VARIABLES","motif_list")
+            motif_list = confs.get("VARIABLES","motif_list"),
+            motif_weight = confs.getfloat("VARIABLES","motif_weight"),
+            motif_fraction = confs.getfloat("VARIABLES","motif_fraction")
         )
 
 
@@ -581,6 +601,19 @@ def get_cmdarguments() -> tuple[script_parameters,list[str]]:
         type=str,
         action=MotifListCheck,
         dest="motif_list")
+    parser.add_argument(
+        "--weight",
+        help=f"Specify weighting of motifs during alignment folding, multiplies motif score by this value. Default is 1.0",
+        default=config.getfloat(config.default_section,"motif_weight"),
+        type=float,
+        dest="motif_weight")
+    parser.add_argument(
+        "--fraction",
+        help=f"Specify in how many rows a motif has to be recognized in the same loop to be accepted. Default is 0.7",
+        default=config.getfloat(config.default_section,"motif_fraction"),
+        type=float,
+        action=FloatCheck,
+        dest="motif_fraction")
 
     args = parser.parse_known_args()
     #Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!

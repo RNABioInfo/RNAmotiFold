@@ -1,7 +1,7 @@
 import sys
 from dataclasses import dataclass
 import logging
-from typing import Literal,Any
+from typing import Literal,Any, NamedTuple
 import re
 
 logger = logging.getLogger("results")
@@ -206,12 +206,60 @@ class result_pfc(result):
     def set_probability(self,pfc_sum:float) -> None:
         self.probability = round(self.pfc_value / pfc_sum, 4)
 
-class result_alignment(result):
+class alignment_score(NamedTuple):
+    energy: float
+    covariance: float
+    motif: float
+    overall:float
+
+    @classmethod
+    def from_string(cls,score_string:str):
+        nums = [float(x) for x in re.findall(r'-?\d+(?:\.\d+)?', score_string)]
+        return cls(overall=nums[0],energy=nums[1],covariance=nums[2],motif=nums[3])
+    
+    def to_string(self,sep:str):
+        return sep.join([str(self.overall),str(self.energy),str(self.covariance),str(self.motif)])
+
+class result_alignment:
     """Dummy class for compatibility, fill out later"""
+
+    def __init__(self,id:str,score:alignment_score,motBracket:str):
+        self.id= id
+        self.score:alignment_score = score
+        self.motBracket:str = motBracket
+
+    @property
+    def overall_score(self)->float:
+        return self.score.overall
+    
+    @property
+    def energy(self)->float:
+        return self.score.energy
+    
+    @property
+    def covariance(self)->float:
+        return self.score.covariance
+    
+    @property
+    def motif_score(self) -> float:
+        return self.score.motif
 
     @property
     def header(self) -> str:
-        return "bruh"
+       return result.separator.join(["ID","Total Score","Free Energy","Covariance Score","Motif Score","MotBracket"]) + "\n"
+    
+    @classmethod
+    def from_string(cls,id:str,results_string:str) -> 'result_alignment':
+        split_result = results_string.strip().split("|")
+        split_stripped_results = [x.strip() for x in split_result]
+        return cls(id=id, score=alignment_score.from_string(split_stripped_results[0]), motBracket=split_stripped_results[1])
+
+    @property
+    def tsv(self):
+        return result.separator.join([self.id,str(self.score.overall),str(self.score.energy),str(self.score.covariance),str(self.score.motif),self.motBracket]) +"\n"
+
+    def add_coloumn(self,name:str,value:str|int|float) -> None:
+        self.name = value
 
 
 @dataclass
@@ -237,7 +285,7 @@ class algorithm_output:
     def __iter__(self):
         return self
 
-    def __next__(self) -> result:
+    def __next__(self) -> result|result_alignment:
         if self._index < len(self.results):
             item = self.results[self._index]
             self._index += 1
@@ -252,7 +300,7 @@ class algorithm_output:
     def __init__(
         self,
         name: str,
-        result_str: str|list[result_mfe|result_pfc],
+        result_str: str|list[result_mfe|result_pfc|result_alignment],
         stderr: list[str],
         motif:Literal["hairpin","internal","bulge","all"] = "all",
     ) -> None:
@@ -280,15 +328,15 @@ class algorithm_output:
         self._Status = status
 
     @property
-    def results(self) -> list[result_mfe | result_pfc]:
+    def results(self) -> list[result_mfe | result_pfc | result_alignment]:
         return self._results
 
     @results.setter
-    def results(self, result:str|list[result_mfe|result_pfc]) -> None:
+    def results(self, result:str|list[result_mfe|result_pfc|result_alignment]) -> None:
         if isinstance(result,list):
             self._results = result
         else:
-            reslist: list[result_mfe | result_pfc] = []
+            reslist: list[result_mfe | result_pfc | result_alignment] = []
             split = result.strip().split("\n")
             match self.Status:
                 case "pfc":
@@ -300,10 +348,12 @@ class algorithm_output:
                         res = result_mfe.from_string(self.id,output,self.motif_type)
                         reslist.append(res)
                 case "alignment":
-                    raise ValueError("Alignment result type not yet implemented")
+                    for output in split:
+                        res = result_alignment.from_string(self.id,output)
+                        reslist.append(res)
                 case _:
                     raise ValueError(f"Invalid result status detected: {self.Status}")         
-            self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value)
+            self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value if isinstance(x,result_pfc) else x.overall_score if isinstance(x,result_alignment) else len(x.id))
             if self.Status == "pfc":
                 self.results.reverse() #pfc has to be flipped because bigger pfc  --> more probable
                 self.add_pfc_probabilities()
@@ -354,7 +404,7 @@ class algorithm_output:
         '''
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         '''
-        result_set:set[result_mfe |result_pfc] = set()
+        result_set:set[result_mfe |result_pfc|result_alignment] = set()
         for obj in objs:
             for res in obj.results:
                 if isinstance(res,result_mfe):

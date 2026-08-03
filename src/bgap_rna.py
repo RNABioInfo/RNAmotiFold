@@ -249,14 +249,17 @@ class bgap_rna:
             subopt=params.subopt,
             session_id=params.id,
             fast_mode=params.fast_mode,
-            motif_string=params.motif_list
+            motif_string=params.motif_list,
+            weight = params.motif_weight,
+            fraction = params.motif_fraction
+
         )
 
     def __init__(
         self,
-        alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes"],
+        alg: Literal["RNAmotiFold","RNAmoSh","RNAmotiCes","RNAmotiAlign"],
         motif_source: int = 1,
-        motif_orientation: int = 1,
+        motif_orientation: Literal[1,2,3] = 1,
         kvalue: int = 5,
         shape_level: int = 3,
         energy: Optional[str] = None,
@@ -274,7 +277,10 @@ class bgap_rna:
         low_prob_filter: float = 0.000001,
         session_id: str = "N/A",
         fast_mode:bool = False,
-        motif_string:str = ""
+        motif_string:str = "",
+        weight:float = 1.0,
+        fraction:float = 0.7
+
     ):
         self.id = session_id
         self.subopt = subopt
@@ -298,6 +304,8 @@ class bgap_rna:
         self.replace_bulges = replace_bulges
         self.fast_mode = fast_mode
         self.motif_string = motif_string
+        self.motif_weighting = weight
+        self.motif_fraction = fraction
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -405,13 +413,13 @@ class bgap_rna:
 
     # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
     @property
-    def motif_orientation(self):
+    def motif_orientation(self) -> Literal[1,2,3]:
         return self._motif_orientation
 
     @motif_orientation.setter
-    def motif_orientation(self, b: int):
+    def motif_orientation(self, b: Literal[1,2,3]):
         if b in [1, 2, 3]:
-            self._motif_orientation = b
+            self._motif_orientation: Literal[1] | Literal[2] | Literal[3] = b
         else:
             raise ValueError("Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both.")
 
@@ -483,18 +491,20 @@ class bgap_rna:
 
     @algorithm.setter
     def algorithm(self, alg: str):
-        if self.allowLonelyBasepairs == 2:
-            if self.pfc or self.subopt:
-                alg = alg + "_motmacro"
-            else:
-                alg = alg +  "Motmicro"
-        if self.subopt:
-            alg = alg + "_subopt"
-        elif self.pfc:
-            alg = alg + "_pfc"
+        if alg == "RNAmotiAlign":
+            pass
+        else:
+            if self.allowLonelyBasepairs == 2:
+                if self.pfc or self.subopt:
+                    alg = alg + "_motmacro"
+                else:
+                    alg = alg +  "Motmicro"
             if self.subopt:
-                raise ValueError("Partition function can't be used in combination with subopt")
-        
+                alg = alg + "_subopt"
+            elif self.pfc:
+                alg = alg + "_pfc"
+                if self.subopt:
+                    raise ValueError("Partition function can't be used in combination with subopt")
         self._algorithm = alg
 
     @property
@@ -562,8 +572,11 @@ class bgap_rna:
             runtime_dictionary["-e"] = self.absolute_energy
         else:
             runtime_dictionary["-k"] = self.kvalue
-        if "RNAmoSh" in self.algorithm :
+        if self.algorithm == "RNAmoSh":
             runtime_dictionary["-q"] = self.shape_level
+        if self.algorithm == "RNAmotiAlign":
+            runtime_dictionary["-W"] = self.motif_weighting
+            runtime_dictionary["-D"] = self.motif_fraction
         if self.allowLonelyBasepairs in [0,1]:
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
         arguments = [
@@ -601,11 +614,13 @@ class bgap_rna:
         results.result.separator = sep
         if self.pfc:
             results.algorithm_output.Status = "pfc"
+        elif self.algorithm == "RNAmotiAlign":
+            results.algorithm_output.Status = "alignment"
         else:
             results.algorithm_output.Status = "mfe"
 
     def _calibrate_self(self,version:str) -> list[Path]:
-        '''Function to set up all the individual motif files for using motif_string, writes sequences into tem'''
+        '''Function to set up all the individual motif files for using motif_string, writes sequences into temp files '''
         file_list:list[Path] = bgap_rna.get_motif_files(version=version)
 
         #Paths to all files containing relevant motif files based on version and custom motif settings
@@ -615,9 +630,9 @@ class bgap_rna:
 
         if not self.fast_mode:
             #Create temporary files with all the sequences from file lists, filtered based on the motif string
-            self.custom_hairpins = bgap_rna.write_chosen_sequences(hairpins,self.motif_string,version,"hairpins")
-            self.custom_internals = bgap_rna.write_chosen_sequences(internals,self.motif_string,version,"internals")
-            self.custom_bulges = bgap_rna.write_chosen_sequences(bulges,self.motif_string,version,"bulges")
+            self.custom_hairpins = bgap_rna.write_chosen_sequences(hairpins,self.motif_string,version,"hairpins",self.motif_orientation)
+            self.custom_internals = bgap_rna.write_chosen_sequences(internals,self.motif_string,version,"internals",self.motif_orientation)
+            self.custom_bulges = bgap_rna.write_chosen_sequences(bulges,self.motif_string,version,"bulges",self.motif_orientation)
 
             #Set all replacements to true after setting custom motif strings to the temp file paths, where all motifs specified by the motif string/all the motifs are collected
             self.replace_hairpins = True
@@ -626,36 +641,51 @@ class bgap_rna:
         
         else:
             #I think all of the stuff below is bs, why not just read all the files and then separate them?
-            hairpins  = bgap_rna.combine_files(hairpins,self.motif_string,version=version,motif_type="hairpins")
-            internals = bgap_rna.combine_files(internals,self.motif_string,version=version,motif_type="internals")
-            bulges    = bgap_rna.combine_files(bulges,self.motif_string,version=version,motif_type="bulges")
+            hairpins  = bgap_rna.combine_files(file_list=hairpins,motif_string=self.motif_string,version=version,motif_type="hairpins",orientation=self.motif_orientation)
+            internals = bgap_rna.combine_files(file_list=internals,motif_string=self.motif_string,version=version,motif_type="internals",orientation=self.motif_orientation)
+            bulges    = bgap_rna.combine_files(file_list=bulges,motif_string=self.motif_string,version=version,motif_type="bulges",orientation=self.motif_orientation)
 
         return hairpins + internals + bulges
 
     @staticmethod
-    def combine_files(file_list:list[Path],motif_string:str,version:str,motif_type:str) -> list[Path]:
+    def combine_files(file_list:list[Path],motif_string:str,version:str,motif_type:str,orientation:Literal[1,2,3]) -> list[Path]:
         '''
         Literally just read all the files in the list and make separate files for each motif ?
         '''
-        if len(motif_string) == 0:
-            return file_list
         tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
         seqs:list[str] = []
         returnlist:list[Path] = []
+        isolated_seqs:list[str] = []
         for path in file_list:
             with open(path,"r") as file:
                 seqs.extend(file.readlines())
-        for motif in motif_string:
-            isolated_seqs = [x for x in seqs if x.strip()[-1] == motif]
-            if len(isolated_seqs) > 0:
+        for seq in seqs:
+            if seq.strip().split(",")[1] in motif_string or len(motif_string) == 0 or motif_string is None:
+                match orientation:
+                    case 1:
+                        isolated_seqs.append(seq.strip()+"\n")
+                        break
+                    case 2:
+                        isolated_seqs.append(seq.split(",")[0][::-1]+","+seq.strip().split(",")[1]+"\n")
+                    case 3:
+                        isolated_seqs.append(seq.strip()+"\n")
+                        isolated_seqs.append(seq.split(",")[0][::-1]+","+seq.strip().split(",")[1] + "\n")
+            else:
+                pass
+        if len(isolated_seqs) > 0:
+            motifs = list(set([x.strip().split(",")[1] for x in isolated_seqs]))
+            for motif in motifs:
+                motif_seqs = [x for x in isolated_seqs if x.strip()[-1] == motif]
                 temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix=f"{motif}_",suffix=".tmp")
                 with open(temporary.name,"w") as tmp_file:
-                    tmp_file.writelines(isolated_seqs)
+                    tmp_file.writelines(motif_seqs)
                 returnlist.append(Path(temporary.name))
-        return returnlist
+            return returnlist
+        else:
+            return []
     
     @staticmethod
-    def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges']) -> Path:
+    def write_chosen_sequences(files:list[Path],motif_string:str,version:str,motif_type:Literal['hairpins','internals','bulges'],orientation:Literal[1,2,3]) -> Path:
         '''
         Writes sequences from csv files into a temp file based on the motifs chosen with motif_string, returns path to the temp file.
         '''
@@ -667,6 +697,15 @@ class bgap_rna:
                     legit_motifs.extend([x.strip() for x in lines if x.split(",")[1].strip() in motif_string])
                 else:
                     legit_motifs.extend(lines)
+        match orientation:
+            case 1:
+                pass
+            case 2:
+                legit_motifs = [x.split(",")[0][::-1]+","+x.split(",")[1] for x in legit_motifs]
+            case 3:
+                legit_motifs_reverse = [x.split(",")[0][::-1]+","+x.split(",")[1] for x in legit_motifs]
+                legit_motifs += legit_motifs_reverse
+
         legit_motifs =[x+"\n" for x in legit_motifs]
         tmp_folder_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated",motif_type)
         temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,prefix="motifs_tmp_",suffix=".tmp")
@@ -710,6 +749,7 @@ class bgap_rna:
         pool_workers: int = multiprocessing.cpu_count(),
         output_csv_separator: str = "\t",
         merge:bool = False,
+        name:str = "N/A"
     ) -> list[results.algorithm_output | results.error ]:
         """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
 
@@ -717,7 +757,9 @@ class bgap_rna:
             output_csv_separator = output_csv_separator.replace(r"\t", "\t")
         self._calibrate_result_objects(output_csv_separator)
         motif_files = self._calibrate_self(version=version)
-
+        if self.algorithm == "RNAmotiAlign" and (isinstance(user_input,FastaIO.FastaIterator) or isinstance(user_input,list)):
+            output = self._run_alignment_folding(user_input,o_file,name)
+            return output
         if self.fast_mode:
             output = self.run_separate_processes(user_input,motif_files,o_file,pool_workers,merge)
         elif isinstance(user_input, SeqRecord):
@@ -734,6 +776,40 @@ class bgap_rna:
         for file in files:
             os.remove(file)
         return list(files)
+    
+    @staticmethod
+    def format_alignment_seqs(sequences:list[SeqRecord]|FastaIO.FastaIterator,concater:str = "#"):
+        if not isinstance(sequences,list):
+            sequences = list(sequences)
+        if all(isinstance(x,SeqRecord) for x in sequences):
+            seqs = [str(x.seq).replace("-","_").replace("T","U").upper() for x in sequences if x.seq]#type:ignore Will always be all SeqRecords
+        #elif all(isinstance(x,str) for x in sequences):
+        #    seqs = [x.replace("-","_").replace("T","U").upper() for x in sequences] #type:ignore Will always be all Strings
+        else:
+            raise TypeError("My User input has different types??")
+        concat = concater.join(seqs)
+        return concat
+
+    def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f,name:str) -> list[results.algorithm_output|results.error]:
+        """Single alignment folding"""
+        seq_str = self.format_alignment_seqs(user_input)
+        subproc_out = subprocess.run(self.call + seq_str, text=True,capture_output=True,shell=True,timeout=None)
+        if not subproc_out.returncode:
+            return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
+            logger.info(f"Alignment Prediction finished successfully")
+            if isinstance(output_f,Path):
+                with open(output_f,"a+") as file:
+                    with redirect_stdout(file):
+                        return_val.write_results(initiated=False)
+                        return [return_val]
+            else:
+                return_val.write_results(initiated=False)
+                sys.stdout.flush()
+                return [return_val]
+        else:
+            logger.warning(f"Process {name} finished with error: {subproc_out.stderr}")
+            return [results.error(name,subproc_out.stderr)]
+
 
     # single process function utilizing subprocess to run a single prediction and return the output
     def _run_single_process(
