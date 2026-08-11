@@ -353,7 +353,7 @@ class algorithm_output:
                         reslist.append(res)
                 case _:
                     raise ValueError(f"Invalid result status detected: {self.Status}")         
-            self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value if isinstance(x,result_pfc) else x.overall_score if isinstance(x,result_alignment) else len(x.id))
+            self._results = sorted(reslist, key=lambda x: x.free_energy if isinstance(x,result_mfe) else x.pfc_value if isinstance(x,result_pfc) else x.overall_score)
             if self.Status == "pfc":
                 self.results.reverse() #pfc has to be flipped because bigger pfc  --> more probable
                 self.add_pfc_probabilities()

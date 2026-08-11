@@ -660,7 +660,7 @@ class bgap_rna:
             with open(path,"r") as file:
                 seqs.extend(file.readlines())
         for seq in seqs:
-            if seq.strip().split(",")[1] in motif_string or len(motif_string) == 0 or motif_string is None:
+            if seq.strip().split(",")[1] in motif_string or len(motif_string) == 0:
                 match orientation:
                     case 1:
                         isolated_seqs.append(seq.strip()+"\n")
@@ -759,8 +759,7 @@ class bgap_rna:
         motif_files = self._calibrate_self(version=version)
         if self.algorithm == "RNAmotiAlign" and (isinstance(user_input,FastaIO.FastaIterator) or isinstance(user_input,list)):
             output = self._run_alignment_folding(user_input,o_file,name)
-            return output
-        if self.fast_mode:
+        elif self.fast_mode:
             output = self.run_separate_processes(user_input,motif_files,o_file,pool_workers,merge)
         elif isinstance(user_input, SeqRecord):
             output =  self._run_single_process(user_input, o_file)
@@ -773,7 +772,7 @@ class bgap_rna:
     def cleanup_temp_files(version:str):
         motif_dir_path = Path(__file__).resolve().parent.joinpath("..","submodules","RNALoops","Misc","Applications","RNAmotiFold","motifs","versions",f"{version}_separated")
         files = Path(motif_dir_path).rglob("*.tmp")
-        for file in files:
+        for file in list(files) :
             os.remove(file)
         return list(files)
     
@@ -781,16 +780,14 @@ class bgap_rna:
     def format_alignment_seqs(sequences:list[SeqRecord]|FastaIO.FastaIterator,concater:str = "#"):
         if not isinstance(sequences,list):
             sequences = list(sequences)
-        if all(isinstance(x,SeqRecord) for x in sequences):
+        try:
             seqs = [str(x.seq).replace("-","_").replace("T","U").upper() for x in sequences if x.seq]#type:ignore Will always be all SeqRecords
-        #elif all(isinstance(x,str) for x in sequences):
-        #    seqs = [x.replace("-","_").replace("T","U").upper() for x in sequences] #type:ignore Will always be all Strings
-        else:
-            raise TypeError("My User input has different types??")
+        except:
+            raise TypeError("Couldn't convert sequences from DNA to RNA")
         concat = concater.join(seqs)
         return concat
 
-    def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f,name:str) -> list[results.algorithm_output|results.error]:
+    def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f:Optional[str|Path],name:str) -> list[results.algorithm_output|results.error]:
         """Single alignment folding"""
         seq_str = self.format_alignment_seqs(user_input)
         subproc_out = subprocess.run(self.call + seq_str, text=True,capture_output=True,shell=True,timeout=None)
