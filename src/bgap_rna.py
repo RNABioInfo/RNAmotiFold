@@ -268,7 +268,7 @@ class bgap_rna:
         custom_hairpins: Optional[Path|str] = None,
         custom_internals: Optional[Path|str] = None,
         custom_bulges: Optional[Path|str] = None,
-        allowLonelyBasepairs: int = 1,
+        allowLonelyBasepairs: Literal[0,1,2] = 0,
         replace_hairpins: Optional[bool] = None,
         replace_internals: Optional[bool] = None,
         replace_bulges: Optional[bool] = None,
@@ -350,7 +350,7 @@ class bgap_rna:
         return self._allowLonelyBasepairs
 
     @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: int):
+    def allowLonelyBasepairs(self, val: Literal[0,1,2]):
         if val in [0, 1, 2]:
             self._allowLonelyBasepairs = val
         else:
@@ -785,12 +785,21 @@ class bgap_rna:
         except:
             raise TypeError("Couldn't convert sequences from DNA to RNA")
         concat = concater.join(seqs)
-        return concat
+        testlist = [char for char in concat if char not in "AUGC_#"]
+        if any(testlist):
+            bruh = [(i,x) for i,x in enumerate(concat) if testlist[i]]
+            raise ValueError(f"There are some unknown characters in your sequences: {[x for (i,x) in bruh]}")
+        tmp_folder_path = Path(__file__).parent
+        temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,suffix=".tmp")
+        with open(temporary.name,"w") as file:
+            file.write(concat)
+        return temporary.name
 
     def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f:Optional[str|Path],name:str) -> list[results.algorithm_output|results.error]:
         """Single alignment folding"""
         seq_str = self.format_alignment_seqs(user_input)
-        subproc_out = subprocess.run(self.call + seq_str, text=True,capture_output=True,shell=True,timeout=None)
+        subproc_out = subprocess.run(f"{self.call}-f {seq_str}", text=True,capture_output=True,timeout=None)
+        os.remove(seq_str)
         if not subproc_out.returncode:
             return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
             logger.info(f"Alignment Prediction finished successfully")

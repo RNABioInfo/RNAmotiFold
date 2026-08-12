@@ -191,7 +191,7 @@ class script_parameters:
     shape_level: int
     energy: str
     temperature: float
-    basepairs: int
+    basepairs: Literal[0,1,2]
     energy_percent: float
     pfc: bool
     low_prob_filter: float
@@ -288,7 +288,7 @@ class script_parameters:
             shape_level=confs.getint("VARIABLES", "shape_level"),
             energy=confs.get("VARIABLES", "energy"),
             temperature=confs.getfloat("VARIABLES", "temperature"),
-            basepairs=confs.getint("VARIABLES", "basepairs"),
+            basepairs=confs.getint("VARIABLES", "basepairs"),#type:ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             energy_percent=confs.getfloat("VARIABLES", "energy_percent"),
             pfc=confs.getboolean("VARIABLES", "pfc"),
             low_prob_filter=confs.getfloat("VARIABLES", "low_prob_filter"),
