@@ -1,7 +1,7 @@
 import sys
 from dataclasses import dataclass
 import logging
-from typing import Literal,Any, NamedTuple
+from typing import Literal,Any, NamedTuple,Optional
 import re
 
 logger = logging.getLogger("results")
@@ -20,7 +20,10 @@ class result:
     def __init__(self,id:str,classifier:str,motif_type:Literal["hairpin","internal","bulge","all"]) -> None:
         self.values:dict[str,str|int|float] = dict()
         self.values["ID"] = id
-        self.values["class"] = classifier
+        if len(classifier) == 0:
+            self.values["class"] = "_"
+        else:
+            self.values["class"] = classifier
         self.motif_type:Literal["hairpin","internal","bulge","all"] = motif_type
 
     @property
@@ -223,10 +226,18 @@ class alignment_score(NamedTuple):
 class result_alignment:
     """Dummy class for compatibility, fill out later"""
 
-    def __init__(self,id:str,score:alignment_score,motBracket:str):
+    def __init__(self,id:str,classifier:Optional[str],score:alignment_score,motBracket:str, classified:bool):
         self.id= id
         self.score:alignment_score = score
         self.motBracket:str = motBracket
+        self.classified: bool = classified
+        if classifier is not None:
+            if len(classifier) == 0:
+                self.classifier = "_"
+            else:
+                self.classifier= classifier
+        else:
+            self.classifier = None
 
     @property
     def overall_score(self)->float:
@@ -246,17 +257,27 @@ class result_alignment:
 
     @property
     def header(self) -> str:
-       return result.separator.join(["ID","Total Score","Free Energy","Covariance Score","Motif Score","MotBracket"]) + "\n"
+       if self.classifier is None:
+            return result.separator.join(["ID","Total Score","Free Energy","Covariance Score","Motif Score","MotBracket"]) + "\n"
+       return result.separator.join(["ID","Motif","Total Score","Free Energy","Covariance Score","Motif Score","MotBracket"]) + "\n"
     
     @classmethod
     def from_string(cls,id:str,results_string:str) -> 'result_alignment':
         split_result = results_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
-        return cls(id=id, score=alignment_score.from_string(split_stripped_results[0]), motBracket=split_stripped_results[1])
-
+        match len(split_stripped_results):
+            case 2:
+                return cls(id=id, classifier=None,score=alignment_score.from_string(split_stripped_results[0]), motBracket=split_stripped_results[1],classified=False)
+            case 3:
+                return cls(id=id, classifier=split_stripped_results[0], score=alignment_score.from_string(split_stripped_results[1]), motBracket=split_stripped_results[2],classified=True)
+            case _:
+                raise ValueError("Could not convert algorithm output to alignment result class, neither 2 nor 3 coulmns in output")
+            
     @property
     def tsv(self):
-        return result.separator.join([self.id,str(self.score.overall),str(self.score.energy),str(self.score.covariance),str(self.score.motif),self.motBracket]) +"\n"
+        if self.classifier is None:
+            return result.separator.join([self.id,str(self.score.overall),str(self.score.energy),str(self.score.covariance),str(self.score.motif),self.motBracket]) +"\n"
+        return result.separator.join([self.id,self.classifier,str(self.score.overall),str(self.score.energy),str(self.score.covariance),str(self.score.motif),self.motBracket]) +"\n"
 
     def add_coloumn(self,name:str,value:str|int|float) -> None:
         self.name = value

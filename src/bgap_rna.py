@@ -798,7 +798,7 @@ class bgap_rna:
     def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f:Optional[str|Path],name:str) -> list[results.algorithm_output|results.error]:
         """Single alignment folding"""
         seq_str = self.format_alignment_seqs(user_input)
-        subproc_out = subprocess.run(f"{self.call}-f {seq_str}", text=True,capture_output=True,timeout=None)
+        subproc_out = subprocess.run(f"{self.call}-f {seq_str}",shell=True, text=True,capture_output=True,timeout=None)
         os.remove(seq_str)
         if not subproc_out.returncode:
             return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
