@@ -472,7 +472,7 @@ class bgap_rna:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float):
-        if 0 < value < 1:
+        if 0 <= value < 1:
             self._low_probability_filter = value
         else:
             raise ValueError("Probability filter cannot be below 0 or above 1")
