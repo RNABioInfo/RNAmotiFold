@@ -208,7 +208,7 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
             options = "-t --kbacktrace --kbest --no-coopt-class"
             compilation = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv {algorithm} {RNAMOTIFOLD_BIN}'
         compilation_list.append(compilation)
-    align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t" FILE="RNAmotiAlign.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv "RNAmotiAlign" {RNAMOTIFOLD_BIN}'
+    align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t --kbacktrace --kbest --no-coopt-class" FILE="RNAmotiAlign.gap" PERL="{perl_path}" && cd {RNALOOPS_PATH} && mv "RNAmotiAlign" {RNAMOTIFOLD_BIN}'
     The_Pool = multiprocessing.Pool(processes=poolboys)
     compilation_list.append(align)
     joblist:list[multiprocessing.pool.AsyncResult[bool]]=[]

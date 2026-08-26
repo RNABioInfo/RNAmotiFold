@@ -789,33 +789,35 @@ class bgap_rna:
         if any(testlist):
             bruh = [(i,x) for i,x in enumerate(concat) if testlist[i]]
             raise ValueError(f"There are some unknown characters in your sequences: {[x for (i,x) in bruh]}")
-        tmp_folder_path = Path(__file__).parent
-        temporary = tempfile.NamedTemporaryFile(delete=False,dir=tmp_folder_path,suffix=".tmp")
+        temporary = tempfile.NamedTemporaryFile(delete_on_close=False,suffix=".tmp")
         with open(temporary.name,"w") as file:
             file.write(concat)
-        return temporary.name
+        return temporary
 
     def _run_alignment_folding(self,user_input:list[SeqRecord]|FastaIO.FastaIterator,output_f:Optional[str|Path],name:str) -> list[results.algorithm_output|results.error]:
         """Single alignment folding"""
-        seq_str = self.format_alignment_seqs(user_input)
-        subproc_out = subprocess.run(f"{self.call}-f {seq_str}",shell=True, text=True,capture_output=True,timeout=None)
-        os.remove(seq_str)
-        if not subproc_out.returncode:
-            return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
-            logger.info(f"Alignment Prediction finished successfully")
-            if isinstance(output_f,Path):
-                with open(output_f,"a+") as file:
-                    with redirect_stdout(file):
-                        return_val.write_results(initiated=False)
-                        return [return_val]
-            else:
-                return_val.write_results(initiated=False)
-                sys.stdout.flush()
-                return [return_val]
+        tmp_file = self.format_alignment_seqs(user_input)
+        try:
+            subproc_out = subprocess.run(f"{self.call}-f {tmp_file.name}",shell=True, text=True,capture_output=True,timeout=None)
+        except subprocess.CalledProcessError as e:
+            raise e
         else:
-            logger.warning(f"Process {name} finished with error: {subproc_out.stderr}")
-            return [results.error(name,subproc_out.stderr)]
-
+            if not subproc_out.returncode:
+                return_val = results.algorithm_output(name=name,result_str=subproc_out.stdout,stderr=[subproc_out.stderr])
+                logger.info(f"Alignment Prediction finished successfully")
+                if isinstance(output_f,Path):
+                    with open(output_f,"a+") as file:
+                        with redirect_stdout(file):
+                            return_val.write_results(initiated=False)
+                else:
+                    return_val.write_results(initiated=False)
+                    sys.stdout.flush()
+            else:
+                logger.warning(f"Process {name} finished with error: {subproc_out.stderr}")
+                return_val = results.error(name,subproc_out.stderr)
+        finally:
+            os.remove(tmp_file.name)
+        return [return_val]
 
     # single process function utilizing subprocess to run a single prediction and return the output
     def _run_single_process(
