@@ -1,5 +1,5 @@
 import src.bgap_rna as bgap
-import src.args as args
+import RNAmotiFold.src.input.arg_parsing as arg_parsing
 import src.results as results
 import setup
 import logging
@@ -22,12 +22,13 @@ except ImportError as e:
         f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {Path(__file__).absolute().parent}"
     )
 
+
 # Interactive session to run multiple predictions in an "interactive" environment
 def _interactive_session(
-    runtime_arguments: args.script_parameters,
+    runtime_arguments: arg_parsing.script_parameters,
 ) -> list[results.algorithm_output | results.error]:
     """Function is an infinite while Loop that always does one prediction, appends the result to a list and waits for a new input. List of results is returned"""
-    result_list:list[list[results.algorithm_output | results.error]] = []
+    result_list: list[list[results.algorithm_output | results.error]] = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
@@ -42,27 +43,35 @@ def _interactive_session(
             )
         else:
             try:
-                realtime_input: FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord = _input_check(user_input, runtime_arguments.id)
+                realtime_input: (
+                    FastaIO.FastaIterator
+                    | QualityIO.FastqPhredIterator
+                    | Generator[SeqRecord, None, None]
+                    | SeqRecord
+                    | list[SeqRecord]
+                ) = _input_check(user_input, runtime_arguments.id)
             except ValueError as v_error:
                 print(v_error)
             except OSError as os_error:
                 print(os_error)
             else:
-                result:  list[results.algorithm_output | results.error ] = proc_obj.auto_run(
+                result: list[results.algorithm_output | results.error] = proc_obj.auto_run(
                     realtime_input,
                     version=runtime_arguments.version,
                     o_file=runtime_arguments.output,
                     pool_workers=runtime_arguments.workers,
                     output_csv_separator=runtime_arguments.separator,
-                    merge=runtime_arguments.fast_mode_merge
+                    merge=runtime_arguments.fast_mode_merge,
                 )
                 result_list.append(result)
     flat_list = results.flatten(result_list)
+    proc_obj.cleanup_temp_files()
     return flat_list  # Added result outputting just in case I wanna do something with that down the line.
+
 
 # Uninteractive session in case of preset input, just does the calculation and exits
 def _uninteractive_session(
-    runtime_arguments: args.script_parameters,
+    runtime_arguments: arg_parsing.script_parameters,
 ) -> list[results.algorithm_output | results.error]:
     runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id) #type:ignore cause we can only get here by argument not being None in main
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
@@ -76,6 +85,7 @@ def _uninteractive_session(
         merge=runtime_arguments.fast_mode_merge,
         name=runtime_arguments.id
     )
+    proc_obj.cleanup_temp_files()
     return result
 
 
@@ -151,7 +161,7 @@ def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
         )
 
 if __name__ == "__main__":
-    (rt_args,additional_parameter)= args.get_cmdarguments()
+    rt_args, additional_parameter = arg_parsing.get_cmdarguments()
     try:
         configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
         if not rt_args.no_update:
