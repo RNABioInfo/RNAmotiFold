@@ -1,11 +1,9 @@
-import sys
-from dataclasses import dataclass
-import logging
+import src.results.mfe
+import src.results.pfc
+import src.results.ali
 from typing import Literal,Any
-from mfe import result_mfe
-from pfc import result_pfc
-from ali import result_alignment
-
+import sys
+import logging
 
 logger = logging.getLogger("results")
 
@@ -16,38 +14,6 @@ def flatten(xss:list[list[Any]]) -> list[Any]:
     '''
     return [x for xs in xss for x in xs]
 
-
-class result:
-    separator: str = ","
-    
-    #Not yet sure how to handle motif_type it really is only interesting for single motif mode to differentiate between Internal and Bulge Loop C-Loops
-    motif_type:Literal["hairpin","internal","bulge","all"] = "all"
-
-    def __init__(self,id:str,classifier:str) -> None:
-        self.id = id
-        if len(classifier) == 0:
-            self.classifier = "_"
-        else:
-            self.classifier = classifier
-
-    def __str__(self) -> str:
-        return self.tsv
-
-    @property
-    def tsv(self) -> str:
-        """Returns tsv string of itself"""
-        return result.separator.join([str(self.__dict__[x]) for x in self.__dict__ ])
-    
-    @property
-    def header(self) -> str:
-        """Returns header string of itself, adapted to currently set algorithm"""
-        return result.separator.join(self.__dict__.keys())
-
-
-@dataclass
-class error:
-    id: str
-    error: str
 
 
 class algorithm_output:
@@ -67,7 +33,7 @@ class algorithm_output:
     def __iter__(self):
         return self
 
-    def __next__(self) -> result_mfe | result_pfc | result_alignment:
+    def __next__(self) -> src.results.mfe.result_mfe | src.results.pfc.result_pfc | src.results.ali.result_alignment:
         if self._index < len(self.results):
             item = self.results[self._index]
             self._index += 1
@@ -82,7 +48,7 @@ class algorithm_output:
     def __init__(
         self,
         name: str,
-        result_str: str|list[result_mfe|result_pfc|result_alignment],
+        result_str: str|list[src.results.mfe.result_mfe|src.results.pfc.result_pfc|src.results.ali.result_alignment],
         stderr: list[str],
         motif:Literal["hairpin","internal","bulge","all"] = "all",
     ) -> None:
@@ -102,29 +68,29 @@ class algorithm_output:
         self._Status = status
 
     @property
-    def results(self) -> list[result_mfe | result_pfc | result_alignment]:
+    def results(self) -> list[src.results.mfe.result_mfe | src.results.pfc.result_pfc | src.results.ali.result_alignment]:
         return self._results
 
     @results.setter
-    def results(self, result:str|list[result_mfe|result_pfc|result_alignment]) -> None:
+    def results(self, result:str|list[src.results.mfe.result_mfe|src.results.pfc.result_pfc|src.results.ali.result_alignment]) -> None:
         if isinstance(result,list):
             self._results = result
         else:
-            reslist: list[result_mfe | result_pfc | result_alignment] = []
+            reslist: list[src.results.mfe.result_mfe | src.results.pfc.result_pfc | src.results.ali.result_alignment] = []
             split = result.strip().split("\n")
             match self.Status:
                 case "pfc":
                     pfc_sum = (float(sum([float(x.split("|")[1]) for x in split])))
                     for output in split:
-                        res = result_pfc.from_string(self.id,output,pfc_sum)
+                        res = src.results.pfc.result_pfc.from_string(self.id,output,pfc_sum)
                         reslist.append(res)
                 case "mfe":
                     for output in split:
-                        res = result_mfe.from_string(self.id,output)
+                        res = src.results.mfe.result_mfe.from_string(self.id,output)
                         reslist.append(res)
                 case "alignment":
                     for output in split:
-                        res = result_alignment.from_string(self.id,output)
+                        res = src.results.ali.result_alignment.from_string(self.id,output)
                         reslist.append(res)
                 case _:
                     raise ValueError(f"Invalid result status detected: {self.Status}")         
@@ -165,10 +131,10 @@ class algorithm_output:
         '''
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         '''
-        result_set:set[result_mfe |result_pfc|result_alignment] = set()
+        result_set:set[src.results.mfe.result_mfe |src.results.pfc.result_pfc|src.results.ali.result_alignment] = set()
         for obj in objs:
             for res in obj.results:
-                if isinstance(res,result_mfe):
+                if isinstance(res,src.results.mfe.result_mfe):
                     result_set.add(res)
-        sorted_results = sorted(list(result_set),key=lambda x: x.free_energy if isinstance(x,result_mfe) else 0)
+        sorted_results = sorted(list(result_set),key=lambda x: x.free_energy if isinstance(x,src.results.mfe.result_mfe) else 0)
         return cls(objs[0].id,sorted_results,stderr=flatten([x.stderr for x in objs]))

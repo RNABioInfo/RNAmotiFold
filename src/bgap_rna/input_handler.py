@@ -26,7 +26,7 @@ class algorithm_input(NamedTuple):
         return " ".join([self.call, self.input_str])
 
     @classmethod
-    def from_generators(cls,process_type:Literal["ali","mfe","pfc"],input_generator:Any) -> list['algorithm_input']:
+    def from_generators(cls,process_type:Literal["ali","single"],input_generator:Any) -> list['algorithm_input']:
         """Classmethod to create list of algroithm inputs (concated alignment sequences or individual mfe prediction sequences), depending on the process type
         given to the input handler by the bgap object.
         """
@@ -45,7 +45,7 @@ class algorithm_input(NamedTuple):
                         raise TypeError("Couldn't convert sequences from DNA to RNA")
                     concat = "#".join(seqs)
                     returnlist.append(algorithm_input("N/A",concat))
-            case "mfe"|"pfc":
+            case "single":
                 for sequence in input_generator:
                     returnlist.append(algorithm_input(id=sequence.id,input_str=str(sequence.seq)))
             case _:
@@ -67,14 +67,15 @@ class input_handler:
             self._index = 0
             raise StopIteration
 
-    def __init__(self, process_type: Literal["mfe", "pfc", "ali"], user_input: str) -> None:
-        self.user_input:list[algorithm_input] = input_handler._read_input(process_type, user_input)
-        self.process_type = process_type
+    def __init__(self, process_type: Literal["single", "ali"], user_input: str|None) -> None:
+        self.process_type: Literal['single'] | Literal['ali'] = process_type
+        if user_input is not None:
+            self.user_input:list[algorithm_input] = input_handler.read_input(process_type, user_input)
         self._index = 0
 
     @staticmethod
-    def _read_input(
-        process_type: Literal["mfe", "pfc", "ali"], user_input: str, id: str = "N/A"
+    def read_input(
+        process_type: Literal["single", "ali"], user_input: str, id: str = "N/A"
     ) -> list[algorithm_input]:
         """Read input given by user and tries to determine if it's a file, a directory or just a single sequence.
         I really wanted to strictly type this but the number of different possible iterators make it basically impossible.
@@ -108,7 +109,7 @@ class input_handler:
     # Read input file
     @staticmethod
     def _read_input_file(
-        file_path: Path, process_type: Literal["mfe", "pfc", "ali"]
+        file_path: Path, process_type: Literal["single", "ali"]
     ) -> (
         Bio.SeqIO.FastaIO.FastaIterator
         | Bio.SeqIO.QualityIO.FastqPhredIterator
@@ -180,10 +181,10 @@ if __name__ == "__main__":
     new_handler = input_handler("ali", "/home/ubuntu/ztest")
     print(new_handler.user_input)
     print("___")
-    new_handler = input_handler("mfe", "/home/ubuntu/ztest/test.txt")
+    new_handler = input_handler("single", "/home/ubuntu/ztest/test.txt")
     print(new_handler.user_input)
     print("___")
-    new_handler = input_handler("mfe", "/home/ubuntu/ztest")
+    new_handler = input_handler("single", "/home/ubuntu/ztest")
     print(new_handler.user_input)
     #new_handler = input_handler("ali", "/home/ubuntu/ztest/")
     #new_handler = input_handler("ali", "GGGGAGACCC")

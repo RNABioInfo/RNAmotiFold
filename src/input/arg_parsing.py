@@ -2,8 +2,8 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from RNAmotiFold.src.input.parameters import ScriptParameters
-from action_overwrites import (
+from src.input.parameters import ScriptParameters
+from src.input.action_overwrites import (
     MotifFileCheck,
     LogCheck,
     FloatCheck,

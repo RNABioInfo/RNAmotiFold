@@ -1,8 +1,8 @@
-from results import result
+import src.results.base_result
 import re
 
 
-class result_mfe(result):
+class result_mfe(src.results.base_result.result):
     """Subclass of result for mfe results, has extra attributes for free energy and motBracket structure. Also implements comparison and hashing for mering structures in single motif mode"""
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:

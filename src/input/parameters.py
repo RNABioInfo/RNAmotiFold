@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Literal
 from argparse import Namespace
 from configparser import ConfigParser
-from RNAmotiFold.src.input.arg_parsing import AlgorithmMatching
-from action_overwrites import OutputFileCheck, WorkerCheck
+from src.input.action_overwrites import OutputFileCheck, WorkerCheck, AlgorithmMatching
 
 
 @dataclass
@@ -30,9 +29,9 @@ class ScriptParameters:
     energy_percent: float
     pfc: bool
     low_prob_filter: float
-    custom_hairpins: str
-    custom_internals: str
-    custom_bulges: str
+    custom_hairpins: Path|None
+    custom_internals: Path|None
+    custom_bulges: Path|None
     replace_hairpins: bool
     replace_internals: bool
     replace_bulges: bool
@@ -55,6 +54,13 @@ class ScriptParameters:
         for i in range(0, len(v)):
             together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
+
+    @property
+    def process_type(self):
+        if self.algorithm == "RNAmotiAlign":
+            return "ali"
+        else:
+            return "single"
 
     @classmethod
     def from_argparser(cls, args: Namespace):

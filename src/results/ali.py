@@ -1,6 +1,6 @@
 import re
 from typing import NamedTuple
-from results import result
+import src.results.base_result
 
 class alignment_score(NamedTuple):
     energy: float
@@ -19,7 +19,7 @@ class alignment_score(NamedTuple):
         )
 
 
-class result_alignment(result):
+class result_alignment(src.results.base_result.result):
     """Subclass of result for alignment results, adds alignment_score and motBracket attributes as well as special implementation for tsv and header functions"""
 
     def __init__(self, id: str, classifier: str, score: str, motBracket: str) -> None:
@@ -74,7 +74,7 @@ class result_alignment(result):
     @property
     def header(self) -> str:
         return (
-            result.separator.join(
+            src.results.base_result.result.separator.join(
                 [
                     "ID",
                     "Motif",
@@ -90,7 +90,7 @@ class result_alignment(result):
     @property
     def tsv(self):
         return (
-            result.separator.join(
+            src.results.base_result.result.separator.join(
                 [
                     self.id,
                     self.classifier,

@@ -1,5 +1,7 @@
 import src.bgap_rna as bgap
-import RNAmotiFold.src.input.arg_parsing as arg_parsing
+from src.bgap_rna import input_handler
+from src.bgap_rna import motif_handler
+import src.input.arg_parsing as arg_parsing
 import src.results as results
 import setup
 import logging
@@ -8,12 +10,12 @@ from typing import Generator
 from Bio import SeqIO
 from Bio.SeqIO import FastaIO, QualityIO
 from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord 
+from Bio.SeqRecord import SeqRecord
 import gzip
 import sys
 from typing import Optional
 
-logger = logging.getLogger("RNAmotiFold")  
+logger = logging.getLogger("RNAmotiFold")
 
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
@@ -28,7 +30,9 @@ def _interactive_session(
     runtime_arguments: arg_parsing.script_parameters,
 ) -> list[results.algorithm_output | results.error]:
     """Function is an infinite while Loop that always does one prediction, appends the result to a list and waits for a new input. List of results is returned"""
-    result_list: list[list[results.algorithm_output | results.error]] = []
+    result_list: list[
+        list[results.algorithm_output | results.error]
+    ] = []
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
     while True:
@@ -55,7 +59,9 @@ def _interactive_session(
             except OSError as os_error:
                 print(os_error)
             else:
-                result: list[results.algorithm_output | results.error] = proc_obj.auto_run(
+                result: list[
+                    results.algorithm_output | results.error
+                ] = proc_obj.auto_run(
                     realtime_input,
                     version=runtime_arguments.version,
                     o_file=runtime_arguments.output,
@@ -73,17 +79,19 @@ def _interactive_session(
 def _uninteractive_session(
     runtime_arguments: arg_parsing.script_parameters,
 ) -> list[results.algorithm_output | results.error]:
-    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id) #type:ignore cause we can only get here by argument not being None in main
+    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id)  # type: ignore cause we can only get here by argument not being None in main
     proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
     logger.debug("Created bgap_rna obj: " + repr(proc_obj))
-    result: list[results.algorithm_output | results.error] = proc_obj.auto_run(
-        user_input=runtime_input,
-        version=runtime_arguments.version,
-        o_file=runtime_arguments.output,
-        pool_workers=runtime_arguments.workers,
-        output_csv_separator=runtime_arguments.separator,
-        merge=runtime_arguments.fast_mode_merge,
-        name=runtime_arguments.id
+    result: list[results.algorithm_output | results.error] = (
+        proc_obj.auto_run(
+            user_input=runtime_input,
+            version=runtime_arguments.version,
+            o_file=runtime_arguments.output,
+            pool_workers=runtime_arguments.workers,
+            output_csv_separator=runtime_arguments.separator,
+            merge=runtime_arguments.fast_mode_merge,
+            name=runtime_arguments.id,
+        )
     )
     proc_obj.cleanup_temp_files()
     return result
@@ -91,14 +99,28 @@ def _uninteractive_session(
 
 # Finds File type based on file ending
 def _find_filetype(file_path: Path) -> tuple[bool, str]:
-    if file_path.suffixes[-1] == ".gz" or file_path.suffixes[-1] == ".zip":
+    if (
+        file_path.suffixes[-1] == ".gz"
+        or file_path.suffixes[-1] == ".zip"
+    ):
         file_extension = file_path.suffixes[-2]
         input_zipped = True
     else:
         file_extension = file_path.suffixes[-1]
         input_zipped = False
     match file_extension:
-        case ".fasta" | ".fas" | ".fa" | ".fna" | ".ffn" | ".faa" | ".mpfa" | ".frn" | ".txt" | ".fsa":
+        case (
+            ".fasta"
+            | ".fas"
+            | ".fa"
+            | ".fna"
+            | ".ffn"
+            | ".faa"
+            | ".mpfa"
+            | ".frn"
+            | ".txt"
+            | ".fsa"
+        ):
             filetype = "fasta"
         case ".fastq" | ".fq":
             filetype = "fastq"
@@ -112,35 +134,53 @@ def _find_filetype(file_path: Path) -> tuple[bool, str]:
     logger.debug(f"Recognized filetype as {filetype}.")
     return (input_zipped, filetype)
 
+
 # Read input file
 def _read_input_file(
     file_path: Path,
-) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None]:
-    (zipped, filetype) = _find_filetype(file_path)
+) -> (
+    FastaIO.FastaIterator
+    | QualityIO.FastqPhredIterator
+    | Generator[SeqRecord, None, None]
+):
+    zipped, filetype = _find_filetype(file_path)
     if not zipped:
-        return SeqIO.parse(file_path, filetype)  # type:ignore
+        return SeqIO.parse(file_path, filetype)  # type: ignore
     else:
         with gzip.open(file_path, "rt") as handle:
-            return SeqIO.parse(handle, filetype)  # type:ignore
+            return SeqIO.parse(handle, filetype)  # type: ignore
+
 
 # This function still has a lot of leftover functionality from when it was part of the bgap_rna class, shouldn't really matter and I'll leave it in case I need it again later I guess.
-def _input_check(user_input: str, id: str) -> FastaIO.FastaIterator | QualityIO.FastqPhredIterator | Generator[SeqRecord, None, None] | SeqRecord | list[SeqRecord]:
+def _input_check(
+    user_input: str, id: str
+) -> (
+    FastaIO.FastaIterator
+    | QualityIO.FastqPhredIterator
+    | Generator[SeqRecord, None, None]
+    | SeqRecord
+    | list[SeqRecord]
+):
     try:
         pathd = Path(user_input.strip())
         if pathd.resolve().is_file():
             logger.info("Recognized input as filepath, reading...")
             return _read_input_file(pathd.resolve())
     except OSError as e:
-        logger.debug("Input could not be converted to a Pathlib path object:"+str(e))
+        logger.debug(
+            "Input could not be converted to a Pathlib path object:"
+            + str(e)
+        )
     if any(c not in "NAUCGTnaucgt+_#" for c in set(user_input.strip())):
         raise ValueError(
             "Input string was neither a viable file path nor a viable RNA or DNA sequence"
         )
     elif "#" in user_input:
         seqs = user_input.strip().split("#")
-        return [SeqRecord(seq=Seq(x),id=id) for x in seqs]
+        return [SeqRecord(seq=Seq(x), id=id) for x in seqs]
     else:
         return SeqRecord(seq=Seq(user_input), id=id)
+
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
 def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
@@ -160,19 +200,42 @@ def configure_logs(loglevel: str, logfile: Optional[Path]) -> None:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
+
 if __name__ == "__main__":
-    rt_args, additional_parameter = arg_parsing.get_cmdarguments()
-    try:
-        configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
-        if not rt_args.no_update:
-            setup.updates(motif_version=rt_args.version)
-        rt_args.version = motifs.currently_installed().replace(".","_")
-    except ValueError as error:
-        raise error
-    logger.debug("Input args: " + repr(rt_args))
-    if rt_args.input is not None:
-        logger.info("Input is set, starting calculations")
-        out: list[results.algorithm_output | results.error] = _uninteractive_session(runtime_arguments=rt_args)
-    else:
-        logger.info("No input set, starting interactive session")
-        out: list[results.algorithm_output | results.error] = _interactive_session(runtime_arguments=rt_args)
+    rt_args, additional_parameters = arg_parsing.get_cmdarguments()
+    print(rt_args)
+    input_maker = input_handler.input_handler(
+        rt_args.process_type, rt_args.input
+    )
+    motif_subcall_maker = motif_handler.motif_handler(
+        rt_args.version,
+        rt_args.motif_list,
+        rt_args.fast_mode,
+        rt_args.custom_hairpins,
+        rt_args.custom_internals,
+        rt_args.custom_bulges,
+        rt_args.replace_hairpins,
+        rt_args.replace_internals,
+        rt_args.replace_bulges,
+    )
+
+    #try:
+    #    configure_logs(
+    #        loglevel=rt_args.loglevel, logfile=rt_args.logfile
+    #    )
+    #    if not rt_args.no_update:
+    #        setup.updates(motif_version=rt_args.version)
+    #    rt_args.version = motifs.currently_installed().replace(".", "_")
+    #except ValueError as error:
+    #    raise error
+    #logger.debug("Input args: " + repr(rt_args))
+    #if rt_args.input is not None:
+    #    logger.info("Input is set, starting calculations")
+    #    out: list[results.algorithm_output | results.error] = (
+    #        _uninteractive_session(runtime_arguments=rt_args)
+    #    )
+    #else:
+    #    logger.info("No input set, starting interactive session")
+    #    out: list[results.algorithm_output | results.error] = (
+    #        _interactive_session(runtime_arguments=rt_args)
+    #    )

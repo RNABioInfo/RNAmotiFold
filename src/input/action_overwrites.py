@@ -27,10 +27,10 @@ class MotifFileCheck(argparse.Action):
         setattr(namespace, self.dest, MotifFileCheck._motif_file_check_function(str(value)))
 
     @staticmethod
-    def _motif_file_check_function(value: Optional[str]) -> str:
+    def _motif_file_check_function(value: Optional[str]) -> Path:
         if value is not None and value != "":
             if Path(value).resolve().is_file():
-                return value
+                return Path(value)
             raise FileNotFoundError("Could not find specified file.")
         raise ValueError("No motif file specified")
 
