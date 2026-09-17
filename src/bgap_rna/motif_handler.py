@@ -1,7 +1,6 @@
 from pathlib import Path
 import tempfile
 import glob
-import os
 from typing import Literal
 from src.input.parameters import ScriptParameters
 
@@ -15,8 +14,7 @@ class motif_handler:
 
     def __init__(
         self,
-        version: str,
-        motifs: str,
+        motifs: str | None,
         single_motif_mode: bool,
         custom_hairpin_filepath: Path | None,
         custom_internal_filepath: Path | None,
@@ -24,26 +22,41 @@ class motif_handler:
         replace_hairpins: bool,
         replace_internals: bool,
         replace_bulges: bool,
+        version: str | None,
     ):
         self.version = version
         self.single_motif_mode = single_motif_mode
-        self.motif_string = motifs
+        if motifs is None:
+            self.motif_string = ""
+        else:
+            self.motif_string = motifs
         self.custom_hairpins = custom_hairpin_filepath
         self.replace_hairpins = replace_hairpins
         self.custom_internals = custom_internal_filepath
         self.replace_internals = replace_internals
         self.custom_bulges = custom_bulge_filepath
         self.replace_bulges = replace_bulges
-        self._tmp_folders: None|tuple[Path,Path,Path] = None
 
     @classmethod
-    def from_script_parameters(cls,params:ScriptParameters) -> "motif_handler":
-        return cls(params.version,params.motif_list,params.fast_mode,params.custom_hairpins,params.custom_internals,params.custom_bulges,params.replace_hairpins,params.replace_internals,params.replace_bulges)
-
+    def from_script_parameters(cls, params: ScriptParameters) -> "motif_handler":
+        return cls(
+            params.motif_list,
+            params.fast_mode,
+            params.custom_hairpins,
+            params.custom_internals,
+            params.custom_bulges,
+            params.replace_hairpins,
+            params.replace_internals,
+            params.replace_bulges,
+            params.version,
+        )
 
     @property
     def motif_calls(self) -> list[str]:
         # First case: Motif string is empty and all three custom motif paths are not set, single motif mode is also False --> Default case, no extra stuff necessary
+        self._tmp_folder: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory(
+            delete=False, dir=str(Path(__file__).parents[1])
+        )
         if (
             self.motif_string == ""
             and all(
@@ -83,17 +96,10 @@ class motif_handler:
         )
         if self.single_motif_mode:
             temp_folders = (
-                motif_handler._split_sequences(
-                    self.motif_string, hairpins
-                ),
-                motif_handler._split_sequences(
-                    self.motif_string, internals
-                ),
-                motif_handler._split_sequences(
-                    self.motif_string, bulges
-                ),
+                motif_handler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
+                motif_handler._split_sequences(self.motif_string, internals, self._tmp_folder),
+                motif_handler._split_sequences(self.motif_string, bulges, self._tmp_folder),
             )
-            self._tmp_folders = temp_folders
             # Jetzt: alle drei Folder globben, dann hab ich die Paths zu jedem einzelnen Motif separat. Danach einfach kombinieren jedes file mit 2x empty csv und die kombinationen returnen
             hairpin_calls = motif_handler._split_calls(
                 glob.glob(str(temp_folders[0] / "*.tmp")), "hairpin"
@@ -106,19 +112,10 @@ class motif_handler:
             )
             return hairpin_calls + internal_calls + bulge_calls
         else:
-            concat_hairpins = self._filter_concat(
-                hairpins, self.motif_string
-            )
-            concat_internals = self._filter_concat(
-                internals, self.motif_string
-            )
-            concat_bulges = self._filter_concat(
-                bulges, self.motif_string
-            )
-            self._tmp_folders = (concat_hairpins.parent,concat_internals.parent,concat_bulges.parent)
-            return [
-                f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"
-            ]
+            concat_hairpins = self._filter_concat(hairpins, self.motif_string, self._tmp_folder)
+            concat_internals = self._filter_concat(internals, self.motif_string, self._tmp_folder)
+            concat_bulges = self._filter_concat(bulges, self.motif_string, self._tmp_folder)
+            return [f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"]
 
     def get_motif_files(self) -> list[Path]:
         motif_dir_path = (
@@ -141,9 +138,7 @@ class motif_handler:
         return list(files)
 
     @staticmethod
-    def _split_calls(
-        file_list, loop_type: Literal["hairpin", "internal", "bulge"]
-    ):
+    def _split_calls(file_list: list[str], loop_type: Literal["hairpin", "internal", "bulge"]):
         empty_csv = (
             Path(__file__).resolve().parents[2]
             / "submodules"
@@ -157,40 +152,31 @@ class motif_handler:
         )
         match loop_type:
             case "hairpin":
-                return [
-                    f"-X {x} -Y {empty_csv} -Z {empty_csv} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {x} -Y {empty_csv} -Z {empty_csv} -L 1 -E 1 -G 1" for x in file_list]
             case "internal":
-                return [
-                    f"-X {empty_csv} -Y {x} -Z {empty_csv} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {empty_csv} -Y {x} -Z {empty_csv} -L 1 -E 1 -G 1" for x in file_list]
             case "bulge":
-                return [
-                    f"-X {empty_csv} -Y {empty_csv} -Z {x} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {empty_csv} -Y {empty_csv} -Z {x} -L 1 -E 1 -G 1" for x in file_list]
 
     @staticmethod
-    def _filter_concat(file_list, motif_string) -> Path:
+    def _filter_concat(
+        file_list: list[Path], motif_string: str, tmp_dir: tempfile.TemporaryDirectory[str]
+    ) -> Path:
         """Takes a list of motif files and a motif string, reads all the files, filters out only those in the motif string and puts them back together. If the motif string is empty it takes all sequences
         Returns the path to the new temp file with the sequences in it.
         """
-        all_sequences = motif_handler._sort_sequences(
-            file_list, motif_string
-        )
-        contents = []
+        all_sequences = motif_handler._sort_sequences(file_list, motif_string)
+        contents: list[str] = []
         for key in all_sequences:
             contents.extend(all_sequences[key])
         temp = tempfile.NamedTemporaryFile(
-            delete_on_close=False, suffix=".tmp"
+            delete_on_close=False, delete=False, suffix=".tmp", dir=tmp_dir.name
         )
         temp.write("".join(contents).encode())
         return Path(temp.name).resolve()
 
     @staticmethod
-    def _sort_sequences(file_list, motif_string):
+    def _sort_sequences(file_list: list[Path], motif_string: str):
         """Function for both single motif mode and combinatorial, reads all the files given to it, checks if abbreviations are in the motif string, and returns dictionary of
         abbreviation to all sequence variants (still including the abbreviation and the newline!). If motif string is empty, everything is kept
         """
@@ -205,7 +191,7 @@ class motif_handler:
                 motif_instance
             )  # Set default either sets the given default or returns the value if the key already exsist
         if len(motif_string) != 0:
-            deletes = []
+            deletes: list[str] = []
             for key in groups.keys():
                 if key not in motif_string:
                     deletes.append(key)
@@ -214,17 +200,15 @@ class motif_handler:
         return groups
 
     @staticmethod
-    def _split_sequences(motif_string, file_list: list[Path]) -> Path:
+    def _split_sequences(
+        motif_string: str, file_list: list[Path], tempdir: tempfile.TemporaryDirectory[str]
+    ) -> Path:
         """Read all the files in the list into one long list with all the sequences, then sort sequences by their abbreviations,
         write each set to a separate temp file and finally return the path to a tempdir where all the tempfiles have been written.
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
-        tempdir: tempfile.TemporaryDirectory[str] = (
-            tempfile.TemporaryDirectory(delete=False)
-        )
-        groups: dict[str, list[str]] = motif_handler._sort_sequences(
-            file_list, motif_string
-        )
+        subdir = tempfile.TemporaryDirectory(dir=tempdir.name)
+        groups: dict[str, list[str]] = motif_handler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
             motif_temp = tempfile.NamedTemporaryFile(
@@ -234,7 +218,7 @@ class motif_handler:
                 suffix=".tmp",
             )
             motif_temp.write(motifs.encode())
-        return Path(tempdir.name).resolve()
+        return Path(subdir.name).resolve()
 
     @staticmethod
     def _make_file_list(
@@ -251,8 +235,7 @@ class motif_handler:
             motif_paths = [
                 x
                 for x in files
-                if motif_type in x.parent.name
-                and motif_handler.check_abb(x, motif_string)
+                if motif_type in x.parent.name and motif_handler._check_abb(x, motif_string)
             ]
             if custom_motifs is not None:
                 motif_paths.append(custom_motifs)
@@ -265,19 +248,14 @@ class motif_handler:
             )  # I kinda want to just let this slide and make the software just use no motifs in this case
 
     @staticmethod
-    def check_abb(filepath: Path, motif_string: str):
+    def _check_abb(filepath: Path, motif_string: str):
         if len(motif_string) == 0:
             return True
         with open(filepath, "r") as motif_seq_file:
             lines = motif_seq_file.readlines()
-            abbreviations = set(
-                [x.split(",")[1].strip() for x in lines]
-            )
+            abbreviations = set([x.split(",")[1].strip() for x in lines])
             return all([x in motif_string for x in abbreviations])
 
-    def cleanup_temp_files(self):
-        if self._tmp_folders is not None:
-            for folder in self._tmp_folders:
-                files = glob.glob(str(folder / "*.tmp"))
-                for file in files:
-                    os.remove(file)
+    def cleanup_tmp_files(self):
+        self._tmp_folder.cleanup()
+        del self._tmp_folder

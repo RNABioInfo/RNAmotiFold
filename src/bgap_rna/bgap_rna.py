@@ -1,17 +1,7 @@
-import sys
-import subprocess
-import multiprocessing
 from pathlib import Path
-from typing import Optional, Generator, Any, Literal 
-from Bio.SeqIO import FastaIO, QualityIO
+from typing import Literal
 import logging
-from Bio.SeqRecord import SeqRecord
-import tempfile
 from src.input.parameters import ScriptParameters
-import src.results.base_result
-
-from contextlib import redirect_stdout
-import os
 
 logger = logging.getLogger("bgap_rna")
 
@@ -22,8 +12,9 @@ logger = logging.getLogger("bgap_rna")
 
 
 class bgap_rna:
-    """Main class for running RNAmotiFold algortihms through python, just hand your arguments to this class (everything else will be defaults) and use [your class obj].auto_run([input]) to run predictions.)
-    To be agile with
+    """Main class for running RNAmotiFold algortihms through python, just hand your arguments to this class (everything else will be defaults set in the class)
+    and use [your class obj].auto_run([input]) to run predictions.). Most functionality is handled by the handlers (input reading, which motifs to use etc.).
+    The bgap obj itself is mostly here to bring everything together. Every bgap_obj creates it's own handlers
     """
 
     def __repr__(self):
@@ -37,48 +28,47 @@ class bgap_rna:
     def __str__(self) -> str:
         return self.call
 
-
-#    @staticmethod
-#    def postprocessing_mfe(merged_output: src.results.base_result.algorithm_output) -> src.results.base_result.algorithm_output:
-#        """
-#        Postprocessing function for merging outputs of the seperated motif predictions
-#        """
-#        mfe_dict: dict[float, list[base_result.result_mfe]] = {}
-#        for res in merged_output.results:
-#            if (
-#                isinstance(res, base_result.result_mfe) and res.classifier
-#            ):  # this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
-#                if (
-#                    res.free_energy not in mfe_dict.keys()
-#                ):  # -> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
-#                    mfe_dict[res.free_energy] = [res]
-#                else:
-#                    mfe_dict[res.free_energy].append(res)
-#        for key in mfe_dict.keys():
-#            if len(mfe_dict[key]) > 1:
-#                merge_candidates = base_result.result_mfe.get_compatible_structures(mfe_dict[key])
-#                for compatible_structures in merge_candidates:
-#                    new_result = base_result.result_mfe.merge_structures(
-#                        [mfe_dict[key][i] for i in compatible_structures]
-#                    )
-#                    if new_result is not None:
-#                        merged_output.results.append(new_result)
-#            else:
-#                continue
-#        merged_output.results.sort(key=lambda x: x.free_energy)  # type: ignore
-#        return merged_output
-#
-#    @staticmethod
-#    def postprocessing_pfc(
-#        merged_output: list[base_result.algorithm_output],
-#    ) -> list[base_result.algorithm_output]:
-#        returnlist: list[base_result.algorithm_output] = []
-#        checklist: list[str] = []
-#        for output in merged_output:
-#            if str(output) not in checklist and len(output.results) > 1:
-#                checklist.append(str(output))
-#                returnlist.append(output)
-#        return returnlist
+    #    @staticmethod
+    #    def postprocessing_mfe(merged_output: src.results.base_result.algorithm_output) -> src.results.base_result.algorithm_output:
+    #        """
+    #        Postprocessing function for merging outputs of the seperated motif predictions
+    #        """
+    #        mfe_dict: dict[float, list[base_result.result_mfe]] = {}
+    #        for res in merged_output.results:
+    #            if (
+    #                isinstance(res, base_result.result_mfe) and res.classifier
+    #            ):  # this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
+    #                if (
+    #                    res.free_energy not in mfe_dict.keys()
+    #                ):  # -> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
+    #                    mfe_dict[res.free_energy] = [res]
+    #                else:
+    #                    mfe_dict[res.free_energy].append(res)
+    #        for key in mfe_dict.keys():
+    #            if len(mfe_dict[key]) > 1:
+    #                merge_candidates = base_result.result_mfe.get_compatible_structures(mfe_dict[key])
+    #                for compatible_structures in merge_candidates:
+    #                    new_result = base_result.result_mfe.merge_structures(
+    #                        [mfe_dict[key][i] for i in compatible_structures]
+    #                    )
+    #                    if new_result is not None:
+    #                        merged_output.results.append(new_result)
+    #            else:
+    #                continue
+    #        merged_output.results.sort(key=lambda x: x.free_energy)  # type: ignore
+    #        return merged_output
+    #
+    #    @staticmethod
+    #    def postprocessing_pfc(
+    #        merged_output: list[base_result.algorithm_output],
+    #    ) -> list[base_result.algorithm_output]:
+    #        returnlist: list[base_result.algorithm_output] = []
+    #        checklist: list[str] = []
+    #        for output in merged_output:
+    #            if str(output) not in checklist and len(output.results) > 1:
+    #                checklist.append(str(output))
+    #                returnlist.append(output)
+    #        return returnlist
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
@@ -93,13 +83,7 @@ class bgap_rna:
             low_prob_filter=params.low_prob_filter,
             temperature=params.temperature,
             energy_percent=params.energy_percent,
-            custom_hairpins=params.custom_hairpins,
-            custom_internals=params.custom_internals,
-            custom_bulges=params.custom_bulges,
             allowLonelyBasepairs=params.basepairs,
-            replace_hairpins=params.replace_hairpins,
-            replace_internals=params.replace_internals,
-            replace_bulges=params.replace_bulges,
             subopt=params.subopt,
             session_id=params.id,
             fast_mode=params.fast_mode,
@@ -115,16 +99,10 @@ class bgap_rna:
         motif_orientation: Literal[1, 2, 3] = 1,
         kvalue: int = 5,
         shape_level: int = 3,
-        energy: Optional[str] = None,
+        energy: str | None = None,
         temperature: float = 37.0,
         energy_percent: float = 5.0,
-        custom_hairpins: Optional[Path | str] = None,
-        custom_internals: Optional[Path | str] = None,
-        custom_bulges: Optional[Path | str] = None,
         allowLonelyBasepairs: Literal[0, 1, 2] = 0,
-        replace_hairpins: Optional[bool] = None,
-        replace_internals: Optional[bool] = None,
-        replace_bulges: Optional[bool] = None,
         subopt: bool = False,
         pfc: bool = False,
         low_prob_filter: float = 0.000001,
@@ -148,12 +126,6 @@ class bgap_rna:
         self.allowLonelyBasepairs = allowLonelyBasepairs
         self.algorithm = alg  # Set algorithm after all the other parameters since it depends on some of them (like pfc,subopt and allowlonelybasepairs)
         # Custom motif variables, custom_X is for the filepaths to the .csv files, replace_X is for if the customs should append to or replace the underlying motifs from RNA3D or Rfam
-        self.custom_hairpins = custom_hairpins
-        self.custom_internals = custom_internals
-        self.custom_bulges = custom_bulges
-        self.replace_hairpins = replace_hairpins
-        self.replace_internals = replace_internals
-        self.replace_bulges = replace_bulges
         self.fast_mode = fast_mode
         self.motif_string = motif_string
         self.motif_weighting = weight
@@ -161,6 +133,17 @@ class bgap_rna:
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
+
+    @property
+    def process_type(self) -> Literal["single", "ali"]:
+        if self.algorithm in ["RNAmoSh", "RNAmotiCes", "RNAmotiFold"]:
+            return "single"
+        elif self.algorithm in ["RNAmotiAlign"]:
+            return "ali"
+        raise ValueError(
+            "Could not identify process type as single folding or alignment folding, check your set algorithm"
+        )
+
     @property
     def custom_call(self):
         return self._custom_call
@@ -188,7 +171,7 @@ class bgap_rna:
         return self._energy_perc
 
     @energy_percent.setter
-    def energy_percent(self, range: Optional[float]):
+    def energy_percent(self, range: float | None):
         if range is not None:
             if range > 0:
                 self._energy_perc = range
@@ -209,45 +192,6 @@ class bgap_rna:
             raise ValueError(
                 "Allow lonely base pairs can only be set to 0 (no lonely base pairs), 1 (allow all lonely base pairs),2 (allow lonely base pairs around motifs only)"
             )
-
-    @property
-    def replace_hairpins(self):
-        return self._replace_hairpins
-
-    @replace_hairpins.setter
-    def replace_hairpins(self, val: Optional[bool]):
-        if val is None:
-            self._replace_hairpins = None
-        elif val:
-            self._replace_hairpins = 1
-        else:
-            self._replace_hairpins = 0
-
-    @property
-    def replace_internals(self):
-        return self._replace_internals
-
-    @replace_internals.setter
-    def replace_internals(self, val: Optional[bool]):
-        if val is None:
-            self._replace_internals = None
-        elif val:
-            self._replace_internals = 1
-        else:
-            self._replace_internals = 0
-
-    @property
-    def replace_bulges(self):
-        return self._replace_bulges
-
-    @replace_bulges.setter
-    def replace_bulges(self, val: Optional[bool]):
-        if val is None:
-            self._replace_bulges = None
-        elif val:
-            self._replace_bulges = 1
-        else:
-            self._replace_bulges = 0
 
     # Choose motif source, 1 = RNA 3D Motif Atlas, 2 = RMFam, 3 = Both
     @property
@@ -295,7 +239,7 @@ class bgap_rna:
         return self._energy
 
     @absolute_energy.setter
-    def absolute_energy(self, e: Optional[str]):
+    def absolute_energy(self, e: str | None):
         if e == "":
             e = None
         if e is not None:
@@ -333,63 +277,39 @@ class bgap_rna:
     @property
     def algorithm_path(self):
         return str(
-            Path(__file__).resolve().parents[1].joinpath("Build", "bin").joinpath(self.algorithm)
+            Path(__file__)
+            .resolve()
+            .parents[2]
+            .joinpath("Build", "bin")
+            .joinpath(self.algorithm_binary)
         )
 
-    # Builds the algorithm name string, adds _pfc or _subopt
+    # Builds the algorithm binary name from the set parameters
     @property
-    def algorithm(self):
-        return self._algorithm
-
-    @algorithm.setter
-    def algorithm(self, alg: str):
-        if alg == "RNAmotiAlign":
-            pass
-        else:
-            if self.allowLonelyBasepairs == 2:
-                if self.pfc or self.subopt:
-                    alg = alg + "_motmacro"
-                else:
-                    alg = alg + "Motmicro"
-            if self.subopt:
-                alg = alg + "_subopt"
-            elif self.pfc:
-                alg = alg + "_pfc"
-                if self.subopt:
-                    raise ValueError("Partition function can't be used in combination with subopt")
-        self._algorithm = alg
-
-    @property
-    def custom_hairpins(self) -> Path | None:
-        return self._custom_hairpins
-
-    @custom_hairpins.setter
-    def custom_hairpins(self, path: str | Path | None) -> None:
-        if path is not None:
-            if Path(path).is_file():
-                self._custom_hairpins = Path(path)
-            else:
-                raise FileNotFoundError(
-                    "Unabled to find specified custom hairpin file, please check the file path"
+    def algorithm_binary(self) -> str:
+        if self.algorithm == "RNAmotiAlign":
+            if self.subopt or self.pfc:
+                raise NotImplementedError(
+                    "RNAmotiAlign is not available with subopt or partition function implementations"
                 )
-        else:
-            self._custom_hairpins = None
-
-    @property
-    def custom_internals(self) -> Path | None:
-        return self._custom_internals
-
-    @custom_internals.setter
-    def custom_internals(self, path: str | Path | None) -> None:
-        if path is not None:
-            if Path(path).is_file():
-                self._custom_internals = Path(path)
-            else:
-                raise FileNotFoundError(
-                    "Unabled to find specified custom internals file, please check the file path"
+            return "RNAmotiAlign"
+        match (self.allowLonelyBasepairs, self.subopt, self.pfc):
+            case (2, False, False):
+                return self.algorithm + "Motmicro"
+            case (2, True, False):
+                return self.algorithm + "_motmacro_subopt"
+            case (2, False, True):
+                return self.algorithm + "_motmacro_pfc"
+            case (1, False, False) | (0, False, False):
+                return self.algorithm
+            case (1, True, False) | (0, True, False):
+                return self.algorithm + "_subopt"
+            case (1, False, True) | (0, False, True):
+                return self.algorithm + "_pfc"
+            case _:
+                raise ValueError(
+                    "The algorithm you specified does not exist, please revisit your arguments."
                 )
-        else:
-            self._custom_internals = None
 
     @property
     def custom_bulges(self) -> Path | None:
@@ -412,24 +332,20 @@ class bgap_rna:
         """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
-        runtime_dictionary: dict[str, Optional[str] | Optional[int] | Optional[float] | Path] = {
-            "-F": self.low_probability_filter,
+        runtime_dictionary: dict[str, str | int | float | None | Path] = {
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
             "-t": self.temperature,
-            "-X": self.custom_hairpins,
-            "-Y": self.custom_internals,
-            "-Z": self.custom_bulges,
-            "-L": self.replace_hairpins,
-            "-E": self.replace_internals,
-            "-G": self.replace_bulges,
-        }  # type: dict[str,Optional[float,int,str]]
+        }
         if self.subopt:
             # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary
             runtime_dictionary["-c"] = self.energy_percent
             runtime_dictionary["-e"] = self.absolute_energy
+        elif self.pfc:
+            runtime_dictionary["-F"] = self.low_probability_filter
         else:
             runtime_dictionary["-k"] = self.kvalue
+
         if self.algorithm == "RNAmoSh":
             runtime_dictionary["-q"] = self.shape_level
         if self.algorithm == "RNAmotiAlign":
@@ -460,7 +376,7 @@ class bgap_rna:
         return self._motif_string
 
     @motif_string.setter
-    def motif_string(self, motif_str: Optional[str]) -> None:
+    def motif_string(self, motif_str: str | None) -> None:
         if motif_str is None:
             self._motif_string = ""
         else:

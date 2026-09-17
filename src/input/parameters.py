@@ -11,12 +11,12 @@ class ScriptParameters:
     """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser. 
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
     """
-    
+
     RNAmotiFold_path = Path(__file__).resolve().parents[2]
-    user_config_path = Optional[Path]
+    user_config_path = Path | None
     id: str
-    input: Optional[str]
-    output: Optional[Path]
+    input: str | None
+    output: Path | None
     algorithm: Literal["RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"]
     subopt: bool
     motif_source: int
@@ -29,14 +29,14 @@ class ScriptParameters:
     energy_percent: float
     pfc: bool
     low_prob_filter: float
-    custom_hairpins: Path|None
-    custom_internals: Path|None
-    custom_bulges: Path|None
+    custom_hairpins: Path | None
+    custom_internals: Path | None
+    custom_bulges: Path | None
     replace_hairpins: bool
     replace_internals: bool
     replace_bulges: bool
     loglevel: str
-    logfile: Optional[Path]
+    logfile: Path | None
     workers: int
     separator: str
     no_update: bool
@@ -61,6 +61,14 @@ class ScriptParameters:
             return "ali"
         else:
             return "single"
+
+    def alg_type(self):
+        if self.pfc:
+            return "pfc"
+        elif self.algorithm == "RNAmotiAlign":
+            return "ali"
+        else:
+            return "mfe"
 
     @classmethod
     def from_argparser(cls, args: Namespace):
@@ -155,9 +163,9 @@ class ScriptParameters:
             energy_percent=confs.getfloat(section_name, "energy_percent"),
             pfc=confs.getboolean(section_name, "pfc"),
             low_prob_filter=confs.getfloat(section_name, "low_prob_filter"),
-            custom_hairpins=confs.get(section_name, "custom_hairpins"),
-            custom_internals=confs.get(section_name, "custom_internals"),
-            custom_bulges=confs.get(section_name, "custom_bulges"),
+            custom_hairpins=Path(confs.get(section_name, "custom_hairpins")),
+            custom_internals=Path(confs.get(section_name, "custom_internals")),
+            custom_bulges=Path(confs.get(section_name, "custom_bulges")),
             replace_hairpins=confs.getboolean(section_name, "replace_hairpins"),
             replace_internals=confs.getboolean(section_name, "replace_internals"),
             replace_bulges=confs.getboolean(section_name, "replace_bulges"),

@@ -1,6 +1,7 @@
 import argparse
-from typing import Any, Optional, Sequence, Literal
+from typing import Any, Literal
 from sys import stderr
+from collections.abc import Sequence
 from pathlib import Path
 from os import cpu_count, access, W_OK
 import logging
@@ -21,13 +22,13 @@ class MotifFileCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: Optional[str] | Sequence[Any],
-        option_string: Optional[str] = None,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, MotifFileCheck._motif_file_check_function(str(value)))
 
     @staticmethod
-    def _motif_file_check_function(value: Optional[str]) -> Path:
+    def _motif_file_check_function(value: None | str) -> Path:
         if value is not None and value != "":
             if Path(value).resolve().is_file():
                 return Path(value)
@@ -43,14 +44,15 @@ class LogCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: Optional[str] | Sequence[Any],
-        option_string: Optional[str] = None,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, LogCheck._log_check_function(str(value)))
 
     @staticmethod
     def _log_check_function(value: str) -> str:
-        """Checks if the given value is a valid log level, raises ValueError if not"""        
+        """Checks if the given value is a valid log level, raises ValueError if not"""
+
         if not isinstance(getattr(logging, value.upper(), None), int):
             raise ValueError(f"Invalid log level: {value}")
         else:
@@ -65,8 +67,8 @@ class FloatCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: Optional[str] | Sequence[Any],
-        option_string: Optional[str] = None,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, FloatCheck._float_check_function(str(value)))
 
@@ -87,13 +89,13 @@ class WorkerCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: Optional[str | Sequence[Any]],
-        option_string: Optional[str] = None,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, WorkerCheck.worker_check_function(value))  # type: ignore
 
     @staticmethod
-    def worker_check_function(value: Optional[str]) -> Optional[int]:
+    def worker_check_function(value: None | str) -> None | int:
         """Checks if the given value is a valid number of CPU cores based on the number of available cpus from os.cpu_count, raises ValueError if not"""
         cpus: int = cpu_count()
         if value is not None:
@@ -117,13 +119,13 @@ class MotifListCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: Optional[str | Sequence[Any]],
-        option_string: Optional[str] = None,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, MotifListCheck._motif_list_check_function(value))
 
     @staticmethod
-    def _motif_list_check_function(value: Optional[str | Sequence[Any]]) -> str:
+    def _motif_list_check_function(value: None | str | Sequence[Any]) -> str:
         """Checks if the given value is a valid motif list, if input is None or empty, returns an empty string"""
         if value is None:
             return ""
@@ -140,7 +142,7 @@ class ConfigCheck(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: Optional[str] = None,
+        option_string: None | str = None,
     ):
         """Checks if the given value is a valid config file, if input is None or empty, returns an empty string. Raises FileNotFoundError if the file does not exist"""
         if value == "":
@@ -161,7 +163,7 @@ class OutputFileCheck(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: Optional[str] = None,
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, OutputFileCheck.output_file_check_function(value))  # type: ignore
 
@@ -196,7 +198,7 @@ class OutputFileCheck(argparse.Action):
             return False
 
     @staticmethod
-    def output_file_check_function(value: Optional[str]):
+    def output_file_check_function(value: None | str):
         """Checks if the given value is a valid output file path, raises FileNotFoundError if not"""
         if value is None:
             return None
@@ -217,7 +219,7 @@ class AlgorithmMatching(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: Optional[str] = None,
+        option_string: None | str = None,
     ):
         setattr(namespace, self.dest, AlgorithmMatching.algorithm_matching_function(value))  # type: ignore , ignored cause of the base value typing. Only non protected function
 
