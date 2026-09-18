@@ -119,7 +119,7 @@ class bgap_rna:
     @temperature.setter
     def temperature(self, temp: float):
         if not -273 < temp < 100:
-            logger.info("Temperature outside realistic range, beware results may be inaccurate")
+            raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
         self._temperature = temp
 
     @property
