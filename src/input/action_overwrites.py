@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from os import cpu_count, access, W_OK
 import logging
+import subprocess
 from multiprocessing import cpu_count
 
 loggers = logging.getLogger("InputChecks")
@@ -12,6 +13,24 @@ loggers = logging.getLogger("InputChecks")
 """"Module for different types of check function used during cmd argument parsing and config file parsing. Overwrites of argparse.Action are used to implement
 these checks. The check functions are used to check if the given input is valid and if not, raise an error.
 """
+
+class VersionParser(argparse.Action):
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self,parser:argparse.ArgumentParser,
+                 namespace:argparse.Namespace,
+                 value:None|str|Sequence[Any],
+                 option_string:None|str = None):
+        setattr(namespace,self.dest,VersionParser._parse_version(value))
+
+
+    @staticmethod
+    def _parse_version(value:str|None|Sequence[Any]):
+        if value is not None:
+            return str(value).replace(".","_")
+        else:
+            return "current"
 
 
 class MotifFileCheck(argparse.Action):
@@ -241,3 +260,86 @@ class AlgorithmMatching(argparse.Action):
                 raise ValueError(
                     f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
                 )
+
+class cmake_check(argparse.Action):
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
+    ):
+        if Path(str(value)).is_file():
+            try:
+                version_check = subprocess.run(
+                    [f"{value}", "--version"], capture_output=True, check=True
+                )
+            except (subprocess.CalledProcessError, PermissionError) as error:
+                raise RuntimeError(
+                    "Unable to open file, check the above error for more information."
+                ) from error
+            else:
+                if "cmake version" in version_check.stdout.decode().lower():
+                    setattr(namespace, self.dest, value)
+                else:
+                    raise RuntimeError("The given file is not an instance of CMake.")
+
+
+class preinstalled_check(argparse.Action):
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
+    ):
+        if isinstance(value, str):
+            if Path(value).is_file():
+                try:
+                    version_check = subprocess.run(
+                        [f"{value}", "--version"], capture_output=True, check=True
+                    )
+                except (subprocess.CalledProcessError, PermissionError) as error:
+                    raise RuntimeError(
+                        "Unable to open file, check the above error for more information."
+                    ) from error
+                else:
+                    if "gapc" in version_check.stdout.decode():
+                        setattr(namespace, self.dest, Path(value))
+                    else:
+                        raise RuntimeError(
+                            "The given file is not an instance of the modified Bellman's GAP compiler."
+                        )
+            else:
+                raise FileNotFoundError("The given file does not exist.")
+        else:
+            raise ValueError("Why is my value a Sequence ?")
+
+
+class perl_check(argparse.Action):
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
+    ):
+        setattr(namespace, self.dest, PerlCheckFunction(value))
+
+
+def PerlCheckFunction(value: None | str | Sequence[Any]) -> Path | None:
+    if isinstance(value, str):
+        answer = subprocess.run([f"{value}", "-v"], capture_output=True, check=True)
+        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
+            return Path(value).resolve()
+        else:
+            raise RuntimeError("The given file is not a perl interpreter.")

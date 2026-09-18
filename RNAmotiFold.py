@@ -1,10 +1,12 @@
 from src.bgap_rna import bgap_rna, input_handler, motif_handler, subprocess_handler
+from src.results import base_result,algorithm_output
 import installer
 import src.bgap_rna.alg_setup as setup
 import src.input.arg_parsing as arg_parsing
 import logging
 from pathlib import Path
 import sys
+import copy
 
 logger = logging.getLogger("RNAmotiFold")
 
@@ -14,77 +16,6 @@ except ImportError as e:
     raise ImportError(
         f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {Path(__file__).absolute().parent}"
     )
-
-
-# Interactive session to run multiple predictions in an "interactive" environment
-# def _interactive_session(
-#    runtime_arguments: ScriptParameters,
-# ) -> list[algorithm_output | error]:
-#    """Function is an infinite while Loop that always does one prediction, appends the result to a list and waits for a new input. List of results is returned"""
-#    result_list: list[list[algorithm_output | error]] = []
-#    proc_obj = bgap_rna.bgap_rna.from_script_parameters(runtime_arguments)
-#    logger.debug("Created bgap_rna obj: " + repr(proc_obj))
-#    while True:
-#        print("Awaiting input...")
-#        user_input = input()
-#        if user_input.strip().lower() in ["exit", "eixt", "exi"]:
-#            logger.debug("Exit was given as input, exiting...")
-#            break
-#        elif user_input.strip().lower() in ["h", "help", "-h"]:
-#            print(
-#                f"You are currently using the following algorithm call:\n{str(proc_obj)}\n Please input a RNA/DNA sequence or a fasta, fastq or stockholm formatted sequence file."
-#            )
-#        else:
-#            try:
-#                realtime_input: (
-#                    FastaIO.FastaIterator
-#                    | QualityIO.FastqPhredIterator
-#                    | Generator[SeqRecord, None, None]
-#                    | SeqRecord
-#                    | list[SeqRecord]
-#                ) = _input_check(user_input, runtime_arguments.id)
-#            except ValueError as v_error:
-#                print(v_error)
-#            except OSError as os_error:
-#                print(os_error)
-#            #else:
-#    result: list[
-#        algorithm_output | error
-#    ] = proc_obj.auto_run(
-#        realtime_input,
-#        version=runtime_arguments.version,
-#        o_file=runtime_arguments.output,
-#        pool_workers=runtime_arguments.workers,
-#        output_csv_separator=runtime_arguments.separator,
-#        merge=runtime_arguments.fast_mode_merge,
-#    )
-#    result_list.append(result)
-# flat_list = results.flatten(result_list)
-# proc_obj.cleanup_temp_files()
-# return flat_list  # Added result outputting just in case I wanna do something with that down the line.
-
-
-# Uninteractive session in case of preset input, just does the calculation and exits
-# def _uninteractive_session(
-#    runtime_arguments: arg_parsing.script_parameters,
-# ) -> list[results.algorithm_output | results.error]:
-#    runtime_input = _input_check(runtime_arguments.input, runtime_arguments.id)  # type: ignore cause we can only get here by argument not being None in main
-#    proc_obj = bgap.bgap_rna.from_script_parameters(runtime_arguments)
-#    logger.debug("Created bgap_rna obj: " + repr(proc_obj))
-#    result: list[results.algorithm_output | results.error] = (
-#        proc_obj.auto_run(
-#            user_input=runtime_input,
-#            version=runtime_arguments.version,
-#            o_file=runtime_arguments.output,
-#            pool_workers=runtime_arguments.workers,
-#            output_csv_separator=runtime_arguments.separator,
-#            merge=runtime_arguments.fast_mode_merge,
-#            name=runtime_arguments.id,
-#        )
-#    )
-#    proc_obj.cleanup_temp_files()
-#    return result
-
 
 def combine_calls(base_call: str, motif_subcalls: list[str]):
     if len(motif_subcalls) == 0:
@@ -97,6 +28,14 @@ def check_install() -> bool:
     checkpath = Path(__file__).parent / "Build" / "bin" / "RNAmotiFold"
     return checkpath.is_file()
 
+def create_inputs(calls:list[str],inputs:list[input_handler.algorithm_input]) -> list[input_handler.algorithm_input]:
+    full_inputs: list[input_handler.algorithm_input] = []
+    for input in inputs:
+        for call in calls:
+            new_input = copy.copy(input)
+            new_input.call = call
+            full_inputs.append(new_input)
+    return full_inputs
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
 def configure_logs(loglevel: str, logfile: Path | None) -> None:
@@ -118,7 +57,12 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
 
 
 if __name__ == "__main__":
+    #Parse CMD and configure logger and result objects
     rt_args, additional_parameters = arg_parsing.get_cmdarguments()
+    configure_logs(rt_args.loglevel,rt_args.logfile)
+    base_result.result.separator = rt_args.separator
+    logger.debug(rt_args)
+    #Check if RNAmotiFold is installed and do updates if necessary/wanted
     if not check_install():
         installer.main()
         if not check_install():
@@ -127,9 +71,19 @@ if __name__ == "__main__":
             )
     else:
         if not rt_args.no_update:
-            setup.updates(motif_version=rt_args.version)
-
-    rt_args.version = motifs.currently_installed().replace(".", "_")
+            try:
+                updated = setup.updates(motif_version=rt_args.version)
+            except:
+                pass
+            else:
+                if updated:
+                    logger.debug(f"Updated to {rt_args.version}")
+                else:
+                    logger.debug(f"Failed to update to version {rt_args.version}")
+        else:
+            if rt_args.version == "current":
+                rt_args.version = motifs.currently_installed()
+    #Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
     input_maker = input_handler.input_handler(rt_args.process_type, rt_args.input)
     motif_subcall_maker = motif_handler.motif_handler(
         rt_args.motif_list,
@@ -142,44 +96,36 @@ if __name__ == "__main__":
         rt_args.replace_bulges,
         rt_args.version,
     )
+    motif_calls = motif_subcall_maker.motif_calls
     call_maker = bgap_rna.bgap_rna.from_script_parameters(rt_args)
     subprocess_manager = subprocess_handler.subprocess_handler(
-        rt_args.workers, None, rt_args.output, rt_args.alg_type()
+        rt_args.workers,  rt_args.output, rt_args.alg_type(),len(motif_calls)
     )
+    full_calls: list[str] = combine_calls(call_maker.call, motif_calls)
+
     if rt_args.input is not None:
         inputs: list[input_handler.algorithm_input] = input_maker.read_input(
             rt_args.process_type, rt_args.input, rt_args.id
         )
+        alg_input = create_inputs(full_calls,inputs)
+        results = subprocess_manager.run(alg_input,rt_args.fast_mode_merge)
     else:
-        raise ValueError("no input set")
-    full_calls: list[str] = combine_calls(call_maker.call, motif_subcall_maker.motif_calls)
-    full_inputs: list[input_handler.algorithm_input] = []
-    for call in full_calls:
-        for input in inputs:
-            input.call = call
-            full_inputs.append(input)
-    subprocess_manager.inputs = full_inputs
-    results = subprocess_manager.run()
-
+        while True:
+            print("Awaiting input...")
+            user_input = input()
+            if user_input.strip().lower() in ["exit","eixt","exi"]:
+                print("Exiting...")
+                break
+            else:
+                try:
+                    rt_input = input_maker.read_input(rt_args.process_type,user_input,rt_args.id)
+                except ValueError as e:
+                    print(e)
+                    continue
+                except OSError as e:
+                    print(e)
+                    continue
+                alg_input = create_inputs(full_calls,rt_input)
+                results = subprocess_manager.run(alg_input,rt_args.fast_mode_merge)
     input_handler.algorithm_input.cleanup_temps()
     motif_subcall_maker.cleanup_tmp_files()
-    # try:
-    #    configure_logs(
-    #        loglevel=rt_args.loglevel, logfile=rt_args.logfile
-    #    )
-    #    if not rt_args.no_update:
-    #        setup.updates(motif_version=rt_args.version)
-    #    rt_args.version = motifs.currently_installed().replace(".", "_")
-    # except ValueError as error:
-    #    raise error
-    # logger.debug("Input args: " + repr(rt_args))
-    # if rt_args.input is not None:
-    #    logger.info("Input is set, starting calculations")
-    #    out: list[results.algorithm_output | results.error] = (
-    #        _uninteractive_session(runtime_arguments=rt_args)
-    #    )
-    # else:
-    #    logger.info("No input set, starting interactive session")
-    #    out: list[results.algorithm_output | results.error] = (
-    #        _interactive_session(runtime_arguments=rt_args)
-    #    )

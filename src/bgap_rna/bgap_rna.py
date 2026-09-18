@@ -1,9 +1,6 @@
 from pathlib import Path
 from typing import Literal
-import logging
 from src.input.parameters import ScriptParameters
-
-logger = logging.getLogger("bgap_rna")
 
 # A Python class for making Bellman's GAP more convenient to use
 # Just create a class instances, feed it with the call arguments you need
@@ -28,47 +25,6 @@ class bgap_rna:
     def __str__(self) -> str:
         return self.call
 
-    #    @staticmethod
-    #    def postprocessing_mfe(merged_output: src.results.base_result.algorithm_output) -> src.results.base_result.algorithm_output:
-    #        """
-    #        Postprocessing function for merging outputs of the seperated motif predictions
-    #        """
-    #        mfe_dict: dict[float, list[base_result.result_mfe]] = {}
-    #        for res in merged_output.results:
-    #            if (
-    #                isinstance(res, base_result.result_mfe) and res.classifier
-    #            ):  # this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
-    #                if (
-    #                    res.free_energy not in mfe_dict.keys()
-    #                ):  # -> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
-    #                    mfe_dict[res.free_energy] = [res]
-    #                else:
-    #                    mfe_dict[res.free_energy].append(res)
-    #        for key in mfe_dict.keys():
-    #            if len(mfe_dict[key]) > 1:
-    #                merge_candidates = base_result.result_mfe.get_compatible_structures(mfe_dict[key])
-    #                for compatible_structures in merge_candidates:
-    #                    new_result = base_result.result_mfe.merge_structures(
-    #                        [mfe_dict[key][i] for i in compatible_structures]
-    #                    )
-    #                    if new_result is not None:
-    #                        merged_output.results.append(new_result)
-    #            else:
-    #                continue
-    #        merged_output.results.sort(key=lambda x: x.free_energy)  # type: ignore
-    #        return merged_output
-    #
-    #    @staticmethod
-    #    def postprocessing_pfc(
-    #        merged_output: list[base_result.algorithm_output],
-    #    ) -> list[base_result.algorithm_output]:
-    #        returnlist: list[base_result.algorithm_output] = []
-    #        checklist: list[str] = []
-    #        for output in merged_output:
-    #            if str(output) not in checklist and len(output.results) > 1:
-    #                checklist.append(str(output))
-    #                returnlist.append(output)
-    #        return returnlist
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
@@ -382,50 +338,3 @@ class bgap_rna:
         else:
             self._motif_string = motif_str
 
-    # Calibrate results.algorithm objects based on the current status of the bgap_rna class instance
-#    def _calibrate_result_objects(self, sep: str = "\t"):
-#        """Calibrate result objects to current configuration (separator, algorithm and pfc + probability filtering)"""
-#        base_result.result.separator = sep
-#        if self.pfc:
-#            base_result.algorithm_output.Status = "pfc"
-#        elif self.algorithm == "RNAmotiAlign":
-#            base_result.algorithm_output.Status = "alignment"
-#        else:
-#            base_result.algorithm_output.Status = "mfe"
-#
-#    # Calibrate result objects and run either a single process if the input is a SeqRecord Object or run multiple predictions if input was a file or list of SeqRecord objects
-#    def auto_run(
-#        self,
-#        user_input: (
-#            SeqRecord
-#            | list[SeqRecord]
-#            | FastaIO.FastaIterator
-#            | QualityIO.FastqPhredIterator
-#            | Generator[SeqRecord, None, None]
-#        ),
-#        version: str,
-#        o_file: Optional[Path | str] = None,
-#        pool_workers: int = multiprocessing.cpu_count(),
-#        output_csv_separator: str = "\t",
-#        merge: bool = False,
-#        name: str = "N/A",
-#    ) -> list[base_result.algorithm_output | base_result.error]:
-#        """Checks type of self.input and runs a Single Process in case of a SeqRecord or a MultiProcess in case of an Iterable as input."""
-#
-#        if output_csv_separator == r"\t":
-#            output_csv_separator = output_csv_separator.replace(r"\t", "\t")
-#        self._calibrate_result_objects(output_csv_separator)
-#        motif_files = self._calibrate_self(version=version)
-#        if self.algorithm == "RNAmotiAlign" and (
-#            isinstance(user_input, FastaIO.FastaIterator) or isinstance(user_input, list)
-#        ):
-#            output = self._run_alignment_folding(user_input, o_file, name)
-#        elif self.fast_mode:
-#            output = self.run_separate_processes(
-#                user_input, motif_files, o_file, pool_workers, merge
-#            )
-#        elif isinstance(user_input, SeqRecord):
-#            output = self._run_single_process(user_input, o_file)
-#        else:
-#            output = self._run_multi_process(user_input, o_file, workers=pool_workers)
-#        return output

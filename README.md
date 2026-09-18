@@ -11,6 +11,7 @@ If you have any questions please reach out to me through my public email address
 
 # Dependencies
 Tested on the following dependencies:
+ + Ubuntu == 24.04
  + CMake ==  3.16
  + m4 == 1.4.19
  + perl interpreter == perl v5.38.2
@@ -36,13 +37,13 @@ Tested on the following dependencies:
 ---
 
 # Setup
-RNAmotiFold should be compatible with most UNIX systems, but it is not windows compatible.
+RNAmotiFold should be compatible with most UNIX systems, but it is not windows compatible. The following installation guide was written for ubuntu, but as long as the Build folder is there and you have the necessary python environment, everything should work as intended.
 You do not need admin rights for your system to install RNAmotiFold, everything necessary will be installed locally.
 
 
-0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules` and set up a Build Folder with `cd RNAmotiFold && mkdir Build`
-1. Optinally create a virtual environment with `cd Build && python3 -m venv . && cd ..` and activate it with `source Build/bin/activate`. Run `pip install -r requirements.txt` to install non-default python packages into your python environment.
-2. Run `python3 setup.py` (this may take a couple minutes).
+0. Clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules` and set up a Build Folder with `cd RNAmotiFold && mkdir Build`. Make sure the folder is called `Build`! This is important to some of the scripts that don't work without it. 
+1. Optinally create a virtual environment with `cd Build && python3 -m venv . && cd ..` and activate it with `source Build/bin/activate`. Run `pip install -r requirements.txt` from to install non-default python packages into your python environment.
+2. Run `python3 installer.py` (this may take a couple minutes, especially if a newer motif version is available).
 3. You can now use ``RNAmotiFold.py`` as a wrapper for ``RNAmotiFold``, ``RNAmoSh`` and ``RNAmotiCes`` or run any of them directly from `/RNAmotifold/Build/bin/`.
 
 ### Usage
@@ -56,4 +57,4 @@ You do not need admin rights for your system to install RNAmotiFold, everything 
 + By default, results are piped to stdout and log messages to stderr. You can either pipe them manually with ``>`` and ``2>`` or with the ``RNAmotiFold.py`` commandline parameters ``-o [path to result destination file]`` and ``--logfile [path to log destination file]``
 + Beware that custom motif identifiers can NOT be used with ``RNAmoSh``, unless you add the specific letters to the shape alphabet of the gapcM, which you can find under /RNAmotiFold/Build/gapc-prefix/src/gapcM/rtlib/shape_alph.hh. After changing the file you will need to recompile the gapcM by re-running the cMake build script (`cd` into the Build folder and run `cmake .. && cmake --build .` ).
     + On the other hand you can also just reuse the already implemented motif abbreviations: G, U, T, L, D, A, M, K, S, C (and their lower case versions) for you own sequences. Only do this when fully replacing the Rfam/RNA 3D Motif Atlas sequences with your own motif sequence set to avoid ambiguities (use the ``-X [path to hairpin loop csv]``/``-Y [path to internal loop csv]``/``-Z [path to bulge loop csv]`` and ``-L``/``-E``/``-G`` commandline parameters)!
-+ The ``RNAmotiFold.py`` wrapper takes arguments from the commandline or from a config.ini file, a premade config file is provided under ``RNAmotiFold/src/config.ini``. In case you want to change the defaults I set for all the parameters, you can change them by editing the ``/RNAmotiFold/src/data/defaults.ini``.
++ The ``RNAmotiFold.py`` wrapper takes arguments from the commandline or from a config.ini file, a premade config file is provided under ``RNAmotiFold/src/config.ini``. In case you want to change the defaults I set for any the parameters, you can change them by editing the ``/RNAmotiFold/src/defaults/defaults.ini``.

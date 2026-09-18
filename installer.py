@@ -1,9 +1,10 @@
 import src.bgap_rna.alg_setup
+from pathlib import Path
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
 except ImportError as e:
     print(
-        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {ROOT_DIR}"
+        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {Path(__file__).parent.absolute()}"
     )
     raise e
 

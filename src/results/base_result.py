@@ -31,9 +31,13 @@ class result:
     @property
     def tsv(self) -> str:
         """Returns tsv string of itself"""
+        if result.separator == r"\t":
+            result.separator = "\t"
         return result.separator.join([str(self.__dict__[x]) for x in self.__dict__ ])
 
     @property
     def header(self) -> str:
+        if result.separator == r"\t":
+            result.separator = "\t"
         """Returns header string of itself, adapted to currently set algorithm"""
         return result.separator.join(self.__dict__.keys())

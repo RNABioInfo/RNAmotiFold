@@ -141,8 +141,8 @@ class input_handler:
                 raise ValueError(
                     "Input was neither a viable file path nor a viable RNA or DNA sequence"
                 )
-        except OSError:
-            pass
+        except OSError as e:
+            raise e
         except ValueError as e:
             raise e
         # No error was raised so we can assume that it is not a directory or file in the system but it is a viable sequence
@@ -214,25 +214,3 @@ class input_handler:
             case _:
                 filetype = [file_extension]
         return (input_zipped, filetype)
-
-
-if __name__ == "__main__":
-    new_handler = input_handler("ali", "/home/ubuntu/ztest/test.txt")
-    print(new_handler.user_input)
-    print("___")
-    new_handler = input_handler("ali", "/home/ubuntu/ztest")
-    print(new_handler.user_input)
-    print("___")
-    new_handler = input_handler("single", "/home/ubuntu/ztest/test.txt")
-    print(new_handler.user_input)
-    print("___")
-    new_handler = input_handler("single", "/home/ubuntu/ztest")
-    print(new_handler.user_input)
-    # new_handler = input_handler("ali", "/home/ubuntu/ztest/")
-    # new_handler = input_handler("ali", "GGGGAGACCC")
-    # OK we can read our input now, should work fine for now. Next step: Convert inputs into a unified format: A list of strings, each is an individual input
-    # Be it an alignment, or individual sequences. Generating the right call for each input is left to the next part. This makes it a clean break between process
-    # steps and is much easier to follow. Input handler reads inputs, processes them and returns a list of individual inputs to process. Since the main process knows
-    # what computations it's gonna do, we can just use that. All functions here also work for the interactive mode, though it is a lot of overhead with all the processing.
-    # If someone puts in a single sequence this always does the full check, though then again it is kinda worth it.
-    # Actually dont return a string, for each input we return one instance of the dataclass defined above, so we can assign an id to each input and use that later during outputs!

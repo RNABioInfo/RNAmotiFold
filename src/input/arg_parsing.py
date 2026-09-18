@@ -12,6 +12,7 @@ from src.input.action_overwrites import (
     ConfigCheck,
     MotifListCheck,
     AlgorithmMatching,
+    VersionParser
 )
 
 loggers = logging.getLogger("RNAmotiFold.args")
@@ -104,6 +105,7 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
         "--version",
         help=f"Specify which RNA 3D Motif sequence version you want to use. Use --no_update to disabled checking for new motif versions.",
         dest="version",
+        action=VersionParser,
         type=str,
         default="current",
     )

@@ -1,8 +1,6 @@
 import multiprocessing.pool
 import shutil
 from pathlib import Path
-from collections.abc import Sequence
-from typing import Any
 import configparser
 import subprocess
 import argparse
@@ -10,6 +8,7 @@ import sys
 import logging
 import multiprocessing
 from itertools import product
+import src.input.action_overwrites
 
 ROOT_DIR = Path(__file__).absolute().parents[2]
 
@@ -42,7 +41,7 @@ def get_cmd_args():
         "--cmake_path",
         nargs="?",
         dest="cmake_path",
-        action=cmake_check,
+        action=src.input.action_overwrites.cmake_check,
         default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
         type=str,
         help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,'src','data','defaults.ini'))}. If no default is set the script will try to find a cmake with which.",
@@ -50,7 +49,7 @@ def get_cmd_args():
     parser.add_argument(
         "--gapc_path",
         nargs="?",
-        action=preinstalled_check,
+        action=src.input.action_overwrites.preinstalled_check,
         dest="gapc_path",
         default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
         type=str,
@@ -60,7 +59,7 @@ def get_cmd_args():
         "--perl_path",
         nargs="?",
         dest="perl_path",
-        action=perl_check,
+        action=src.input.action_overwrites.perl_check,
         default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
         type=str,
         help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
@@ -70,6 +69,7 @@ def get_cmd_args():
         "--version",
         help=f"Specify which RNA 3D Motif sequence version you want to use. Default is the newest version.",
         dest="version",
+        action=src.input.action_overwrites.VersionParser,
         type=str,
         default="current",
     )
@@ -82,6 +82,7 @@ def get_cmd_args():
         help=f"Specify how many parallel processes may be spawned to speed up algorithm compilation. Default can be set at  {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))}.",
     )
     args = parser.parse_known_args()[0]
+    print(args)
 
     if args.cmake_path is None:
         cmake_path = fallback_finder("cmake")
@@ -108,90 +109,6 @@ def get_cmd_args():
         setattr(args, "workers", workers)
 
     return args
-
-
-class cmake_check(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
-        if Path(str(value)).is_file():
-            try:
-                version_check = subprocess.run(
-                    [f"{value}", "--version"], capture_output=True, check=True
-                )
-            except (subprocess.CalledProcessError, PermissionError) as error:
-                raise RuntimeError(
-                    "Unable to open file, check the above error for more information."
-                ) from error
-            else:
-                if "cmake version" in version_check.stdout.decode().lower():
-                    setattr(namespace, self.dest, value)
-                else:
-                    raise RuntimeError("The given file is not an instance of CMake.")
-
-
-class preinstalled_check(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
-        if isinstance(value, str):
-            if Path(value).is_file():
-                try:
-                    version_check = subprocess.run(
-                        [f"{value}", "--version"], capture_output=True, check=True
-                    )
-                except (subprocess.CalledProcessError, PermissionError) as error:
-                    raise RuntimeError(
-                        "Unable to open file, check the above error for more information."
-                    ) from error
-                else:
-                    if "gapc" in version_check.stdout.decode():
-                        setattr(namespace, self.dest, Path(value))
-                    else:
-                        raise RuntimeError(
-                            "The given file is not an instance of the modified Bellman's GAP compiler."
-                        )
-            else:
-                raise FileNotFoundError("The given file does not exist.")
-        else:
-            raise ValueError("Why is my value a Sequence ?")
-
-
-class perl_check(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
-        setattr(namespace, self.dest, PerlCheckFunction(value))
-
-
-def PerlCheckFunction(value: None | str | Sequence[Any]) -> Path | None:
-    if isinstance(value, str):
-        answer = subprocess.run([f"{value}", "-v"], capture_output=True, check=True)
-        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
-            return Path(value).resolve()
-        else:
-            raise RuntimeError("The given file is not a perl interpreter.")
 
 def _detect_gapc() -> Path:
     """Checks for a gapc installation with which and globs RNAmotiFold folder for any gapc instance (which is presumed to be a modified gapc, if you have a different gapc in here that's on you)"""
@@ -341,7 +258,7 @@ def updates(motif_version: str) -> bool:
             try:
                 poolboys = multiprocessing.cpu_count() - 1
             except NotImplementedError as error:
-                logger.critical("Could not count cpus, playing it safe and setting CPU_count to 2")
+                logger.info("Could not count cpus, playing it safe and setting CPU_count to 2")
                 poolboys = 2
         setup_algorithms(gapc_path=gapc_path, perl_path=perl_path, poolboys=poolboys)
         return True

@@ -207,12 +207,12 @@ class motif_handler:
         write each set to a separate temp file and finally return the path to a tempdir where all the tempfiles have been written.
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
-        subdir = tempfile.TemporaryDirectory(dir=tempdir.name)
+        subdir = tempfile.TemporaryDirectory(dir=tempdir.name,delete=False)
         groups: dict[str, list[str]] = motif_handler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
             motif_temp = tempfile.NamedTemporaryFile(
-                dir=tempdir.name,
+                dir=subdir.name,
                 delete=False,
                 delete_on_close=False,
                 suffix=".tmp",
