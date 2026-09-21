@@ -39,7 +39,7 @@ class ScriptParameters:
     logfile: Path | None
     workers: int
     separator: str
-    no_update: bool
+    update: bool
     version: str
     fast_mode: bool
     fast_mode_merge: bool
@@ -106,7 +106,7 @@ class ScriptParameters:
             logfile=logfile_path,
             workers=args.workers,
             separator=args.separator,
-            no_update=args.no_update,
+            update=args.update,
             version=args.version,
             fast_mode=args.fast_mode,
             fast_mode_merge=args.merge,
@@ -173,7 +173,7 @@ class ScriptParameters:
             logfile=logpath,
             workers=confs.getint(section_name, "workers"),
             separator=confs.get(section_name, "separator"),
-            no_update=confs.getboolean(section_name, "no_update"),
+            update=confs.getboolean(section_name, "update"),
             version=confs.get(section_name, "version"),
             fast_mode=confs.getboolean(section_name, "fast_mode"),
             fast_mode_merge=confs.getboolean(section_name, "merge"),

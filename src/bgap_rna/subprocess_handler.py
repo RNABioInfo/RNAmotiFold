@@ -52,6 +52,8 @@ class subprocess_handler:
         """Simplest listener funtion that should also work universally, takes the result objects put into its queue by the workers, writes them down or prints them.
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
+        if calls_per_input == 0:
+            calls_per_input += 1
         return_list: list[
             src.results.algorithm_output.algorithm_output | src.results.algorithm_output.error
         ] = []

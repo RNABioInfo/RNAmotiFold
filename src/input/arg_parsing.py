@@ -296,12 +296,11 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     )
     # Arguments for updating motifs
     parser.add_argument(
-        "--nu",
-        "--no_update",
-        help=f"Blocks checking for new RNA 3D Motif Atlas version (saves quite some time on startup cause the server is slow).",
-        default=config.getboolean(config.default_section, "no_update"),
+        "--update",
+        help=f"Tells script to look if there is a new version of the RNA 3D Motif Atlas available. This may take quite a while.",
+        default=config.getboolean(config.default_section, "update"),
         action="store_true",
-        dest="no_update",
+        dest="update",
     )
     parser.add_argument(
         "--motifs",

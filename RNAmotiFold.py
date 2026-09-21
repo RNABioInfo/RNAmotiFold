@@ -70,7 +70,7 @@ if __name__ == "__main__":
                 "Could not find installed algorithm binaries, please run installer.py if you haven't yet"
             )
     else:
-        if not rt_args.no_update:
+        if rt_args.update:
             try:
                 updated = setup.updates(motif_version=rt_args.version)
             except:
