@@ -10,6 +10,7 @@ import glob
 import tempfile
 from os import remove
 
+
 # List flattening
 def flatten(xss: list[list[Any]]) -> list[Any]:
     """

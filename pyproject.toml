@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RNAmotiFold"
+version = "1.0.0"
+authors = [{name="Marius Sebeke", email="marius.sebeke@ibmg.uni-stuttgart.de"}]
+maintainers = [{name="Marius Sebeke", email="marius.sebeke@ibmg.uni-stuttgart.de"}]
+keywords = [
+    "RNA",
+    "RNA structure",
+    "RNA folding",
+    "RNA 3D Motifs"
+]
+description="Wrapper for RNAmotiFold"
+readme = "README.md"
+requires-python = ">=3.12.3"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: POSIX",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+    "bio>=1.6.2",
+    "requests>=2.32.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/RNABioInfo/RNAmotiFold"
+Issues = "https://github.com/RNABioInfo/RNAmotiFold/issues"

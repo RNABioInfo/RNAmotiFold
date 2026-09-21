@@ -1,9 +1,13 @@
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Literal
+from typing import Literal
 from argparse import Namespace
 from configparser import ConfigParser
-from src.input.action_overwrites import OutputFileCheck, WorkerCheck, AlgorithmMatching
+from src.RNAmotiFold.input.action_overwrites import (
+    OutputFileCheck,
+    WorkerCheck,
+    AlgorithmMatching,
+)
 
 
 @dataclass

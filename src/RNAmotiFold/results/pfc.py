@@ -1,14 +1,11 @@
-import src.results.base_result
+import src.RNAmotiFold.results.base_result
 
 
-class result_pfc(src.results.base_result.result):
+class result_pfc(src.RNAmotiFold.results.base_result.result):
     """Subclass of result for PFC results, adds pfc_value and pfc_sum attributes as well as probability calculation. Implements comparison based on pfc values."""
+
     def __init__(
-        self,
-        id: str,
-        classifier: str,
-        pfc_value: str | int | float,
-        probability:float
+        self, id: str, classifier: str, pfc_value: str | int | float, probability: float
     ) -> None:
         super().__init__(id, classifier)
         self.pfc_value = float(pfc_value)
@@ -46,5 +43,5 @@ class result_pfc(src.results.base_result.result):
             id=id,
             classifier=split_stripped_results[0],
             pfc_value=split_stripped_results[1],
-            probability = round(float(split_stripped_results[1]) / pfc_sum,4)
+            probability=round(float(split_stripped_results[1]) / pfc_sum, 4),
         )

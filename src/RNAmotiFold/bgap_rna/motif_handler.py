@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import glob
 from typing import Literal
-from src.input.parameters import ScriptParameters
+from src.RNAmotiFold.input.parameters import ScriptParameters
 
 
 class motif_handler:
@@ -36,6 +36,19 @@ class motif_handler:
         self.replace_internals = replace_internals
         self.custom_bulges = custom_bulge_filepath
         self.replace_bulges = replace_bulges
+        self._call_number:int|None = None
+        
+    @property
+    def call_number(self) -> int:
+        if self._call_number is None:
+            raise ValueError("No calls set yet")
+        else:
+            return self._call_number
+        
+    @call_number.setter
+    def call_number(self,new_number:int):
+        self._call_number = new_number
+    
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> "motif_handler":
@@ -71,6 +84,7 @@ class motif_handler:
             )
             and not self.single_motif_mode
         ):
+            self.call_number = 1
             return []
         separate_motif_files = self.get_motif_files()
         hairpins = motif_handler._make_file_list(
@@ -110,20 +124,21 @@ class motif_handler:
             bulge_calls = motif_handler._split_calls(
                 glob.glob(str(temp_folders[2] / "*.tmp")), "bulge"
             )
+            self.call_number = len(hairpin_calls + internal_calls + bulge_calls)
+            print(hairpin_calls + internal_calls + bulge_calls)
             return hairpin_calls + internal_calls + bulge_calls
         else:
             concat_hairpins = self._filter_concat(hairpins, self.motif_string, self._tmp_folder)
             concat_internals = self._filter_concat(internals, self.motif_string, self._tmp_folder)
             concat_bulges = self._filter_concat(bulges, self.motif_string, self._tmp_folder)
+            self.call_number = 1
             return [f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"]
 
     def get_motif_files(self) -> list[Path]:
         motif_dir_path = (
             Path(__file__)
             .resolve()
-            .parent.joinpath(
-                "..",
-                "..",
+            .parents[3].joinpath(
                 "submodules",
                 "RNALoops",
                 "Misc",
@@ -140,7 +155,7 @@ class motif_handler:
     @staticmethod
     def _split_calls(file_list: list[str], loop_type: Literal["hairpin", "internal", "bulge"]):
         empty_csv = (
-            Path(__file__).resolve().parents[2]
+            Path(__file__).resolve().parents[3]
             / "submodules"
             / "RNALoops"
             / "Misc"

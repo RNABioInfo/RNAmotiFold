@@ -1,14 +1,16 @@
-import src.results.base_result
+import src.RNAmotiFold.results.base_result
 import re
 
 
-class result_mfe(src.results.base_result.result):
+class result_mfe(src.RNAmotiFold.results.base_result.result):
     """Subclass of result for mfe results, has extra attributes for free energy and motBracket structure. Also implements comparison and hashing for mering structures in single motif mode"""
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:
         super().__init__(id, classifier)
         self.free_energy = free_energy
-        self.motBracket = mot_bracket #This variable gets special treatment so our outputs looks nice
+        self.motBracket = (
+            mot_bracket  # This variable gets special treatment so our outputs looks nice
+        )
 
     # Special Dunder Method for hashing and comparing mfe results, used for merging structure in single motif mode
     def __eq__(self, other: object) -> bool:

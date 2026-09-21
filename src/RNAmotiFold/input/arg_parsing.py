@@ -2,8 +2,8 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from src.input.parameters import ScriptParameters
-from src.input.action_overwrites import (
+from src.RNAmotiFold.input.parameters import ScriptParameters
+from src.RNAmotiFold.input.action_overwrites import (
     MotifFileCheck,
     LogCheck,
     FloatCheck,
@@ -12,7 +12,7 @@ from src.input.action_overwrites import (
     ConfigCheck,
     MotifListCheck,
     AlgorithmMatching,
-    VersionParser
+    VersionParser,
 )
 
 loggers = logging.getLogger("RNAmotiFold.args")
@@ -103,7 +103,7 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     parser.add_argument(
         "-v",
         "--version",
-        help=f"Specify which RNA 3D Motif sequence version you want to use. Use --no_update to disabled checking for new motif versions.",
+        help=f"Specify which RNA 3D Motif sequence version you want to use.",
         dest="version",
         action=VersionParser,
         type=str,

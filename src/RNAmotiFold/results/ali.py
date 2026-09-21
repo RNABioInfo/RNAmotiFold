@@ -1,6 +1,7 @@
 import re
 from typing import NamedTuple
-import src.results.base_result
+import src.RNAmotiFold.results.base_result
+
 
 class alignment_score(NamedTuple):
     energy: float
@@ -19,14 +20,14 @@ class alignment_score(NamedTuple):
         )
 
 
-class result_alignment(src.results.base_result.result):
+class result_alignment(src.RNAmotiFold.results.base_result.result):
     """Subclass of result for alignment results, adds alignment_score and motBracket attributes as well as special implementation for tsv and header functions"""
 
     def __init__(self, id: str, classifier: str, score: str, motBracket: str) -> None:
         super().__init__(id, classifier)
         self.score: alignment_score = alignment_score.from_string(score)
         self.motBracket: str = motBracket
-        
+
     def __eq__(self, other: object) -> bool:
         if isinstance(other, result_alignment):
             return (
@@ -36,24 +37,24 @@ class result_alignment(src.results.base_result.result):
             )
         else:
             raise NotImplementedError(f"Cannot compare result_alignment with {type(other)}")
-        
+
     def __ne__(self, other: object) -> bool:
         if isinstance(other, result_alignment):
             return not self.__eq__(other)
         else:
             raise NotImplementedError(f"Cannot compare result_alignment with {type(other)}")
-    
+
     def __lt__(self, other: "result_alignment") -> bool:
         return self.score.overall < other.score.overall
-    
+
     def __le__(self, other: "result_alignment") -> bool:
         return self.score.overall <= other.score.overall
-    
-    def __gt__(self, other: "result_alignment") -> bool:    
+
+    def __gt__(self, other: "result_alignment") -> bool:
         return self.score.overall > other.score.overall
 
     def __ge__(self, other: "result_alignment") -> bool:
-        return self.score.overall >= other.score.overall    
+        return self.score.overall >= other.score.overall
 
     @property
     def overall_score(self) -> float:
@@ -73,34 +74,30 @@ class result_alignment(src.results.base_result.result):
 
     @property
     def header(self) -> str:
-        return (
-            src.results.base_result.result.separator.join(
-                [
-                    "ID",
-                    "Motif",
-                    "Total Score",
-                    "Free Energy",
-                    "Covariance Score",
-                    "Motif Score",
-                    "MotBracket",
-                ]
-            )
+        return src.RNAmotiFold.results.base_result.result.separator.join(
+            [
+                "ID",
+                "Motif",
+                "Total Score",
+                "Free Energy",
+                "Covariance Score",
+                "Motif Score",
+                "MotBracket",
+            ]
         )
 
     @property
     def tsv(self):
-        return (
-            src.results.base_result.result.separator.join(
-                [
-                    self.id,
-                    self.classifier,
-                    str(self.score.overall),
-                    str(self.score.energy),
-                    str(self.score.covariance),
-                    str(self.score.motif),
-                    self.motBracket,
-                ]
-            )
+        return src.RNAmotiFold.results.base_result.result.separator.join(
+            [
+                self.id,
+                self.classifier,
+                str(self.score.overall),
+                str(self.score.energy),
+                str(self.score.covariance),
+                str(self.score.motif),
+                self.motBracket,
+            ]
         )
 
     @classmethod
@@ -113,4 +110,3 @@ class result_alignment(src.results.base_result.result):
             score=split_stripped_results[1],
             motBracket=split_stripped_results[2],
         )
-

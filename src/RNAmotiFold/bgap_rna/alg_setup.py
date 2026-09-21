@@ -8,9 +8,9 @@ import sys
 import logging
 import multiprocessing
 from itertools import product
-import src.input.action_overwrites
+import src.RNAmotiFold.input.action_overwrites
 
-ROOT_DIR = Path(__file__).absolute().parents[2]
+ROOT_DIR = Path(__file__).absolute().parents[3]
 
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
@@ -27,7 +27,7 @@ logger = logging.getLogger("RNAmotiFold")
 def get_cmd_args():
     """Contains cmd_argument parsing solely for the purpose of checking if an already installed gapc is given"""
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(open(Path.joinpath(ROOT_DIR, "src", "defaults", "defaults.ini")))
+    config.read_file(open(Path.joinpath(ROOT_DIR, "src","RNAmotiFold", "defaults", "defaults.ini")))
     for option in [
         x for x in config[config.default_section] if config[config.default_section][x] == ""
     ]:
@@ -41,35 +41,35 @@ def get_cmd_args():
         "--cmake_path",
         nargs="?",
         dest="cmake_path",
-        action=src.input.action_overwrites.cmake_check,
+        action=src.RNAmotiFold.input.action_overwrites.cmake_check,
         default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
         type=str,
-        help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,'src','data','defaults.ini'))}. If no default is set the script will try to find a cmake with which.",
+        help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a cmake with which.",
     )
     parser.add_argument(
         "--gapc_path",
         nargs="?",
-        action=src.input.action_overwrites.preinstalled_check,
+        action=src.RNAmotiFold.input.action_overwrites.preinstalled_check,
         dest="gapc_path",
         default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
         type=str,
-        help=f"GAPC Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))}.If no default is set the script will try to find a gapc with which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
+        help=f"GAPC Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.If no default is set the script will try to find a gapc with which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
     )
     parser.add_argument(
         "--perl_path",
         nargs="?",
         dest="perl_path",
-        action=src.input.action_overwrites.perl_check,
+        action=src.RNAmotiFold.input.action_overwrites.perl_check,
         default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
         type=str,
-        help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
+        help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
     )
     parser.add_argument(
         "-v",
         "--version",
         help=f"Specify which RNA 3D Motif sequence version you want to use. Default is the newest version.",
         dest="version",
-        action=src.input.action_overwrites.VersionParser,
+        action=src.RNAmotiFold.input.action_overwrites.VersionParser,
         type=str,
         default="current",
     )
@@ -79,10 +79,9 @@ def get_cmd_args():
         type=str,
         dest="workers",
         default=config.get(config.default_section, "setup_workers"),
-        help=f"Specify how many parallel processes may be spawned to speed up algorithm compilation. Default can be set at  {str(Path.joinpath(ROOT_DIR,"src","data","defaults.ini"))}.",
+        help=f"Specify how many parallel processes may be spawned to speed up algorithm compilation. Default can be set at  {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.",
     )
     args = parser.parse_known_args()[0]
-    print(args)
 
     if args.cmake_path is None:
         cmake_path = fallback_finder("cmake")
@@ -116,7 +115,7 @@ def _detect_gapc() -> Path:
     if global_gapc is not None:
         return Path(global_gapc)
     else:
-        local_gapc = list(ROOT_DIR.glob("**/bin/gapc"))
+        local_gapc = list(ROOT_DIR.glob("**/gapcM-install//bin/gapc"))
         try:
             return local_gapc[0]
         except IndexError:
@@ -227,14 +226,14 @@ def run_cmake(cmake_path: str | None) -> Path:
         raise error
 
     if not build_process.returncode:
-        return Path.joinpath(BUILD_PATH, "gapc-prefix", "bin", "gapc")
+        return Path.joinpath(BUILD_PATH, "gapcM-install", "bin", "gapc")
     raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
 
 def updates(motif_version: str) -> bool:
     """Does all the updating, fetches perl and gapc paths from defaults or detects them and uses to set up algorithms, returns True if algorithms were updated, False if not"""
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(open(file=Path.joinpath(ROOT_DIR, "src", "defaults", "defaults.ini")))
-    update = motifs._uninteractive_update(version=motif_version)  # type: ignore
+    config.read_file(open(file=Path.joinpath(ROOT_DIR, "src","RNAmotiFold", "defaults", "defaults.ini")))
+    update = motifs.uninteractive_update(version=motif_version)
     if update:
         if config.get(config.default_section, "perl_path"):
             perl_path = Path(config.get(config.default_section, "perl_path"))

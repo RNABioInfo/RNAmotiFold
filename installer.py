@@ -1,4 +1,4 @@
-import src.bgap_rna.alg_setup
+import src.RNAmotiFold.bgap_rna.alg_setup
 from pathlib import Path
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
@@ -10,10 +10,13 @@ except ImportError as e:
 
 def main():
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
-    args = src.bgap_rna.alg_setup.get_cmd_args()
+    args = src.RNAmotiFold.bgap_rna.alg_setup.get_cmd_args()
     done: bool = False
-    motifs._uninteractive_update(args.version)  # type: ignore
-    done = src.bgap_rna.alg_setup.setup_algorithms(args.gapc_path, args.perl_path, int(args.workers))
+    motifs.uninteractive_update(args.version)  # type: ignore
+
+    done = src.RNAmotiFold.bgap_rna.alg_setup.setup_algorithms(
+        args.gapc_path, args.perl_path, int(args.workers)
+    )
     if done:
         print("Algorithms are all set up, you can now use RNAmotiFold")
     else:

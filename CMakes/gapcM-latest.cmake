@@ -1,6 +1,18 @@
 include(ExternalProject)
 
-set (GAPC_PREFIX ${CMAKE_BINARY_DIR}/gapc-prefix)
+set(GAPC_PREFIX ${CMAKE_BINARY_DIR}/gapcM-install)
+
+set(GAPC_BUILD_SOURCE_DIR ${CMAKE_BINARY_DIR}/gapcM-src)
+
+set(GAPC_SOURCE_DIR ${CMAKE_SOURCE_DIR}/submodules/gapcM)
+
+# Refresh the build copy whenever CMake is reconfigured.
+file(REMOVE_RECURSE ${GAPC_BUILD_SOURCE_DIR})
+
+file(COPY ${GAPC_SOURCE_DIR}/
+    DESTINATION ${GAPC_BUILD_SOURCE_DIR}
+    PATTERN ".git" EXCLUDE
+)
 
 if (${FLEX_EXTERNAL})
     set (FLEX_PATH ${FLEX_PREFIX}/bin/flex)
@@ -31,12 +43,11 @@ endif()
 
 ExternalProject_Add(
     gapcM
-    PREFIX ${GAPC_PREFIX}
+    PREFIX ${CMAKE_BINARY_DIR}/gapcM-external
+    SOURCE_DIR ${GAPC_BUILD_SOURCE_DIR}
     BUILD_IN_SOURCE 1
-    DOWNLOAD_EXTRACT_TIMESTAMP true
-    GIT_REPOSITORY "https://github.com/RNABioInfo/gapcM.git"
     CONFIGURE_COMMAND ./configure --prefix=${GAPC_PREFIX} FLEX=${FLEX_PATH} BISON=${BISON_PATH} GSL_CONFIG=${GSL_CONFIG} GSL=${GSL_PATH} --with-boost=${BOOST_PATH}
-    BUILD_COMMAND make
-    INSTALL_COMMAND make install
+    BUILD_COMMAND ${CMAKE_MAKE_PROGRAM}
+    INSTALL_COMMAND ${CMAKE_MAKE_PROGRAM} install
 )
 add_dependencies(gapcM GSL BISON FLEX Boost)

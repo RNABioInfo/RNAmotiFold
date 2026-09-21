@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
-from src.input.parameters import ScriptParameters
+from src.RNAmotiFold.input.parameters import ScriptParameters
+
 
 # A Python class for making Bellman's GAP more convenient to use
 # Just create a class instances, feed it with the call arguments you need
@@ -24,7 +25,6 @@ class bgap_rna:
 
     def __str__(self) -> str:
         return self.call
-
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
@@ -235,7 +235,7 @@ class bgap_rna:
         return str(
             Path(__file__)
             .resolve()
-            .parents[2]
+            .parents[3]
             .joinpath("Build", "bin")
             .joinpath(self.algorithm_binary)
         )
@@ -337,4 +337,3 @@ class bgap_rna:
             self._motif_string = ""
         else:
             self._motif_string = motif_str
-

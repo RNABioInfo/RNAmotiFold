@@ -1,7 +1,7 @@
-import src.results.mfe
-import src.results.pfc
-import src.results.ali
-from typing import Literal,Any
+import src.RNAmotiFold.results.mfe
+import src.RNAmotiFold.results.pfc
+import src.RNAmotiFold.results.ali
+from typing import Literal, Any
 import sys
 import logging
 from dataclasses import dataclass
@@ -34,7 +34,11 @@ class algorithm_output:
 
     def __next__(
         self,
-    ) -> src.results.mfe.result_mfe | src.results.pfc.result_pfc | src.results.ali.result_alignment:
+    ) -> (
+        src.RNAmotiFold.results.mfe.result_mfe
+        | src.RNAmotiFold.results.pfc.result_pfc
+        | src.RNAmotiFold.results.ali.result_alignment
+    ):
         if self._index < len(self.results):
             item = self.results[self._index]
             self._index += 1
@@ -52,9 +56,9 @@ class algorithm_output:
         result_str: (
             str
             | list[
-                src.results.mfe.result_mfe
-                | src.results.pfc.result_pfc
-                | src.results.ali.result_alignment
+                src.RNAmotiFold.results.mfe.result_mfe
+                | src.RNAmotiFold.results.pfc.result_pfc
+                | src.RNAmotiFold.results.ali.result_alignment
             ]
         ),
         stderr: list[str],
@@ -72,7 +76,9 @@ class algorithm_output:
     def results(
         self,
     ) -> list[
-        src.results.mfe.result_mfe | src.results.pfc.result_pfc | src.results.ali.result_alignment
+        src.RNAmotiFold.results.mfe.result_mfe
+        | src.RNAmotiFold.results.pfc.result_pfc
+        | src.RNAmotiFold.results.ali.result_alignment
     ]:
         return self._results
 
@@ -82,9 +88,9 @@ class algorithm_output:
         result: (
             str
             | list[
-                src.results.mfe.result_mfe
-                | src.results.pfc.result_pfc
-                | src.results.ali.result_alignment
+                src.RNAmotiFold.results.mfe.result_mfe
+                | src.RNAmotiFold.results.pfc.result_pfc
+                | src.RNAmotiFold.results.ali.result_alignment
             ]
         ),
     ) -> None:
@@ -92,24 +98,30 @@ class algorithm_output:
             self._results = result
         else:
             reslist: list[
-                src.results.mfe.result_mfe
-                | src.results.pfc.result_pfc
-                | src.results.ali.result_alignment
+                src.RNAmotiFold.results.mfe.result_mfe
+                | src.RNAmotiFold.results.pfc.result_pfc
+                | src.RNAmotiFold.results.ali.result_alignment
             ] = []
             split = result.strip().split("\n")
             match self.process_type:
                 case "pfc":
                     pfc_sum = float(sum([float(x.split("|")[1]) for x in split]))
                     for output in split:
-                        res = src.results.pfc.result_pfc.from_string(self.id, output, pfc_sum)
+                        res = src.RNAmotiFold.results.pfc.result_pfc.from_string(
+                            self.id, output, pfc_sum
+                        )
                         reslist.append(res)
                 case "mfe":
                     for output in split:
-                        res = src.results.mfe.result_mfe.from_string(self.id, output)
+                        res = src.RNAmotiFold.results.mfe.result_mfe.from_string(
+                            self.id, output
+                        )
                         reslist.append(res)
                 case "ali":
                     for output in split:
-                        res = src.results.ali.result_alignment.from_string(self.id, output)
+                        res = src.RNAmotiFold.results.ali.result_alignment.from_string(
+                            self.id, output
+                        )
                         reslist.append(res)
                 case _:
                     raise ValueError(f"Invalid result process type detected: {self.process_type}")
@@ -151,17 +163,21 @@ class algorithm_output:
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         """
         result_set: set[
-            src.results.mfe.result_mfe
-            | src.results.pfc.result_pfc
-            | src.results.ali.result_alignment
+            src.RNAmotiFold.results.mfe.result_mfe
+            | src.RNAmotiFold.results.pfc.result_pfc
+            | src.RNAmotiFold.results.ali.result_alignment
         ] = set()
         for obj in objs:
             for res in obj.results:
-                if isinstance(res, src.results.mfe.result_mfe):
+                if isinstance(res, src.RNAmotiFold.results.mfe.result_mfe):
                     result_set.add(res)
         sorted_results = sorted(
             list(result_set),
-            key=lambda x: x.free_energy if isinstance(x, src.results.mfe.result_mfe) else 0,
+            key=lambda x: (
+                x.free_energy
+                if isinstance(x, src.RNAmotiFold.results.mfe.result_mfe)
+                else 0
+            ),
         )
         return cls(
             objs[0].id,
