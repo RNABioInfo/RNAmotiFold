@@ -15,7 +15,7 @@ from src.RNAmotiFold.input.action_overwrites import (
     VersionParser,
 )
 
-loggers = logging.getLogger("RNAmotiFold.args")
+loggers = logging.getLogger(__name__)
 _defaults_config_path = Path(__file__).resolve().parents[1].joinpath("defaults", "defaults.ini")
 
 
@@ -325,8 +325,10 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
         action=FloatCheck,
         dest="motif_fraction",
     )
-
+    loggers.info("Parsing cmgiven arguments args")
     args = parser.parse_known_args()
+    loggers.debug(f"Known args: {args[0]}")
+    loggers.debug(f"Leftover args: {args[1]}")
     # Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
     if args[0].algorithm != "RNAmotiFold" and args[0].merge:
         raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")

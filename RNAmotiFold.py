@@ -1,14 +1,19 @@
-from src.RNAmotiFold.bgap_rna import bgap_rna, input_handler, motif_handler, subprocess_handler
-from src.RNAmotiFold.results import base_result,algorithm_output
-import installer
+from src.RNAmotiFold.bgap_rna import (
+    bgap_rna,
+    input_handler,
+    motif_handler,
+    subprocess_handler,
+)
+from src.RNAmotiFold.results import base_result, algorithm_output
 import src.RNAmotiFold.bgap_rna.alg_setup as setup
 import src.RNAmotiFold.input.arg_parsing as arg_parsing
 import logging
 from pathlib import Path
 import sys
 import copy
+import subprocess
 
-logger = logging.getLogger("RNAmotiFold")
+logger = logging.getLogger(__name__)
 
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
@@ -26,9 +31,12 @@ def combine_calls(base_call: str, motif_subcalls: list[str]):
 
 def check_install() -> bool:
     checkpath = Path(__file__).parent / "Build" / "bin" / "RNAmotiFold"
-    return checkpath.is_file()
+    return checkpath.exists()
 
-def create_inputs(calls:list[str],inputs:list[input_handler.algorithm_input]) -> list[input_handler.algorithm_input]:
+
+def create_inputs(
+    calls: list[str], inputs: list[input_handler.algorithm_input]
+) -> list[input_handler.algorithm_input]:
     full_inputs: list[input_handler.algorithm_input] = []
     for input in inputs:
         for call in calls:
@@ -57,37 +65,51 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
 
 
 if __name__ == "__main__":
-    #Parse CMD and configure logger and result objects
+    # Parse CMD and configure logger and result objects
     rt_args, additional_parameters = arg_parsing.get_cmdarguments()
-    configure_logs(loglevel=rt_args.loglevel,logfile=rt_args.logfile)
+    configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
     base_result.result.separator = rt_args.separator
     logger.debug(rt_args)
-    #Check if RNAmotiFold is installed and do updates if necessary/wanted
+    # Check if RNAmotiFold is installed and do updates if necessary/wanted
     if not check_install():
-        installer.main()
+        logger.critical("Couldn't find RNAmotiFold, attempting to install algorithms and gapc if necessary")
+        setup.main()
         if not check_install():
             raise FileNotFoundError(
                 "Something went wrong setting up algorithms, check if dependencies are installed and re-run installer.py"
             )
+        else:
+            logger.critical("Installation successfull, running RNAmotiFold")
     else:
         if rt_args.update:
+            logger.info("Update is set, attempting to update algorithms to given version or current version")
             try:
-                updated: bool = setup.updates(motif_version=rt_args.version)
-            except:
-                pass
+                updated: bool = setup.updates(
+                    motif_version=rt_args.version
+                )
+            except RuntimeError as e:
+                raise e
+            except subprocess.CalledProcessError as e:
+                raise e
             else:
                 if updated:
-                    logger.debug(f"Updated to {rt_args.version}")
-                else:
-                    logger.debug(f"Failed to update to version {rt_args.version}")
+                    logger.info(f"Updated to {rt_args.version}")
+                else: 
+                    logger.info(
+                        f"Failed to update to version {rt_args.version}, trying to run with currently installed version"
+                    )
         else:
             if rt_args.version == "current":
                 rt_args.version = motifs.currently_installed()
             else:
                 if rt_args.version != motifs.currently_installed():
-                    updated:bool = setup.updates(motif_version=rt_args.version)
-    #Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
-    input_maker = input_handler.input_handler(process_type=rt_args.process_type, user_input=rt_args.input)
+                    updated: bool = setup.updates(
+                        motif_version=rt_args.version
+                    )
+    # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
+    input_maker = input_handler.input_handler(
+        process_type=rt_args.process_type, user_input=rt_args.input
+    )
     motif_subcall_maker = motif_handler.motif_handler(
         rt_args.motif_list,
         rt_args.fast_mode,
@@ -102,32 +124,50 @@ if __name__ == "__main__":
     motif_calls = motif_subcall_maker.motif_calls
     call_maker = bgap_rna.bgap_rna.from_script_parameters(rt_args)
     subprocess_manager = subprocess_handler.subprocess_handler(
-        rt_args.workers,  rt_args.output, rt_args.alg_type(),motif_subcall_maker.call_number
+        rt_args.workers,
+        rt_args.output,
+        rt_args.alg_type(),
+        motif_subcall_maker.call_number,
     )
     full_calls: list[str] = combine_calls(call_maker.call, motif_calls)
     if rt_args.input is not None:
-        inputs: list[input_handler.algorithm_input] = input_maker.read_input(
-            process_type=rt_args.process_type, user_input=rt_args.input, id=rt_args.id
+        inputs: list[input_handler.algorithm_input] = (
+            input_maker.read_input(
+                process_type=rt_args.process_type,
+                user_input=rt_args.input,
+                id=rt_args.id,
+            )
         )
-        alg_input = create_inputs(calls=full_calls,inputs=inputs)
-        results = subprocess_manager.run(inputs=alg_input,merge_mfe_outputs=rt_args.fast_mode_merge)
+        alg_input = create_inputs(calls=full_calls, inputs=inputs)
+        results = subprocess_manager.run(
+            inputs=alg_input, merge_mfe_outputs=rt_args.fast_mode_merge
+        )
     else:
         while True:
             print("Awaiting input...")
             user_input = input()
-            if user_input.strip().lower() in ["exit","eixt","exi"]:
+            if user_input.strip().lower() in ["exit", "eixt", "exi"]:
                 print("Exiting...")
                 break
             else:
                 try:
-                    rt_input = input_maker.read_input(rt_args.process_type,user_input,rt_args.id)
+                    rt_input = input_maker.read_input(
+                        rt_args.process_type, user_input, rt_args.id
+                    )
                 except ValueError as e:
                     print(e)
                     continue
                 except OSError as e:
                     print(e)
                     continue
-                alg_input: list[input_handler.algorithm_input] = create_inputs(full_calls,rt_input)
-                results: list[algorithm_output.algorithm_output | algorithm_output.error] = subprocess_manager.run(alg_input,rt_args.fast_mode_merge)
+                alg_input: list[input_handler.algorithm_input] = (
+                    create_inputs(full_calls, rt_input)
+                )
+                results: list[
+                    algorithm_output.algorithm_output
+                    | algorithm_output.error
+                ] = subprocess_manager.run(
+                    alg_input, rt_args.fast_mode_merge
+                )
     input_handler.algorithm_input.cleanup_temps()
     motif_subcall_maker.cleanup_tmp_files()

@@ -1,7 +1,9 @@
 from pathlib import Path
 from typing import Literal
 from src.RNAmotiFold.input.parameters import ScriptParameters
+import logging
 
+logger = logging.getLogger(__name__)
 
 # A Python class for making Bellman's GAP more convenient to use
 # Just create a class instances, feed it with the call arguments you need
@@ -28,7 +30,7 @@ class bgap_rna:
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
-        return cls(
+        obj =  cls(
             alg=params.algorithm,
             motif_source=params.motif_source,
             motif_orientation=params.motif_orientation,
@@ -47,6 +49,8 @@ class bgap_rna:
             weight=params.motif_weight,
             fraction=params.motif_fraction,
         )
+        logger.debug(f"Created bgap obj {str(obj)} from {vars(params)}")
+        return obj
 
     def __init__(
         self,
@@ -93,8 +97,10 @@ class bgap_rna:
     @property
     def process_type(self) -> Literal["single", "ali"]:
         if self.algorithm in ["RNAmoSh", "RNAmotiCes", "RNAmotiFold"]:
+            logger.debug("Set process type as single")
             return "single"
         elif self.algorithm in ["RNAmotiAlign"]:
+            logger.debug("Set process type as ali")
             return "ali"
         raise ValueError(
             "Could not identify process type as single folding or alignment folding, check your set algorithm"
@@ -232,13 +238,15 @@ class bgap_rna:
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
-        return str(
+        path = str(
             Path(__file__)
             .resolve()
             .parents[3]
             .joinpath("Build", "bin")
             .joinpath(self.algorithm_binary)
         )
+        logger.debug(f"Set algorithm path as {path}")
+        return path
 
     # Builds the algorithm binary name from the set parameters
     @property
@@ -251,21 +259,23 @@ class bgap_rna:
             return "RNAmotiAlign"
         match (self.allowLonelyBasepairs, self.subopt, self.pfc):
             case (2, False, False):
-                return self.algorithm + "Motmicro"
+                alg = self.algorithm + "Motmicro"
             case (2, True, False):
-                return self.algorithm + "_motmacro_subopt"
+                alg =  self.algorithm + "_motmacro_subopt"
             case (2, False, True):
-                return self.algorithm + "_motmacro_pfc"
+                alg =  self.algorithm + "_motmacro_pfc"
             case (1, False, False) | (0, False, False):
-                return self.algorithm
+                alg =  self.algorithm
             case (1, True, False) | (0, True, False):
-                return self.algorithm + "_subopt"
+                alg =  self.algorithm + "_subopt"
             case (1, False, True) | (0, False, True):
-                return self.algorithm + "_pfc"
+                alg =  self.algorithm + "_pfc"
             case _:
                 raise ValueError(
                     "The algorithm you specified does not exist, please revisit your arguments."
                 )
+        logger.debug(f"Set algorithm binary as {alg}")
+        return alg
 
     @property
     def custom_bulges(self) -> Path | None:
@@ -321,6 +331,7 @@ class bgap_rna:
         seq_free_call = " ".join(
             [self.algorithm_path, " ".join(arguments), ""]  # "/usr/bin/time"
         )  # Creates call string without a sequence
+        logger.debug(f"Set call as {seq_free_call}")
         return seq_free_call
 
     @call.setter
@@ -334,6 +345,8 @@ class bgap_rna:
     @motif_string.setter
     def motif_string(self, motif_str: str | None) -> None:
         if motif_str is None:
+            logger.debug("No motif string set, using all motifs")
             self._motif_string = ""
         else:
+            logger.debug(f"Motif string set as {motif_str}")
             self._motif_string = motif_str

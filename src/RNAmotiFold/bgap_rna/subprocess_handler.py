@@ -9,6 +9,10 @@ from src.RNAmotiFold.bgap_rna.input_handler import algorithm_input
 from contextlib import redirect_stdout
 import sys
 import src.RNAmotiFold.results.mfe
+import os 
+import logging
+
+logger = logging.getLogger(__name__)
 
 class subprocess_handler:
     """Class to manage subprocesses for running RNAmotiFold algorithms."""
@@ -20,10 +24,15 @@ class subprocess_handler:
         process_type: Literal["mfe", "pfc", "ali"],
     ):
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
+        pid = os.getpid()
+        logger.debug(f"Started worker process at {pid}, with process type {process_type}")
         while True:
             input_obj: algorithm_input|None = input_queue.get()
+            
             if input_obj is None:
+                logger.debug(f"Worker {pid} exiting, input queue is empty")
                 break
+            logger.debug(f"Worker {pid} started work on {input_obj.id} with call {input_obj.call}")
             subprocess_output = subprocess.run(
                 input_obj.runtime_call, text=True, capture_output=True, shell=True
             )
@@ -31,10 +40,12 @@ class subprocess_handler:
                 result = src.RNAmotiFold.results.algorithm_output.algorithm_output(
                     input_obj.id, subprocess_output.stdout, [subprocess_output.stderr], process_type
                 )
+                logger.debug(f"Worker {pid} successfully completed call {input_obj.call} on {input_obj.id}")
             else:
                 result = src.RNAmotiFold.results.algorithm_output.error(
                     input_obj.id, subprocess_output.stderr
                 )
+                logger.debug(f"Worker {pid} encountered an issue working in {input_obj.id} with call {input_obj.call}")
             output_queue.put(result)
 
     @staticmethod
@@ -68,6 +79,7 @@ class subprocess_handler:
                 break
             else:
                 if isinstance(result,src.RNAmotiFold.results.algorithm_output.algorithm_output):
+                    return_list.append(result)
                     output_dict.setdefault(result.id,[]).append(result)
                     if len(output_dict[result.id]) == calls_per_input:
                         match output_dict[result.id][0].process_type:
@@ -96,7 +108,9 @@ class subprocess_handler:
                             else:
                                 writing_started = full_output.write_results(writing_started)
                             sys.stdout.flush()
-                return_list.append(result)
+                else:
+                    logger.critical(f"Error encountered during prediction of {result.id}: {result.error}")
+
 
     def __init__(
         self,

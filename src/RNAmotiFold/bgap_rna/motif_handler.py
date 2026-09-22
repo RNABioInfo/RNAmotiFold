@@ -3,6 +3,9 @@ import tempfile
 import glob
 from typing import Literal
 from src.RNAmotiFold.input.parameters import ScriptParameters
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class motif_handler:
@@ -47,6 +50,7 @@ class motif_handler:
         
     @call_number.setter
     def call_number(self,new_number:int):
+        logger.debug(f"Set call number to {str(new_number)}")
         self._call_number = new_number
     
 
@@ -85,6 +89,7 @@ class motif_handler:
             and not self.single_motif_mode
         ):
             self.call_number = 1
+            logger.debug("Motif string was empty and mode is combinatorial, running one prediction per input")
             return []
         separate_motif_files = self.get_motif_files()
         hairpins = motif_handler._make_file_list(
@@ -125,13 +130,14 @@ class motif_handler:
                 glob.glob(str(temp_folders[2] / "*.tmp")), "bulge"
             )
             self.call_number = len(hairpin_calls + internal_calls + bulge_calls)
-            print(hairpin_calls + internal_calls + bulge_calls)
+            logger.debug(f"Single motif mode was set, sequences calls are: {[hairpin_calls + internal_calls + bulge_calls]}")
             return hairpin_calls + internal_calls + bulge_calls
         else:
             concat_hairpins = self._filter_concat(hairpins, self.motif_string, self._tmp_folder)
             concat_internals = self._filter_concat(internals, self.motif_string, self._tmp_folder)
             concat_bulges = self._filter_concat(bulges, self.motif_string, self._tmp_folder)
             self.call_number = 1
+            logger.debug(f"No single motif mode set, motif call: -X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1")
             return [f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"]
 
     def get_motif_files(self) -> list[Path]:
@@ -233,6 +239,7 @@ class motif_handler:
                 suffix=".tmp",
             )
             motif_temp.write(motifs.encode())
+            logger.debug(f"Writing sequences for motif {key} to temporary file {motif_temp.name} in subdir {subdir.name}")
         return Path(subdir.name).resolve()
 
     @staticmethod
@@ -254,9 +261,11 @@ class motif_handler:
             ]
             if custom_motifs is not None:
                 motif_paths.append(custom_motifs)
+            logger.debug(f"Set motif file list as  {[str(x) for x in motif_paths]}")
             return motif_paths
         else:
             if custom_motifs is not None:
+                logger.debug(f"Custom motifs for {motif_type} set to {custom_motifs}")
                 return [custom_motifs]
             raise ValueError(
                 f"Replacement of {motif_type} motifs was set to True but no custom motif file was provided, please provide a custom motif file or set replacement to False"
@@ -272,5 +281,6 @@ class motif_handler:
             return all([x in motif_string for x in abbreviations])
 
     def cleanup_tmp_files(self):
+        logger.debug(f"Cleaning up temp files from {self._tmp_folder}")
         self._tmp_folder.cleanup()
         del self._tmp_folder

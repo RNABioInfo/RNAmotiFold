@@ -8,7 +8,9 @@ from src.RNAmotiFold.input.action_overwrites import (
     WorkerCheck,
     AlgorithmMatching,
 )
+import logging
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ScriptParameters:
@@ -149,6 +151,7 @@ class ScriptParameters:
             logpath = Path(confs.get(section_name, "logfile"))
         else:
             logpath = None
+        logger.debug(f"Read config as {confs}")
         return cls(
             id=confs.get(section_name, "id"),
             input=confs.get(section_name, "input"),

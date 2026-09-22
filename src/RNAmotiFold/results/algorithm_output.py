@@ -6,7 +6,7 @@ import sys
 import logging
 from dataclasses import dataclass
 
-logger = logging.getLogger("results")
+logger = logging.getLogger(__name__)
 
 
 # List flattening
@@ -148,12 +148,15 @@ class algorithm_output:
     # If not initiated function writes a header and then all it's results as csv
     def write_results(self, initiated: bool) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
+        
         for err in self.stderr:
             if len(err.strip()) > 0:
                 logger.warning(self.id + ": " + err.strip())
         if not initiated:
+            logger.debug("Starting result writing")
             sys.stdout.write(self.results[0].header + "\n")
         for result_obj in self.results:
+            logger.debug(f"Writing result for {result_obj.id}")
             sys.stdout.write(result_obj.tsv + "\n")
         return True
 
@@ -162,6 +165,7 @@ class algorithm_output:
         """
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         """
+        logger.debug(f"Merging results for {objs[0].id}")
         result_set: set[
             src.RNAmotiFold.results.mfe.result_mfe
             | src.RNAmotiFold.results.pfc.result_pfc

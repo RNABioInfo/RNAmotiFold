@@ -8,7 +8,7 @@ import logging
 import subprocess
 from multiprocessing import cpu_count
 
-loggers = logging.getLogger("InputChecks")
+loggers = logging.getLogger(__name__)
 
 """"Module for different types of check function used during cmd argument parsing and config file parsing. Overwrites of argparse.Action are used to implement
 these checks. The check functions are used to check if the given input is valid and if not, raise an error.
@@ -126,7 +126,7 @@ class WorkerCheck(argparse.Action):
             else:
                 return int(value)
         else:
-            loggers.info("Could not count cpus, playing it safe and setting CPU_count to 1")
+            loggers.critical("Could not count cpus, playing it safe and setting CPU_count to 1")
             return 1
 
 

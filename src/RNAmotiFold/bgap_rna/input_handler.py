@@ -9,6 +9,9 @@ import gzip
 import glob
 import tempfile
 from os import remove
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # List flattening
@@ -33,6 +36,7 @@ class algorithm_input:
     @staticmethod
     def cleanup_temps():
         """Removes temporary files created for RNAmotiAlign"""
+        logger.debug(f"Cleaning up input temp files {algorithm_input.tmp_files}")
         for file in algorithm_input.tmp_files:
             remove(file)
 
@@ -42,8 +46,10 @@ class algorithm_input:
         if self.call == "":
             raise ValueError("No call set yet for this algorithm input object")
         if self.process_type == "ali":
+            logger.info("Writing alignment folding input to temp file")
             tmp = tempfile.NamedTemporaryFile(delete=False, delete_on_close=False)
             tmp.write(self.input_str.encode())
+            logger.info(f"Input for id {self.id} written to {tmp.name}")
             algorithm_input.tmp_files.append(Path(tmp.name))
             return " ".join([self.call, f"-f {tmp.name}"])
         else:
@@ -116,6 +122,7 @@ class input_handler:
                 process_type, user_input
             )
         self._index = 0
+        logger.debug(f"Created input handler: {vars(self)}")
 
     @staticmethod
     def read_input(
@@ -125,18 +132,23 @@ class input_handler:
         I really wanted to strictly type this but the number of different possible iterators make it basically impossible.
         This will always return a list of Iterators, even if there is only on MSA or seq in the file, we take care of that after."
         """
+        logger.debug("Attempting to read input")
         try:
             pathd = Path(
                 user_input.strip()
             )  # If this one doesn't work then it's also not a directory
             if pathd.resolve().is_file():
+                logger.debug("Input recognized as file, reading now")
                 result = [input_handler._read_input_file(pathd, process_type)]
+                logger.debug("Input file read worked, generating algorithm inputs")
                 return flatten([algorithm_input.from_generators(process_type, x) for x in result])
             elif pathd.resolve().is_dir():
+                logger.debug("Input recognized as folder, parsing now")
                 result = [
                     input_handler._read_input_file(pathd / Path(file), process_type)
                     for file in glob.glob("*", root_dir=pathd)
                 ]
+                logger.debug("Folder parsing successfull, generating algorithm inputs")
                 return flatten([algorithm_input.from_generators(process_type, x) for x in result])
             if any(c not in "NAUCGTnaucgt+_-#" for c in set(user_input.strip())):
                 raise ValueError(
@@ -166,12 +178,14 @@ class input_handler:
         else:
             parse_func = Bio.SeqIO.parse  # type: ignore
         if not zipped:
+            logger.debug(f"Recognized input {file_path} as not compressed, reading as {filetype} file.")
             for option in filetype:
                 try:
                     return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
                 except:
                     pass
         else:
+            logger.debug(f"Recognized input {file_path} as compressed, decrompressing and reading as {filetype} file")
             with gzip.open(file_path, "rt") as handle:
                 for option in filetype:
                     try:
