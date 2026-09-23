@@ -148,7 +148,7 @@ class algorithm_output:
     # If not initiated function writes a header and then all it's results as csv
     def write_results(self, initiated: bool) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
-        
+
         for err in self.stderr:
             if len(err.strip()) > 0:
                 logger.warning(self.id + ": " + err.strip())
@@ -156,7 +156,6 @@ class algorithm_output:
             logger.debug("Starting result writing")
             sys.stdout.write(self.results[0].header + "\n")
         for result_obj in self.results:
-            logger.debug(f"Writing result for {result_obj.id}")
             sys.stdout.write(result_obj.tsv + "\n")
         return True
 

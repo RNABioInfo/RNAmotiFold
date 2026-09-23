@@ -7,7 +7,7 @@ class result_mfe(src.RNAmotiFold.results.base_result.result):
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:
         super().__init__(id, classifier)
-        self.free_energy = free_energy
+        self.free_energy = float(int(free_energy) / 100)
         self.motBracket = (
             mot_bracket  # This variable gets special treatment so our outputs looks nice
         )
@@ -53,14 +53,6 @@ class result_mfe(src.RNAmotiFold.results.base_result.result):
         for c in set(self.classifier):
             structure_string = structure_string.replace(c, ".")
         self._dot_bracket = structure_string
-
-    @property
-    def free_energy(self) -> float:
-        return self._free_energy  # type: ignore Can't be anything but float because setter only permits float
-
-    @free_energy.setter
-    def free_energy(self, new_energy: str) -> None:
-        self._free_energy = float(int(new_energy) / 100)
 
     @classmethod
     def from_string(cls, id: str, result_string: str) -> "result_mfe":

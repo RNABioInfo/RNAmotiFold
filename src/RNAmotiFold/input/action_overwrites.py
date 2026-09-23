@@ -261,7 +261,8 @@ class AlgorithmMatching(argparse.Action):
                     f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
                 )
 
-class cmake_check(argparse.Action):
+
+class CMakeCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
 
@@ -272,23 +273,28 @@ class cmake_check(argparse.Action):
         value: None | str | Sequence[Any],
         option_string: None | str = None,
     ):
-        if Path(str(value)).is_file():
-            try:
-                version_check = subprocess.run(
-                    [f"{value}", "--version"], capture_output=True, check=True
-                )
-            except (subprocess.CalledProcessError, PermissionError) as error:
-                raise RuntimeError(
-                    "Unable to open file, check the above error for more information."
-                ) from error
-            else:
-                if "cmake version" in version_check.stdout.decode().lower():
-                    setattr(namespace, self.dest, value)
+        if isinstance(value, str):
+            if Path(value).is_file():
+                try:
+                    version_check = subprocess.run(
+                        [f"{value}", "--version"], capture_output=True, check=True
+                    )
+                except (subprocess.CalledProcessError, PermissionError) as error:
+                    raise RuntimeError(
+                        "Unable to open file, check the above error for more information."
+                    ) from error
                 else:
-                    raise RuntimeError("The given file is not an instance of CMake.")
+                    if "cmake version" in version_check.stdout.decode().lower():
+                        setattr(namespace, self.dest, Path(value))
+                    else:
+                        raise RuntimeError("The given file is not an instance of CMake.")
+            else:
+                raise FileNotFoundError("The given file does not exist.")
+        else:
+            raise ValueError("Why is my value a Sequence ?")
 
 
-class preinstalled_check(argparse.Action):
+class gapcMCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
 
@@ -322,7 +328,7 @@ class preinstalled_check(argparse.Action):
             raise ValueError("Why is my value a Sequence ?")
 
 
-class perl_check(argparse.Action):
+class PerlCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
 

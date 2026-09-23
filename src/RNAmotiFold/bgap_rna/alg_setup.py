@@ -11,7 +11,7 @@ from itertools import product
 import src.RNAmotiFold.input.action_overwrites
 
 ROOT_DIR = Path(__file__).absolute().parents[3]
-logger = logging.getLogger("RNAmotiFold")
+logger = logging.getLogger(__name__)
 
 try:
     import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
@@ -66,21 +66,17 @@ def get_cmd_args():
         "--cmake_path",
         nargs="?",
         dest="cmake_path",
-        action=src.RNAmotiFold.input.action_overwrites.cmake_check,
-        default=config.get(
-            config.default_section, "cmake_path"
-        ),  # shutil.which("cmake"),
+        action=src.RNAmotiFold.input.action_overwrites.CMakeCheck,
+        default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
         type=str,
         help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a cmake with which.",
     )
     parser.add_argument(
         "--gapc_path",
         nargs="?",
-        action=src.RNAmotiFold.input.action_overwrites.preinstalled_check,
+        action=src.RNAmotiFold.input.action_overwrites.gapcMCheck,
         dest="gapc_path",
-        default=config.get(
-            config.default_section, "gapc_path"
-        ),  # _detect_gapc(),
+        default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
         type=str,
         help=f"GAPC Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.If no default is set the script will try to find a gapc with which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
     )
@@ -88,10 +84,8 @@ def get_cmd_args():
         "--perl_path",
         nargs="?",
         dest="perl_path",
-        action=src.RNAmotiFold.input.action_overwrites.perl_check,
-        default=config.get(
-            config.default_section, "perl_path"
-        ),  # shutil.which("perl"),
+        action=src.RNAmotiFold.input.action_overwrites.PerlCheck,
+        default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
         type=str,
         help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
     )
@@ -124,7 +118,7 @@ def get_cmd_args():
 
     if args.gapc_path is None:
         try:
-            gapc_path = _detect_gapc()
+            gapc_path = detect_gapc()
         except RuntimeError as error:
             logger.critical(error)
             gapc_path = run_cmake(args.cmake_path)  # type: ignore
@@ -143,7 +137,7 @@ def get_cmd_args():
     return args
 
 
-def _detect_gapc() -> Path:
+def detect_gapc() -> Path:
     """Checks for a gapc installation with which and globs RNAmotiFold folder for any gapc instance (which is presumed to be a modified gapc, if you have a different gapc in here that's on you)"""
     global_gapc = shutil.which("gapc")
     if global_gapc is not None:
@@ -164,7 +158,7 @@ def fallback_finder(name: str) -> Path:
         return Path(whichpath).resolve()
     else:
         answer = subprocess.run(
-            f"/usr/bin/{name} -v",
+            f"command -v {name}",
             shell=True,
             check=True,
             capture_output=True,
@@ -173,7 +167,7 @@ def fallback_finder(name: str) -> Path:
             answer.returncode == 0
             and f"{name}" in answer.stdout.decode()
         ):
-            return Path(f"/usr/bin/{name}").resolve()
+            return Path(answer.stdout.decode()).resolve()
         else:
             raise RuntimeError(
                 f"Could not find a {name}, please set path with --{name}_path or install {name} you haven't done so"
@@ -225,6 +219,8 @@ def setup_algorithms(
 
     align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t --kbacktrace --kbest --no-coopt-class" FILE="RNAmotiAlign.gap" PERL="{perl_path}"'
     compilation_list.append(AlgorithmCompilation("RNAmotiAlign", align))
+    if poolboys > len(compilation_list):
+        poolboys = len(compilation_list)
     The_Pool = multiprocessing.Pool(processes=poolboys)
     joblist: list[multiprocessing.pool.AsyncResult[bool]] = []
     compilation_success_list: list[bool] = []
@@ -336,7 +332,7 @@ def updates(motif_version: str) -> bool:
             )
         else:
             try:
-                gapc_path = _detect_gapc()
+                gapc_path = detect_gapc()
             except RuntimeError as error:
                 logger.critical(error)
                 raise error
@@ -360,15 +356,29 @@ def updates(motif_version: str) -> bool:
         return False
 
 
-def main():
+def main(
+    version: str,
+    gapc_path: Path | None,
+    perl_path: Path | None,
+    workers: int,
+    cmake_path: Path | None,
+):
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
-    args = get_cmd_args()
-    done: bool = False
-    motifs.uninteractive_update(args.version)  # type: ignore
+    if cmake_path is None:
+        cmake_path = fallback_finder("cmake")
+    if perl_path is None:
+        perl_path = fallback_finder("perl")
+    if gapc_path is None:
+        try:
+            gapc_path = detect_gapc()
+        except RuntimeError as error:
+            logger.critical(error)
+            gapc_path = run_cmake(cmake_path)  # type: ignore
 
-    done = setup_algorithms(
-        args.gapc_path, args.perl_path, int(args.workers)
-    )
+    done: bool = False
+    motifs.uninteractive_update(version)  # type: ignore
+
+    done = setup_algorithms(gapc_path, perl_path, workers)
     if done:
         logger.info("Algorithms are all set up, you can now use RNAmotiFold")
     else:

@@ -178,17 +178,21 @@ class input_handler:
         else:
             parse_func = Bio.SeqIO.parse  # type: ignore
         if not zipped:
-            logger.debug(f"Recognized input {file_path} as not compressed, reading as {filetype} file.")
             for option in filetype:
                 try:
+                    logger.debug(
+                        f"Recognized input {file_path} as not compressed, reading as {option} file."
+                    )
                     return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
                 except:
                     pass
         else:
-            logger.debug(f"Recognized input {file_path} as compressed, decrompressing and reading as {filetype} file")
             with gzip.open(file_path, "rt") as handle:
                 for option in filetype:
                     try:
+                        logger.debug(
+                            f"Recognized input {file_path} as compressed, decrompressing and reading as {option} file"
+                        )
                         return parse_func(handle, option)  # type: ignore
                     except:
                         pass

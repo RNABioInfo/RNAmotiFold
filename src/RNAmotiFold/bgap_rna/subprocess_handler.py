@@ -28,11 +28,13 @@ class subprocess_handler:
         logger.debug(f"Started worker process at {pid}, with process type {process_type}")
         while True:
             input_obj: algorithm_input|None = input_queue.get()
-            
+
             if input_obj is None:
                 logger.debug(f"Worker {pid} exiting, input queue is empty")
                 break
-            logger.debug(f"Worker {pid} started work on {input_obj.id} with call {input_obj.call}")
+            logger.debug(
+                f"Worker {pid} started work on {input_obj.id} with call {input_obj.call + " "+ input_obj.input_str}"
+            )
             subprocess_output = subprocess.run(
                 input_obj.runtime_call, text=True, capture_output=True, shell=True
             )
@@ -84,7 +86,9 @@ class subprocess_handler:
                     if len(output_dict[result.id]) == calls_per_input:
                         match output_dict[result.id][0].process_type:
                             case "mfe":
-                                full_output = src.RNAmotiFold.results.algorithm_output.algorithm_output.merge_mfe_outputs(output_dict[result.id])
+                                full_output = src.RNAmotiFold.results.algorithm_output.algorithm_output.merge_mfe_outputs(
+                                    output_dict[result.id]
+                                )
                                 if merge_mfe:
                                     full_output = subprocess_handler.postprocessing_mfe(full_output)
                             case "pfc":
@@ -104,13 +108,12 @@ class subprocess_handler:
                         else:
                             if isinstance(full_output,list):
                                 for element in full_output:
-                                     writing_started = element.write_results(writing_started)
+                                    writing_started = element.write_results(writing_started)
                             else:
                                 writing_started = full_output.write_results(writing_started)
                             sys.stdout.flush()
                 else:
                     logger.critical(f"Error encountered during prediction of {result.id}: {result.error}")
-
 
     def __init__(
         self,
@@ -144,19 +147,25 @@ class subprocess_handler:
             target=self._listener, args=(listener_q, self.output_path, PipeIn,self.calls_per_input,merge_mfe_outputs)
         )
         listening.start()
-
+        if len(inputs) < self.max_processes:
+            logger.debug(
+                f"Number of inputs is less than max allowed processes ({self.max_processes}), starting only {len(inputs)} workers."
+            )
+            necessary_processes = len(inputs)
+        else:
+            necessary_processes = self.max_processes
         # Now we make a pool of workers and
-        pool = multiprocessing.Pool(self.max_processes)
+        pool = multiprocessing.Pool(necessary_processes)
         workers: list[multiprocessing.pool.AsyncResult[Any]] = []
         for _ in range(
-            self.max_processes
+            necessary_processes
         ):  # Populate the pool with worker functions, each doing nothing but getting items from the input queue and processing them
             work = pool.apply_async(
                 subprocess_handler._worker, (input_q, listener_q, self.process_type)
             )
             workers.append(work)
             input_q.put(None)
-            
+
         # Close the Pool
         pool.close()
         pool.join()
@@ -169,8 +178,7 @@ class subprocess_handler:
         ] = PipeOut.recv()  # Receive the list of outputs from the listener
         return listener_output
 
-
-    #Postprocessing function are not fully implemented yet, update this later FIXME
+    # Postprocessing function are not fully implemented yet, update this later FIXME
     @staticmethod
     def postprocessing_pfc(
         merged_output: list[src.RNAmotiFold.results.algorithm_output.algorithm_output],

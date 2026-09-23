@@ -52,6 +52,9 @@ class ScriptParameters:
     motif_list: str
     motif_weight: float
     motif_fraction: float
+    cmake_path: Path
+    gapc_path: Path
+    perl_path: Path
 
     def __repr__(self):
         classname = type(self).__name__
@@ -119,6 +122,9 @@ class ScriptParameters:
             motif_list=args.motif_list,
             motif_weight=args.motif_weight,
             motif_fraction=args.motif_fraction,
+            cmake_path=args.cmake_path,
+            gapc_path=args.gapc_path,
+            perl_path=args.perl_path,
         )
 
     @classmethod
@@ -187,4 +193,7 @@ class ScriptParameters:
             motif_list=confs.get(section_name, "motif_list"),
             motif_weight=confs.getfloat(section_name, "motif_weight"),
             motif_fraction=confs.getfloat(section_name, "motif_fraction"),
+            cmake_path=Path(confs.get("INSTALLATION", "cmake_path")),
+            gapc_path=Path(confs.get("INSTALLATION", "gapc_path")),
+            perl_path=Path(confs.get("INSTALLATION", "perl_path")),
         )

@@ -13,10 +13,14 @@ from src.RNAmotiFold.input.action_overwrites import (
     MotifListCheck,
     AlgorithmMatching,
     VersionParser,
+    CMakeCheck,
+    PerlCheck,
+    gapcMCheck,
 )
 
 loggers = logging.getLogger(__name__)
 _defaults_config_path = Path(__file__).resolve().parents[1].joinpath("defaults", "defaults.ini")
+ROOT_DIR = Path(__file__).absolute().parents[3]
 
 
 def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
@@ -324,6 +328,34 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
         type=float,
         action=FloatCheck,
         dest="motif_fraction",
+    )
+    # Installation parameters
+    parser.add_argument(
+        "--cmake_path",
+        nargs="?",
+        dest="cmake_path",
+        action=CMakeCheck,
+        default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
+        type=str,
+        help=f"Installation Parameter, only used on first setup when compiling the gap compiler. Default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a cmake with shutil.which and command -v cmake.",
+    )
+    parser.add_argument(
+        "--gapc_path",
+        nargs="?",
+        action=gapcMCheck,
+        dest="gapc_path",
+        default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
+        type=Path,
+        help=f"GAPC Path for compilation, used when (re)compiling algorithms, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.If no default is set the script will try to find a gapc with shutil.which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
+    )
+    parser.add_argument(
+        "--perl_path",
+        nargs="?",
+        dest="perl_path",
+        action=PerlCheck,
+        default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
+        type=Path,
+        help=f"Perl interpreter path, used when (re)compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with attempt to find one with 'shutil.which' and command -v perl",
     )
     loggers.info("Parsing cmgiven arguments args")
     args = parser.parse_known_args()

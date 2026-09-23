@@ -64,7 +64,7 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
         )
 
 
-if __name__ == "__main__":
+def main() -> list[algorithm_output.algorithm_output | algorithm_output.error] | None:
     # Parse CMD and configure logger and result objects
     rt_args, additional_parameters = arg_parsing.get_cmdarguments()
     configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
@@ -72,8 +72,16 @@ if __name__ == "__main__":
     logger.debug(rt_args)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
     if not check_install():
-        logger.critical("Couldn't find RNAmotiFold, attempting to install algorithms and gapc if necessary")
-        setup.main()
+        logger.critical(
+            "Couldn't find RNAmotiFold, attempting to install algorithms and gapc if necessary"
+        )
+        setup.main(
+            rt_args.version,
+            rt_args.gapc_path,
+            rt_args.perl_path,
+            workers=rt_args.workers,
+            cmake_path=rt_args.cmake_path,
+        )
         if not check_install():
             raise FileNotFoundError(
                 "Something went wrong setting up algorithms, check if dependencies are installed and re-run installer.py"
@@ -82,11 +90,11 @@ if __name__ == "__main__":
             logger.critical("Installation successfull, running RNAmotiFold")
     else:
         if rt_args.update:
-            logger.info("Update is set, attempting to update algorithms to given version or current version")
+            logger.info(
+                "Update is set, attempting to update algorithms to given version or current version"
+            )
             try:
-                updated: bool = setup.updates(
-                    motif_version=rt_args.version
-                )
+                updated: bool = setup.updates(motif_version=rt_args.version)
             except RuntimeError as e:
                 raise e
             except subprocess.CalledProcessError as e:
@@ -94,7 +102,7 @@ if __name__ == "__main__":
             else:
                 if updated:
                     logger.info(f"Updated to {rt_args.version}")
-                else: 
+                else:
                     logger.info(
                         f"Failed to update to version {rt_args.version}, trying to run with currently installed version"
                     )
@@ -103,9 +111,7 @@ if __name__ == "__main__":
                 rt_args.version = motifs.currently_installed()
             else:
                 if rt_args.version != motifs.currently_installed():
-                    updated: bool = setup.updates(
-                        motif_version=rt_args.version
-                    )
+                    updated: bool = setup.updates(motif_version=rt_args.version)
     # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
     input_maker = input_handler.input_handler(
         process_type=rt_args.process_type, user_input=rt_args.input
@@ -131,12 +137,10 @@ if __name__ == "__main__":
     )
     full_calls: list[str] = combine_calls(call_maker.call, motif_calls)
     if rt_args.input is not None:
-        inputs: list[input_handler.algorithm_input] = (
-            input_maker.read_input(
-                process_type=rt_args.process_type,
-                user_input=rt_args.input,
-                id=rt_args.id,
-            )
+        inputs: list[input_handler.algorithm_input] = input_maker.read_input(
+            process_type=rt_args.process_type,
+            user_input=rt_args.input,
+            id=rt_args.id,
         )
         alg_input = create_inputs(calls=full_calls, inputs=inputs)
         results = subprocess_manager.run(
@@ -148,26 +152,25 @@ if __name__ == "__main__":
             user_input = input()
             if user_input.strip().lower() in ["exit", "eixt", "exi"]:
                 print("Exiting...")
+                results = None
                 break
             else:
                 try:
-                    rt_input = input_maker.read_input(
-                        rt_args.process_type, user_input, rt_args.id
-                    )
+                    rt_input = input_maker.read_input(rt_args.process_type, user_input, rt_args.id)
                 except ValueError as e:
                     print(e)
                     continue
                 except OSError as e:
                     print(e)
                     continue
-                alg_input: list[input_handler.algorithm_input] = (
-                    create_inputs(full_calls, rt_input)
-                )
-                results: list[
-                    algorithm_output.algorithm_output
-                    | algorithm_output.error
-                ] = subprocess_manager.run(
-                    alg_input, rt_args.fast_mode_merge
+                alg_input: list[input_handler.algorithm_input] = create_inputs(full_calls, rt_input)
+                results: list[algorithm_output.algorithm_output | algorithm_output.error] = (
+                    subprocess_manager.run(alg_input, rt_args.fast_mode_merge)
                 )
     input_handler.algorithm_input.cleanup_temps()
     motif_subcall_maker.cleanup_tmp_files()
+    return results
+
+
+if __name__ == "__main__":
+    main()
