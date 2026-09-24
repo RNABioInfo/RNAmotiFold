@@ -7,11 +7,14 @@ from src.RNAmotiFold.bgap_rna import (
 from src.RNAmotiFold.results import base_result, algorithm_output
 import src.RNAmotiFold.bgap_rna.alg_setup as setup
 import src.RNAmotiFold.input.arg_parsing as arg_parsing
+from src.RNAmotiFold.input.parameters import ScriptParameters
 import logging
 from pathlib import Path
 import sys
 import copy
 import subprocess
+import os
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,19 @@ def combine_calls(base_call: str, motif_subcalls: list[str]):
 def check_install() -> bool:
     checkpath = Path(__file__).parent / "Build" / "bin" / "RNAmotiFold"
     return checkpath.exists()
+
+def temp_cleanup():
+    filepath = Path(__file__).resolve().parent.joinpath("src","RNAmotiFold")
+    tempfolders = [x[0] for x in os.walk(filepath) if "tmp_" in x[0]]
+    if len(tempfolders) > 0:
+        logger.debug(f"Identified leftover tmp folder(s) from previous run: {", ".join(tempfolders)}, deleting...")
+        for folder in tempfolders:
+            try:
+                shutil.rmtree(folder)
+            except FileNotFoundError as e:
+                logger.info(f"Could not delete some temp files from previous runs {folder}. Continuing without deleting it. This has no impact on the current run.")
+
+
 
 
 def create_inputs(
@@ -64,10 +80,9 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
         )
 
 
-def main() -> list[algorithm_output.algorithm_output | algorithm_output.error] | None:
-    # Parse CMD and configure logger and result objects
-    rt_args, additional_parameters = arg_parsing.get_cmdarguments()
+def main(rt_args:ScriptParameters) -> list[algorithm_output.algorithm_output | algorithm_output.error]:
     configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
+    temp_cleanup()
     base_result.result.separator = rt_args.separator
     logger.debug(rt_args)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
@@ -147,12 +162,12 @@ def main() -> list[algorithm_output.algorithm_output | algorithm_output.error] |
             inputs=alg_input, merge_mfe_outputs=rt_args.fast_mode_merge
         )
     else:
+        results:list[algorithm_output.algorithm_output|algorithm_output.error] = []
         while True:
             print("Awaiting input...")
             user_input = input()
             if user_input.strip().lower() in ["exit", "eixt", "exi"]:
                 print("Exiting...")
-                results = None
                 break
             else:
                 try:
@@ -164,13 +179,12 @@ def main() -> list[algorithm_output.algorithm_output | algorithm_output.error] |
                     print(e)
                     continue
                 alg_input: list[input_handler.algorithm_input] = create_inputs(full_calls, rt_input)
-                results: list[algorithm_output.algorithm_output | algorithm_output.error] = (
-                    subprocess_manager.run(alg_input, rt_args.fast_mode_merge)
-                )
+                results.extend(subprocess_manager.run(alg_input, rt_args.fast_mode_merge))
     input_handler.algorithm_input.cleanup_temps()
     motif_subcall_maker.cleanup_tmp_files()
     return results
 
 
 if __name__ == "__main__":
-    main()
+    rt_args, additional_parameters = arg_parsing.get_cmdarguments()
+    main(rt_args)

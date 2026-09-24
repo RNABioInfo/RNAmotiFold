@@ -72,7 +72,7 @@ class motif_handler:
     def motif_calls(self) -> list[str]:
         # First case: Motif string is empty and all three custom motif paths are not set, single motif mode is also False --> Default case, no extra stuff necessary
         self._tmp_folder: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory(
-            delete=False, dir=str(Path(__file__).parents[1])
+            prefix="tmp_",delete=False, dir=str(Path(__file__).parents[1])
         )
         if (
             self.motif_string == ""
@@ -228,7 +228,7 @@ class motif_handler:
         write each set to a separate temp file and finally return the path to a tempdir where all the tempfiles have been written.
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
-        subdir = tempfile.TemporaryDirectory(dir=tempdir.name,delete=False)
+        subdir = tempfile.TemporaryDirectory(dir=tempdir.name,delete=False,prefix="tmp_")
         groups: dict[str, list[str]] = motif_handler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
@@ -281,6 +281,7 @@ class motif_handler:
             return all([x in motif_string for x in abbreviations])
 
     def cleanup_tmp_files(self):
-        logger.debug(f"Cleaning up temp files from {self._tmp_folder}")
-        self._tmp_folder.cleanup()
+        if self._tmp_folder is not None:
+            logger.debug(f"Cleaning up temp files from {self._tmp_folder}")
+            self._tmp_folder.cleanup()
         del self._tmp_folder

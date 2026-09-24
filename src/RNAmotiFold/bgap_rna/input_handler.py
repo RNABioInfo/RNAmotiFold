@@ -27,18 +27,20 @@ def flatten(xss: list[list[Any]]) -> list[Any]:
 class algorithm_input:
 
     tmp_files: ClassVar[list[Path]] = []
-
     id: str
     input_str: str
     process_type: Literal["ali", "single"]
     _call: str = ""
+    _tmp_folder: Path = Path(tempfile.TemporaryDirectory(
+            prefix="tmp_",delete=False, dir=str(Path(__file__).parents[1])).name).resolve()
 
     @staticmethod
     def cleanup_temps():
         """Removes temporary files created for RNAmotiAlign"""
-        logger.debug(f"Cleaning up input temp files {algorithm_input.tmp_files}")
-        for file in algorithm_input.tmp_files:
-            remove(file)
+        if len(algorithm_input.tmp_files) > 0:
+            logger.debug(f"Cleaning up input temp files {algorithm_input.tmp_files}")
+            for file in algorithm_input.tmp_files:
+                remove(file)
 
     @property
     def runtime_call(self) -> str:
@@ -47,7 +49,7 @@ class algorithm_input:
             raise ValueError("No call set yet for this algorithm input object")
         if self.process_type == "ali":
             logger.info("Writing alignment folding input to temp file")
-            tmp = tempfile.NamedTemporaryFile(delete=False, delete_on_close=False)
+            tmp = tempfile.NamedTemporaryFile(delete=False, delete_on_close=False,dir=algorithm_input._tmp_folder)
             tmp.write(self.input_str.encode())
             logger.info(f"Input for id {self.id} written to {tmp.name}")
             algorithm_input.tmp_files.append(Path(tmp.name))
