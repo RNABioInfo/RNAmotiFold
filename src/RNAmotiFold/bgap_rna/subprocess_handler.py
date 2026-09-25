@@ -4,11 +4,11 @@ import multiprocessing.pool
 import subprocess
 from typing import Any, Literal
 from pathlib import Path
-import src.RNAmotiFold.results.algorithm_output
-from src.RNAmotiFold.bgap_rna.input_handler import algorithm_input
+import RNAmotiFold.results.algorithm_output
+from RNAmotiFold.bgap_rna.input_handler import algorithm_input
 from contextlib import redirect_stdout
 import sys
-import src.RNAmotiFold.results.mfe
+import RNAmotiFold.results.mfe
 import os 
 import logging
 
@@ -20,7 +20,7 @@ class subprocess_handler:
     @staticmethod
     def _worker(
         input_queue: "multiprocessing.Queue[algorithm_input|None]",
-        output_queue: "multiprocessing.Queue[src.RNAmotiFold.results.algorithm_output.algorithm_output|src.RNAmotiFold.results.algorithm_output.error]",
+        output_queue: "multiprocessing.Queue[RNAmotiFold.results.algorithm_output.algorithm_output|RNAmotiFold.results.algorithm_output.error]",
         process_type: Literal["mfe", "pfc", "ali"],
     ):
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
@@ -39,12 +39,12 @@ class subprocess_handler:
                 input_obj.runtime_call, text=True, capture_output=True, shell=True
             )
             if subprocess_output.returncode == 0:
-                result = src.RNAmotiFold.results.algorithm_output.algorithm_output(
+                result = RNAmotiFold.results.algorithm_output.algorithm_output(
                     input_obj.id, subprocess_output.stdout, [subprocess_output.stderr], process_type
                 )
                 logger.debug(f"Worker {pid} successfully completed call {input_obj.call} on {input_obj.id}")
             else:
-                result = src.RNAmotiFold.results.algorithm_output.error(
+                result = RNAmotiFold.results.algorithm_output.error(
                     input_obj.id, subprocess_output.stderr
                 )
                 logger.debug(f"Worker {pid} encountered an issue working in {input_obj.id} with call {input_obj.call}")
@@ -52,7 +52,7 @@ class subprocess_handler:
 
     @staticmethod
     def _listener(
-        input_queue: "multiprocessing.Queue[src.RNAmotiFold.results.algorithm_output.algorithm_output|src.RNAmotiFold.results.algorithm_output.error|None]",
+        input_queue: "multiprocessing.Queue[RNAmotiFold.results.algorithm_output.algorithm_output|RNAmotiFold.results.algorithm_output.error|None]",
         output_file: Path | None,
         pipe: multiprocessing.connection.Connection,
         calls_per_input:int,
@@ -62,16 +62,16 @@ class subprocess_handler:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         return_list: list[
-            src.RNAmotiFold.results.algorithm_output.algorithm_output
-            | src.RNAmotiFold.results.algorithm_output.error
+            RNAmotiFold.results.algorithm_output.algorithm_output
+            | RNAmotiFold.results.algorithm_output.error
         ] = []
-        output_dict:dict[str,list[src.RNAmotiFold.results.algorithm_output.algorithm_output]] = {}
+        output_dict:dict[str,list[RNAmotiFold.results.algorithm_output.algorithm_output]] = {}
         writing_started = False
         while True:
             try:
                 result: (
-                    src.RNAmotiFold.results.algorithm_output.algorithm_output
-                    | src.RNAmotiFold.results.algorithm_output.error
+                    RNAmotiFold.results.algorithm_output.algorithm_output
+                    | RNAmotiFold.results.algorithm_output.error
                     | None
                 ) = input_queue.get()
             except EOFError:
@@ -80,13 +80,13 @@ class subprocess_handler:
                 pipe.send(return_list)
                 break
             else:
-                if isinstance(result,src.RNAmotiFold.results.algorithm_output.algorithm_output):
+                if isinstance(result,RNAmotiFold.results.algorithm_output.algorithm_output):
                     return_list.append(result)
                     output_dict.setdefault(result.id,[]).append(result)
                     if len(output_dict[result.id]) == calls_per_input:
                         match output_dict[result.id][0].process_type:
                             case "mfe":
-                                full_output = src.RNAmotiFold.results.algorithm_output.algorithm_output.merge_mfe_outputs(
+                                full_output = RNAmotiFold.results.algorithm_output.algorithm_output.merge_mfe_outputs(
                                     output_dict[result.id]
                                 )
                                 if merge_mfe:
@@ -132,8 +132,8 @@ class subprocess_handler:
     def run(
         self,inputs:list[algorithm_input],merge_mfe_outputs:bool,
     ) -> list[
-        src.RNAmotiFold.results.algorithm_output.algorithm_output
-        | src.RNAmotiFold.results.algorithm_output.error
+        RNAmotiFold.results.algorithm_output.algorithm_output
+        | RNAmotiFold.results.algorithm_output.error
     ]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
@@ -173,17 +173,17 @@ class subprocess_handler:
         listener_q.put(None)
         listening.join()
         listener_output: list[
-            src.RNAmotiFold.results.algorithm_output.algorithm_output
-            | src.RNAmotiFold.results.algorithm_output.error
+            RNAmotiFold.results.algorithm_output.algorithm_output
+            | RNAmotiFold.results.algorithm_output.error
         ] = PipeOut.recv()  # Receive the list of outputs from the listener
         return listener_output
 
     # Postprocessing function are not fully implemented yet, update this later FIXME
     @staticmethod
     def postprocessing_pfc(
-        merged_output: list[src.RNAmotiFold.results.algorithm_output.algorithm_output],
-    ) -> list[src.RNAmotiFold.results.algorithm_output.algorithm_output]:
-        returnlist: list[src.RNAmotiFold.results.algorithm_output.algorithm_output] = []
+        merged_output: list[RNAmotiFold.results.algorithm_output.algorithm_output],
+    ) -> list[RNAmotiFold.results.algorithm_output.algorithm_output]:
+        returnlist: list[RNAmotiFold.results.algorithm_output.algorithm_output] = []
         checklist: list[str] = []
         for output in merged_output:
             if str(output) not in checklist and len(output.results) > 1:
@@ -192,14 +192,14 @@ class subprocess_handler:
         return returnlist
 
     @staticmethod
-    def postprocessing_mfe(merged_output: src.RNAmotiFold.results.algorithm_output.algorithm_output) -> src.RNAmotiFold.results.algorithm_output.algorithm_output:
+    def postprocessing_mfe(merged_output: RNAmotiFold.results.algorithm_output.algorithm_output) -> RNAmotiFold.results.algorithm_output.algorithm_output:
         """
         Postprocessing function for merging outputs of the seperated motif predictions
         """
-        mfe_dict: dict[float, list[src.RNAmotiFold.results.mfe.result_mfe]] = {}
+        mfe_dict: dict[float, list[RNAmotiFold.results.mfe.result_mfe]] = {}
         for res in merged_output.results:
             if (
-                isinstance(res, src.RNAmotiFold.results.mfe.result_mfe) and res.classifier != "_"
+                isinstance(res, RNAmotiFold.results.mfe.result_mfe) and res.classifier != "_"
             ):  # this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
                 if (
                     res.free_energy not in mfe_dict.keys()
@@ -209,9 +209,9 @@ class subprocess_handler:
                     mfe_dict[res.free_energy].append(res)
         for key in mfe_dict.keys():
             if len(mfe_dict[key]) > 1:
-                merge_candidates = src.RNAmotiFold.results.mfe.result_mfe.get_compatible_structures(mfe_dict[key])
+                merge_candidates = RNAmotiFold.results.mfe.result_mfe.get_compatible_structures(mfe_dict[key])
                 for compatible_structures in merge_candidates:
-                    new_result = src.RNAmotiFold.results.mfe.result_mfe.merge_structures(
+                    new_result = RNAmotiFold.results.mfe.result_mfe.merge_structures(
                         [mfe_dict[key][i] for i in compatible_structures]
                     )
                     if new_result is not None:

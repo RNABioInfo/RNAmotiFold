@@ -1,7 +1,7 @@
-import src.RNAmotiFold.results.base_result
+import RNAmotiFold.results.base_result
 
 
-class result_pfc(src.RNAmotiFold.results.base_result.result):
+class result_pfc(RNAmotiFold.results.base_result.result):
     """Subclass of result for PFC results, adds pfc_value and pfc_sum attributes as well as probability calculation. Implements comparison based on pfc values."""
 
     def __init__(

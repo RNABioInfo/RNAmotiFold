@@ -3,23 +3,16 @@ import shutil
 from pathlib import Path
 import configparser
 import subprocess
-import argparse
 import sys
 import logging
 import multiprocessing
 from itertools import product
-import src.RNAmotiFold.input.action_overwrites
+import RNAmotiFold
+import RNAmotiFold.input
+import RNAmotiFold.input.cli
 
 ROOT_DIR = Path(__file__).absolute().parents[3]
 logger = logging.getLogger(__name__)
-
-try:
-    import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
-except ImportError as e:
-    logger.critical(
-        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {ROOT_DIR}"
-    )
-    raise e
 
 class AlgorithmCompilation:
 
@@ -29,112 +22,14 @@ class AlgorithmCompilation:
         self.compiled: bool = False
 
     def move(self, source_dir: Path, destination_dir: Path):
-        logger.debug(f"Moving {self.algorithm} from {source_dir} to {destination_dir}")
+        logger.debug(
+            f"Moving {self.algorithm} from {source_dir} to {destination_dir}"
+        )
         source_file: Path = source_dir.joinpath(self.algorithm)
         destination_file: Path = destination_dir.joinpath(
             self.algorithm
         )
         shutil.move(source_file, destination_file)
-
-
-def get_cmd_args():
-    """Contains cmd_argument parsing solely for the purpose of checking if an already installed gapc is given"""
-    config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(
-        open(
-            Path.joinpath(
-                ROOT_DIR,
-                "src",
-                "RNAmotiFold",
-                "defaults",
-                "defaults.ini",
-            )
-        )
-    )
-    for option in [
-        x
-        for x in config[config.default_section]
-        if config[config.default_section][x] == ""
-    ]:
-        config.set(config.default_section, option, None)
-    parser = argparse.ArgumentParser(
-        prog="SetUp.py",
-        description="Set up script for RNAmotiFold. Checks if a modified Bellman's GAP compiler is installed and prepares algorithms.",
-        epilog="Does anyone read these anyways?",
-    )
-    parser.add_argument(
-        "--cmake_path",
-        nargs="?",
-        dest="cmake_path",
-        action=src.RNAmotiFold.input.action_overwrites.CMakeCheck,
-        default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
-        type=str,
-        help=f"Cmake Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a cmake with which.",
-    )
-    parser.add_argument(
-        "--gapc_path",
-        nargs="?",
-        action=src.RNAmotiFold.input.action_overwrites.gapcMCheck,
-        dest="gapc_path",
-        default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
-        type=str,
-        help=f"GAPC Path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.If no default is set the script will try to find a gapc with which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
-    )
-    parser.add_argument(
-        "--perl_path",
-        nargs="?",
-        dest="perl_path",
-        action=src.RNAmotiFold.input.action_overwrites.PerlCheck,
-        default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
-        type=str,
-        help=f"Perl interpreter path for compilation, default can be set at {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with 'which perl' and check /usr/bin/perl.",
-    )
-    parser.add_argument(
-        "-v",
-        "--version",
-        help=f"Specify which RNA 3D Motif sequence version you want to use. Default is the newest version.",
-        dest="version",
-        action=src.RNAmotiFold.input.action_overwrites.VersionParser,
-        type=str,
-        default="current",
-    )
-    parser.add_argument(
-        "-w",
-        "-workers",
-        type=str,
-        dest="workers",
-        default=config.get(config.default_section, "setup_workers"),
-        help=f"Specify how many parallel processes may be spawned to speed up algorithm compilation. Default can be set at  {str(Path.joinpath(ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.",
-    )
-    args = parser.parse_known_args()[0]
-
-    if args.cmake_path is None:
-        cmake_path = fallback_finder("cmake")
-        setattr(args, "cmake_path", cmake_path)
-
-    if args.perl_path is None:
-        perl_path = fallback_finder("perl")
-        setattr(args, "perl_path", perl_path)
-
-    if args.gapc_path is None:
-        try:
-            gapc_path = detect_gapc()
-        except RuntimeError as error:
-            logger.critical(error)
-            gapc_path = run_cmake(args.cmake_path)  # type: ignore
-        setattr(args, "gapc_path", gapc_path)
-
-    if not args.workers:
-        try:
-            workers = multiprocessing.cpu_count() - 1
-        except NotImplementedError as error:
-            logger.critical(
-                "Could not count cpus, playing it safe and setting CPU_count to 2"
-            )
-            workers = 2
-        setattr(args, "workers", workers)
-
-    return args
 
 
 def detect_gapc() -> Path:
@@ -314,7 +209,7 @@ def updates(motif_version: str) -> bool:
             )
         )
     )
-    update = motifs.uninteractive_update(version=motif_version)
+    update = RNAmotiFold.input.cli.motifs.uninteractive_update(requested_version=motif_version)
     if update:
         if config.get(config.default_section, "perl_path"):
             perl_path = Path(
@@ -380,7 +275,9 @@ def main(
 
     done = setup_algorithms(gapc_path, perl_path, workers)
     if done:
-        logger.info("Algorithms are all set up, you can now use RNAmotiFold")
+        logger.info(
+            "Algorithms are all set up, you can now use RNAmotiFold"
+        )
     else:
         logger.critical(
             "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"

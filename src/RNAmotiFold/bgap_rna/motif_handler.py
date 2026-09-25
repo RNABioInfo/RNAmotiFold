@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import glob
 from typing import Literal
-from src.RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.input.parameters import ScriptParameters
 import logging
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Literal
 from argparse import Namespace
 from configparser import ConfigParser
-from src.RNAmotiFold.input.action_overwrites import (
+from RNAmotiFold.input.action_overwrites import (
     OutputFileCheck,
     WorkerCheck,
     AlgorithmMatching,

@@ -1,13 +1,14 @@
-from src.RNAmotiFold.bgap_rna import (
+from importlib.util import module_from_spec, spec_from_file_location
+
+from RNAmotiFold.bgap_rna import (
     bgap_rna,
     input_handler,
     motif_handler,
     subprocess_handler,
 )
-from src.RNAmotiFold.results import base_result, algorithm_output
-import src.RNAmotiFold.bgap_rna.alg_setup as setup
-import src.RNAmotiFold.input.arg_parsing as arg_parsing
-from src.RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.results import base_result, algorithm_output
+import RNAmotiFold.bgap_rna.alg_setup as setup
+import RNAmotiFold.input.arg_parsing as arg_parsing
 import logging
 from pathlib import Path
 import sys
@@ -19,11 +20,14 @@ import shutil
 logger = logging.getLogger(__name__)
 
 try:
-    import submodules.RNALoops.Misc.Applications.RNAmotiFold.motifs.get_RNA3D_motifs as motifs
+    script_dir= setup.ROOT_DIR / "submodules" / "RNALoops" / "Misc" / "Applications" / "RNAmotiFold" / "motifs" / "get_RNA3D_motifs.py"
+    spec = spec_from_file_location("uniteractive_update",script_dir)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {setup.ROOT_DIR}")
+    motifs = module_from_spec(spec)
+    spec.loader.exec_module(motifs)
 except ImportError as e:
-    raise ImportError(
-        f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {Path(__file__).absolute().parent}"
-    )
+    raise e
 
 def combine_calls(base_call: str, motif_subcalls: list[str]):
     if len(motif_subcalls) == 0:
@@ -33,11 +37,11 @@ def combine_calls(base_call: str, motif_subcalls: list[str]):
 
 
 def check_install() -> bool:
-    checkpath = Path(__file__).parent / "Build" / "bin" / "RNAmotiFold"
+    checkpath = Path(__file__).parents[3].resolve() / "Build" / "bin" / "RNAmotiFold"
     return checkpath.exists()
 
 def temp_cleanup():
-    filepath = Path(__file__).resolve().parent.joinpath("src","RNAmotiFold")
+    filepath = Path(__file__).resolve().parents[1]
     tempfolders = [x[0] for x in os.walk(filepath) if "tmp_" in x[0]]
     if len(tempfolders) > 0:
         logger.debug(f"Identified leftover tmp folder(s) from previous run: {", ".join(tempfolders)}, deleting...")
@@ -46,8 +50,6 @@ def temp_cleanup():
                 shutil.rmtree(folder)
             except FileNotFoundError as e:
                 logger.info(f"Could not delete some temp files from previous runs {folder}. Continuing without deleting it. This has no impact on the current run.")
-
-
 
 
 def create_inputs(
@@ -80,7 +82,8 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
         )
 
 
-def main(rt_args:ScriptParameters) -> list[algorithm_output.algorithm_output | algorithm_output.error]:
+def main() -> list[algorithm_output.algorithm_output | algorithm_output.error]:
+    rt_args, additional_parameters = arg_parsing.get_cmdarguments()
     configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
     temp_cleanup()
     base_result.result.separator = rt_args.separator
@@ -186,5 +189,4 @@ def main(rt_args:ScriptParameters) -> list[algorithm_output.algorithm_output | a
 
 
 if __name__ == "__main__":
-    rt_args, additional_parameters = arg_parsing.get_cmdarguments()
-    main(rt_args)
+    main()

@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Literal
-from src.RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.input.parameters import ScriptParameters
 import logging
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class bgap_rna:
 
     def __init__(
         self,
-        alg: Literal["RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"],
+        alg: Literal["RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"] = "RNAmotiFold",
         motif_source: int = 1,
         motif_orientation: Literal[1, 2, 3] = 1,
         kvalue: int = 5,

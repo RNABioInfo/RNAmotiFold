@@ -1,6 +1,6 @@
 import re
 from typing import NamedTuple
-import src.RNAmotiFold.results.base_result
+import RNAmotiFold.results.base_result
 
 
 class alignment_score(NamedTuple):
@@ -20,7 +20,7 @@ class alignment_score(NamedTuple):
         )
 
 
-class result_alignment(src.RNAmotiFold.results.base_result.result):
+class result_alignment(RNAmotiFold.results.base_result.result):
     """Subclass of result for alignment results, adds alignment_score and motBracket attributes as well as special implementation for tsv and header functions"""
 
     def __init__(self, id: str, classifier: str, score: str, motBracket: str) -> None:
@@ -74,7 +74,7 @@ class result_alignment(src.RNAmotiFold.results.base_result.result):
 
     @property
     def header(self) -> str:
-        return src.RNAmotiFold.results.base_result.result.separator.join(
+        return RNAmotiFold.results.base_result.result.separator.join(
             [
                 "ID",
                 "Motif",
@@ -88,7 +88,7 @@ class result_alignment(src.RNAmotiFold.results.base_result.result):
 
     @property
     def tsv(self):
-        return src.RNAmotiFold.results.base_result.result.separator.join(
+        return RNAmotiFold.results.base_result.result.separator.join(
             [
                 self.id,
                 self.classifier,

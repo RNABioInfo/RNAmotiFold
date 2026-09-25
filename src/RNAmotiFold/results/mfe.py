@@ -1,8 +1,8 @@
-import src.RNAmotiFold.results.base_result
+import RNAmotiFold.results.base_result
 import re
 
 
-class result_mfe(src.RNAmotiFold.results.base_result.result):
+class result_mfe(RNAmotiFold.results.base_result.result):
     """Subclass of result for mfe results, has extra attributes for free energy and motBracket structure. Also implements comparison and hashing for mering structures in single motif mode"""
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:

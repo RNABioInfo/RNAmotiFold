@@ -1,6 +1,6 @@
-import src.RNAmotiFold.results.mfe
-import src.RNAmotiFold.results.pfc
-import src.RNAmotiFold.results.ali
+import RNAmotiFold.results.mfe
+import RNAmotiFold.results.pfc
+import RNAmotiFold.results.ali
 from typing import Literal, Any
 import sys
 import logging
@@ -35,9 +35,9 @@ class algorithm_output:
     def __next__(
         self,
     ) -> (
-        src.RNAmotiFold.results.mfe.result_mfe
-        | src.RNAmotiFold.results.pfc.result_pfc
-        | src.RNAmotiFold.results.ali.result_alignment
+        RNAmotiFold.results.mfe.result_mfe
+        | RNAmotiFold.results.pfc.result_pfc
+        | RNAmotiFold.results.ali.result_alignment
     ):
         if self._index < len(self.results):
             item = self.results[self._index]
@@ -56,9 +56,9 @@ class algorithm_output:
         result_str: (
             str
             | list[
-                src.RNAmotiFold.results.mfe.result_mfe
-                | src.RNAmotiFold.results.pfc.result_pfc
-                | src.RNAmotiFold.results.ali.result_alignment
+                RNAmotiFold.results.mfe.result_mfe
+                | RNAmotiFold.results.pfc.result_pfc
+                | RNAmotiFold.results.ali.result_alignment
             ]
         ),
         stderr: list[str],
@@ -76,9 +76,9 @@ class algorithm_output:
     def results(
         self,
     ) -> list[
-        src.RNAmotiFold.results.mfe.result_mfe
-        | src.RNAmotiFold.results.pfc.result_pfc
-        | src.RNAmotiFold.results.ali.result_alignment
+        RNAmotiFold.results.mfe.result_mfe
+        | RNAmotiFold.results.pfc.result_pfc
+        | RNAmotiFold.results.ali.result_alignment
     ]:
         return self._results
 
@@ -88,9 +88,9 @@ class algorithm_output:
         result: (
             str
             | list[
-                src.RNAmotiFold.results.mfe.result_mfe
-                | src.RNAmotiFold.results.pfc.result_pfc
-                | src.RNAmotiFold.results.ali.result_alignment
+                RNAmotiFold.results.mfe.result_mfe
+                | RNAmotiFold.results.pfc.result_pfc
+                | RNAmotiFold.results.ali.result_alignment
             ]
         ),
     ) -> None:
@@ -98,28 +98,28 @@ class algorithm_output:
             self._results = result
         else:
             reslist: list[
-                src.RNAmotiFold.results.mfe.result_mfe
-                | src.RNAmotiFold.results.pfc.result_pfc
-                | src.RNAmotiFold.results.ali.result_alignment
+                RNAmotiFold.results.mfe.result_mfe
+                | RNAmotiFold.results.pfc.result_pfc
+                | RNAmotiFold.results.ali.result_alignment
             ] = []
             split = result.strip().split("\n")
             match self.process_type:
                 case "pfc":
                     pfc_sum = float(sum([float(x.split("|")[1]) for x in split]))
                     for output in split:
-                        res = src.RNAmotiFold.results.pfc.result_pfc.from_string(
+                        res = RNAmotiFold.results.pfc.result_pfc.from_string(
                             self.id, output, pfc_sum
                         )
                         reslist.append(res)
                 case "mfe":
                     for output in split:
-                        res = src.RNAmotiFold.results.mfe.result_mfe.from_string(
+                        res = RNAmotiFold.results.mfe.result_mfe.from_string(
                             self.id, output
                         )
                         reslist.append(res)
                 case "ali":
                     for output in split:
-                        res = src.RNAmotiFold.results.ali.result_alignment.from_string(
+                        res = RNAmotiFold.results.ali.result_alignment.from_string(
                             self.id, output
                         )
                         reslist.append(res)
@@ -166,19 +166,19 @@ class algorithm_output:
         """
         logger.debug(f"Merging results for {objs[0].id}")
         result_set: set[
-            src.RNAmotiFold.results.mfe.result_mfe
-            | src.RNAmotiFold.results.pfc.result_pfc
-            | src.RNAmotiFold.results.ali.result_alignment
+            RNAmotiFold.results.mfe.result_mfe
+            | RNAmotiFold.results.pfc.result_pfc
+            | RNAmotiFold.results.ali.result_alignment
         ] = set()
         for obj in objs:
             for res in obj.results:
-                if isinstance(res, src.RNAmotiFold.results.mfe.result_mfe):
+                if isinstance(res, RNAmotiFold.results.mfe.result_mfe):
                     result_set.add(res)
         sorted_results = sorted(
             list(result_set),
             key=lambda x: (
                 x.free_energy
-                if isinstance(x, src.RNAmotiFold.results.mfe.result_mfe)
+                if isinstance(x, RNAmotiFold.results.mfe.result_mfe)
                 else 0
             ),
         )

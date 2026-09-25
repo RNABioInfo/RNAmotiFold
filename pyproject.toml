@@ -28,6 +28,12 @@ dependencies = [
     "requests>=2.32.4",
 ]
 
+[project.scripts]
+RNAmotiFold = "RNAmotiFold.input.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [project.urls]
 Homepage = "https://github.com/RNABioInfo/RNAmotiFold"
 Issues = "https://github.com/RNABioInfo/RNAmotiFold/issues"
