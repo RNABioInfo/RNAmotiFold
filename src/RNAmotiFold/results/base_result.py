@@ -12,7 +12,7 @@ def flatten(xss:list[list[Any]]) -> list[Any]:
     return [x for xs in xss for x in xs]
 
 
-class result:
+class Result:
     separator: str = "\t"
 
     # Not yet sure how to handle motif_type it really is only interesting for single motif mode to differentiate between Internal and Bulge Loop C-Loops
@@ -31,13 +31,13 @@ class result:
     @property
     def tsv(self) -> str:
         """Returns tsv string of itself"""
-        if result.separator == r"\t":
-            result.separator = "\t"
-        return result.separator.join([str(self.__dict__[x]) for x in self.__dict__ ])
+        if Result.separator == r"\t":
+            Result.separator = "\t"
+        return Result.separator.join([str(self.__dict__[x]) for x in self.__dict__])
 
     @property
     def header(self) -> str:
-        if result.separator == r"\t":
-            result.separator = "\t"
+        if Result.separator == r"\t":
+            Result.separator = "\t"
         """Returns header string of itself, adapted to currently set algorithm"""
-        return result.separator.join(self.__dict__.keys())
+        return Result.separator.join(self.__dict__.keys())

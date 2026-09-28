@@ -11,11 +11,8 @@ logger = logging.getLogger(__name__)
 # These are: motif_source, motif_orientation, kvalue, hishape_mode, shape_level, energy
 
 
-class bgap_rna:
-    """Main class for running RNAmotiFold algortihms through python, just hand your arguments to this class (everything else will be defaults set in the class)
-    and use [your class obj].auto_run([input]) to run predictions.). Most functionality is handled by the handlers (input reading, which motifs to use etc.).
-    The bgap obj itself is mostly here to bring everything together. Every bgap_obj creates it's own handlers
-    """
+class CallHandler:
+    """Main class for creating the call to the RNAmotiFold, RNAmotiCes and RNAmotiAlign binaries. Creates the correct binary name, algorithm path and organizes commandline arguments"""
 
     def __repr__(self):
         classname = type(self).__name__
@@ -30,7 +27,7 @@ class bgap_rna:
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
-        obj =  cls(
+        obj = cls(
             alg=params.algorithm,
             motif_source=params.motif_source,
             motif_orientation=params.motif_orientation,
@@ -261,15 +258,15 @@ class bgap_rna:
             case (2, False, False):
                 alg = self.algorithm + "Motmicro"
             case (2, True, False):
-                alg =  self.algorithm + "_motmacro_subopt"
+                alg = self.algorithm + "_motmacro_subopt"
             case (2, False, True):
-                alg =  self.algorithm + "_motmacro_pfc"
+                alg = self.algorithm + "_motmacro_pfc"
             case (1, False, False) | (0, False, False):
-                alg =  self.algorithm
+                alg = self.algorithm
             case (1, True, False) | (0, True, False):
-                alg =  self.algorithm + "_subopt"
+                alg = self.algorithm + "_subopt"
             case (1, False, True) | (0, False, True):
-                alg =  self.algorithm + "_pfc"
+                alg = self.algorithm + "_pfc"
             case _:
                 raise ValueError(
                     "The algorithm you specified does not exist, please revisit your arguments."

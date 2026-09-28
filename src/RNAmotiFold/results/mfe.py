@@ -1,20 +1,18 @@
-import RNAmotiFold.results.base_result
+from RNAmotiFold.results.base_result import Result
 import re
 
 
-class result_mfe(RNAmotiFold.results.base_result.result):
+class ResultMFE(Result):
     """Subclass of result for mfe results, has extra attributes for free energy and motBracket structure. Also implements comparison and hashing for mering structures in single motif mode"""
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:
         super().__init__(id, classifier)
-        self.free_energy = float(int(free_energy) / 100)
-        self.motBracket = (
-            mot_bracket  # This variable gets special treatment so our outputs looks nice
-        )
+        self.free_energy: float = float(int(free_energy) / 100)
+        self.motBracket: str = mot_bracket
 
     # Special Dunder Method for hashing and comparing mfe results, used for merging structure in single motif mode
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, result_mfe):
+        if isinstance(other, ResultMFE):
             return (
                 self.free_energy == other.free_energy
                 and self.motBracket == other.motBracket
@@ -24,21 +22,21 @@ class result_mfe(RNAmotiFold.results.base_result.result):
             raise NotImplementedError(f"Cannot compare result_mfe with {type(other)}")
 
     def __ne__(self, other: object) -> bool:
-        if isinstance(other, result_mfe):
+        if isinstance(other, ResultMFE):
             return not self.__eq__(other)
         else:
             raise NotImplementedError(f"Cannot compare result_mfe with {type(other)}")
 
-    def __lt__(self, other: "result_mfe") -> bool:
+    def __lt__(self, other: "ResultMFE") -> bool:
         return self.free_energy < other.free_energy
 
-    def __le__(self, other: "result_mfe") -> bool:
+    def __le__(self, other: "ResultMFE") -> bool:
         return self.free_energy <= other.free_energy
 
-    def __gt__(self, other: "result_mfe") -> bool:
+    def __gt__(self, other: "ResultMFE") -> bool:
         return self.free_energy > other.free_energy
 
-    def __ge__(self, other: "result_mfe") -> bool:
+    def __ge__(self, other: "ResultMFE") -> bool:
         return self.free_energy >= other.free_energy
 
     def __hash__(self) -> int:
@@ -55,7 +53,7 @@ class result_mfe(RNAmotiFold.results.base_result.result):
         self._dot_bracket = structure_string
 
     @classmethod
-    def from_string(cls, id: str, result_string: str) -> "result_mfe":
+    def from_string(cls, id: str, result_string: str) -> "ResultMFE":
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -67,7 +65,7 @@ class result_mfe(RNAmotiFold.results.base_result.result):
 
     # Implementation of structure merging for single motif mode
     @classmethod
-    def merge_structures(cls, compatibles: list["result_mfe"]) -> "result_mfe|None":
+    def merge_structures(cls, compatibles: list["ResultMFE"]) -> "ResultMFE|None":
         compatibles.sort(
             key=lambda x: x.classifier[0]
         )  # sort list in place alternative would be new = sorted(compatibles,key=...)
@@ -76,7 +74,7 @@ class result_mfe(RNAmotiFold.results.base_result.result):
         motifs: set[tuple[str, str]] = set()
         for result in compatibles:
             motif = result.classifier[0]
-            locations = list(result_mfe.find_all(result.motBracket, motif))
+            locations = list(ResultMFE.find_all(result.motBracket, motif))
             for loc in locations:
                 if loc in insertions and base_structure[loc] != motif:
                     motifs.add((motif.lower(), result.motif_type))
@@ -92,7 +90,7 @@ class result_mfe(RNAmotiFold.results.base_result.result):
             for f in founds:
                 foundslist.append((f.start(), m))
         foundslist.sort(key=lambda tup: tup[0])
-        new_classifier = result_mfe.build_new_classifier([x[1] for x in foundslist])
+        new_classifier = ResultMFE.build_new_classifier([x[1] for x in foundslist])
         if merged_bracket not in [x.motBracket for x in compatibles]:
             return cls(
                 id=compatibles[0].id + "_merged",
@@ -131,7 +129,7 @@ class result_mfe(RNAmotiFold.results.base_result.result):
             start += 1  # use start += 1 to find overlapping matches
 
     @staticmethod
-    def get_compatible_structures(struc_list: list["result_mfe"]) -> list[list[int]]:
+    def get_compatible_structures(struc_list: list["ResultMFE"]) -> list[list[int]]:
         collecting: dict[int, list[int]] = {}
         for i in range(len(struc_list)):
             for j in range(len(struc_list)):

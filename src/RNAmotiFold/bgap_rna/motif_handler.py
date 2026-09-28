@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class motif_handler:
+class MotifHandler:
     """Motif Handler Class, this is responsible for creating the motif part of the algorithm calls.
     It should in the end provide a List of every necessary combination of algorithm calls to cover the requested motifs
     Each part should be handled individually first ?
@@ -39,23 +39,23 @@ class motif_handler:
         self.replace_internals = replace_internals
         self.custom_bulges = custom_bulge_filepath
         self.replace_bulges = replace_bulges
-        self._call_number:int|None = None
-        
+        self._call_number: int | None = None
+        self._tmp_folder: tempfile.TemporaryDirectory[str] | None = None
+
     @property
     def call_number(self) -> int:
         if self._call_number is None:
             raise ValueError("No calls set yet")
         else:
             return self._call_number
-        
+
     @call_number.setter
-    def call_number(self,new_number:int):
+    def call_number(self, new_number: int):
         logger.debug(f"Set call number to {str(new_number)}")
         self._call_number = new_number
-    
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters) -> "motif_handler":
+    def from_script_parameters(cls, params: ScriptParameters) -> "MotifHandler":
         return cls(
             params.motif_list,
             params.fast_mode,
@@ -71,8 +71,8 @@ class motif_handler:
     @property
     def motif_calls(self) -> list[str]:
         # First case: Motif string is empty and all three custom motif paths are not set, single motif mode is also False --> Default case, no extra stuff necessary
-        self._tmp_folder: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory(
-            prefix="tmp_",delete=False, dir=str(Path(__file__).parents[1])
+        self._tmp_folder = tempfile.TemporaryDirectory(
+            prefix="tmp_", delete=False, dir=str(Path(__file__).parents[1])
         )
         if (
             self.motif_string == ""
@@ -89,24 +89,26 @@ class motif_handler:
             and not self.single_motif_mode
         ):
             self.call_number = 1
-            logger.debug("Motif string was empty and mode is combinatorial, running one prediction per input")
+            logger.debug(
+                "Motif string was empty and mode is combinatorial, running one prediction per input"
+            )
             return []
         separate_motif_files = self.get_motif_files()
-        hairpins = motif_handler._make_file_list(
+        hairpins = MotifHandler._make_file_list(
             self.replace_hairpins,
             self.custom_hairpins,
             "hairpins",
             separate_motif_files,
             self.motif_string,
         )
-        internals = motif_handler._make_file_list(
+        internals = MotifHandler._make_file_list(
             self.replace_internals,
             self.custom_internals,
             "internals",
             separate_motif_files,
             self.motif_string,
         )
-        bulges = motif_handler._make_file_list(
+        bulges = MotifHandler._make_file_list(
             self.replace_bulges,
             self.custom_bulges,
             "bulges",
@@ -115,36 +117,41 @@ class motif_handler:
         )
         if self.single_motif_mode:
             temp_folders = (
-                motif_handler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
-                motif_handler._split_sequences(self.motif_string, internals, self._tmp_folder),
-                motif_handler._split_sequences(self.motif_string, bulges, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, internals, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, bulges, self._tmp_folder),
             )
             # Jetzt: alle drei Folder globben, dann hab ich die Paths zu jedem einzelnen Motif separat. Danach einfach kombinieren jedes file mit 2x empty csv und die kombinationen returnen
-            hairpin_calls = motif_handler._split_calls(
+            hairpin_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[0] / "*.tmp")), "hairpin"
             )
-            internal_calls = motif_handler._split_calls(
+            internal_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[1] / "*.tmp")), "internal"
             )
-            bulge_calls = motif_handler._split_calls(
+            bulge_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[2] / "*.tmp")), "bulge"
             )
             self.call_number = len(hairpin_calls + internal_calls + bulge_calls)
-            logger.debug(f"Single motif mode was set, sequences calls are: {[hairpin_calls + internal_calls + bulge_calls]}")
+            logger.debug(
+                f"Single motif mode was set, sequences calls are: {[hairpin_calls + internal_calls + bulge_calls]}"
+            )
             return hairpin_calls + internal_calls + bulge_calls
         else:
             concat_hairpins = self._filter_concat(hairpins, self.motif_string, self._tmp_folder)
             concat_internals = self._filter_concat(internals, self.motif_string, self._tmp_folder)
             concat_bulges = self._filter_concat(bulges, self.motif_string, self._tmp_folder)
             self.call_number = 1
-            logger.debug(f"No single motif mode set, motif call: -X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1")
+            logger.debug(
+                f"No single motif mode set, motif call: -X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"
+            )
             return [f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"]
 
     def get_motif_files(self) -> list[Path]:
         motif_dir_path = (
             Path(__file__)
             .resolve()
-            .parents[3].joinpath(
+            .parents[3]
+            .joinpath(
                 "submodules",
                 "RNALoops",
                 "Misc",
@@ -186,7 +193,7 @@ class motif_handler:
         """Takes a list of motif files and a motif string, reads all the files, filters out only those in the motif string and puts them back together. If the motif string is empty it takes all sequences
         Returns the path to the new temp file with the sequences in it.
         """
-        all_sequences = motif_handler._sort_sequences(file_list, motif_string)
+        all_sequences = MotifHandler._sort_sequences(file_list, motif_string)
         contents: list[str] = []
         for key in all_sequences:
             contents.extend(all_sequences[key])
@@ -228,8 +235,8 @@ class motif_handler:
         write each set to a separate temp file and finally return the path to a tempdir where all the tempfiles have been written.
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
-        subdir = tempfile.TemporaryDirectory(dir=tempdir.name,delete=False,prefix="tmp_")
-        groups: dict[str, list[str]] = motif_handler._sort_sequences(file_list, motif_string)
+        subdir = tempfile.TemporaryDirectory(dir=tempdir.name, delete=False, prefix="tmp_")
+        groups: dict[str, list[str]] = MotifHandler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
             motif_temp = tempfile.NamedTemporaryFile(
@@ -239,7 +246,9 @@ class motif_handler:
                 suffix=".tmp",
             )
             motif_temp.write(motifs.encode())
-            logger.debug(f"Writing sequences for motif {key} to temporary file {motif_temp.name} in subdir {subdir.name}")
+            logger.debug(
+                f"Writing sequences for motif {key} to temporary file {motif_temp.name} in subdir {subdir.name}"
+            )
         return Path(subdir.name).resolve()
 
     @staticmethod
@@ -257,7 +266,7 @@ class motif_handler:
             motif_paths = [
                 x
                 for x in files
-                if motif_type in x.parent.name and motif_handler._check_abb(x, motif_string)
+                if motif_type in x.parent.name and MotifHandler._check_abb(x, motif_string)
             ]
             if custom_motifs is not None:
                 motif_paths.append(custom_motifs)

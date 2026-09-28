@@ -8,11 +8,11 @@ import logging
 import multiprocessing
 from itertools import product
 import RNAmotiFold
-import RNAmotiFold.input
 import RNAmotiFold.input.cli
 
 ROOT_DIR = Path(__file__).absolute().parents[3]
 logger = logging.getLogger(__name__)
+
 
 class AlgorithmCompilation:
 
@@ -22,13 +22,9 @@ class AlgorithmCompilation:
         self.compiled: bool = False
 
     def move(self, source_dir: Path, destination_dir: Path):
-        logger.debug(
-            f"Moving {self.algorithm} from {source_dir} to {destination_dir}"
-        )
+        logger.debug(f"Moving {self.algorithm} from {source_dir} to {destination_dir}")
         source_file: Path = source_dir.joinpath(self.algorithm)
-        destination_file: Path = destination_dir.joinpath(
-            self.algorithm
-        )
+        destination_file: Path = destination_dir.joinpath(self.algorithm)
         shutil.move(source_file, destination_file)
 
 
@@ -58,10 +54,7 @@ def fallback_finder(name: str) -> Path:
             check=True,
             capture_output=True,
         )
-        if (
-            answer.returncode == 0
-            and f"{name}" in answer.stdout.decode()
-        ):
+        if answer.returncode == 0 and f"{name}" in answer.stdout.decode():
             return Path(answer.stdout.decode()).resolve()
         else:
             raise RuntimeError(
@@ -69,9 +62,7 @@ def fallback_finder(name: str) -> Path:
             )
 
 
-def setup_algorithms(
-    gapc_path: Path, perl_path: Path, poolboys: int
-) -> bool:
+def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
     RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
@@ -108,9 +99,7 @@ def setup_algorithms(
         else:
             options = "-t --kbacktrace --kbest --no-coopt-class"
             compilation = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold.gap" PERL="{perl_path}"'
-        compilation_list.append(
-            AlgorithmCompilation(algorithm, compilation)
-        )
+        compilation_list.append(AlgorithmCompilation(algorithm, compilation))
 
     align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t --kbacktrace --kbest --no-coopt-class" FILE="RNAmotiAlign.gap" PERL="{perl_path}"'
     compilation_list.append(AlgorithmCompilation("RNAmotiAlign", align))
@@ -136,9 +125,7 @@ def setup_algorithms(
 
 def work_func(comp_obj: AlgorithmCompilation):
     try:
-        subprocess.run(
-            [comp_obj.compilescript_call], shell=True, check=True
-        )
+        subprocess.run([comp_obj.compilescript_call], shell=True, check=True)
         return True
     except subprocess.CalledProcessError as error:
         raise error
@@ -185,14 +172,9 @@ def run_cmake(cmake_path: str | None) -> Path:
     except subprocess.CalledProcessError as error:
         logger.critical("Error during CMake building, exiting...")
         raise error
-    if (
-        not build_process.returncode
-        and not configure_process.returncode
-    ):
+    if not build_process.returncode and not configure_process.returncode:
         return Path.joinpath(BUILD_PATH, "gapcM-install", "bin", "gapc")
-    raise RuntimeError(
-        f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}"
-    )
+    raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
 
 
 def updates(motif_version: str) -> bool:
@@ -212,9 +194,7 @@ def updates(motif_version: str) -> bool:
     update = RNAmotiFold.input.cli.motifs.uninteractive_update(requested_version=motif_version)
     if update:
         if config.get(config.default_section, "perl_path"):
-            perl_path = Path(
-                config.get(config.default_section, "perl_path")
-            )
+            perl_path = Path(config.get(config.default_section, "perl_path"))
         else:
             try:
                 perl_path = fallback_finder("perl")
@@ -222,9 +202,7 @@ def updates(motif_version: str) -> bool:
                 logger.critical(error)
                 raise error
         if config.get(config.default_section, "gapc_path"):
-            gapc_path = Path(
-                config.get(config.default_section, "gapc_path")
-            )
+            gapc_path = Path(config.get(config.default_section, "gapc_path"))
         else:
             try:
                 gapc_path = detect_gapc()
@@ -232,20 +210,14 @@ def updates(motif_version: str) -> bool:
                 logger.critical(error)
                 raise error
         if config.get(config.default_section, "setup_workers"):
-            poolboys = config.getint(
-                config.default_section, "setup_workers"
-            )
+            poolboys = config.getint(config.default_section, "setup_workers")
         else:
             try:
                 poolboys = multiprocessing.cpu_count() - 1
             except NotImplementedError as error:
-                logger.info(
-                    "Could not count cpus, playing it safe and setting CPU_count to 2"
-                )
+                logger.info("Could not count cpus, playing it safe and setting CPU_count to 2")
                 poolboys = 2
-        setup_algorithms(
-            gapc_path=gapc_path, perl_path=perl_path, poolboys=poolboys
-        )
+        setup_algorithms(gapc_path=gapc_path, perl_path=perl_path, poolboys=poolboys)
         return True
     else:
         return False
@@ -271,13 +243,11 @@ def main(
             gapc_path = run_cmake(cmake_path)  # type: ignore
 
     done: bool = False
-    motifs.uninteractive_update(version)  # type: ignore
+    RNAmotiFold.input.cli.motifs.uninteractive_update(version)  # type: ignore
 
     done = setup_algorithms(gapc_path, perl_path, workers)
     if done:
-        logger.info(
-            "Algorithms are all set up, you can now use RNAmotiFold"
-        )
+        logger.info("Algorithms are all set up, you can now use RNAmotiFold")
     else:
         logger.critical(
             "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"

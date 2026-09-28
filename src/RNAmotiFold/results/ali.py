@@ -1,7 +1,6 @@
 import re
 from typing import NamedTuple
-import RNAmotiFold.results.base_result
-
+from RNAmotiFold.results.base_result import Result
 
 class alignment_score(NamedTuple):
     energy: float
@@ -20,7 +19,7 @@ class alignment_score(NamedTuple):
         )
 
 
-class result_alignment(RNAmotiFold.results.base_result.result):
+class ResultAlignment(Result):
     """Subclass of result for alignment results, adds alignment_score and motBracket attributes as well as special implementation for tsv and header functions"""
 
     def __init__(self, id: str, classifier: str, score: str, motBracket: str) -> None:
@@ -29,7 +28,7 @@ class result_alignment(RNAmotiFold.results.base_result.result):
         self.motBracket: str = motBracket
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, result_alignment):
+        if isinstance(other, ResultAlignment):
             return (
                 self.score == other.score
                 and self.motBracket == other.motBracket
@@ -39,21 +38,21 @@ class result_alignment(RNAmotiFold.results.base_result.result):
             raise NotImplementedError(f"Cannot compare result_alignment with {type(other)}")
 
     def __ne__(self, other: object) -> bool:
-        if isinstance(other, result_alignment):
+        if isinstance(other, ResultAlignment):
             return not self.__eq__(other)
         else:
             raise NotImplementedError(f"Cannot compare result_alignment with {type(other)}")
 
-    def __lt__(self, other: "result_alignment") -> bool:
+    def __lt__(self, other: "ResultAlignment") -> bool:
         return self.score.overall < other.score.overall
 
-    def __le__(self, other: "result_alignment") -> bool:
+    def __le__(self, other: "ResultAlignment") -> bool:
         return self.score.overall <= other.score.overall
 
-    def __gt__(self, other: "result_alignment") -> bool:
+    def __gt__(self, other: "ResultAlignment") -> bool:
         return self.score.overall > other.score.overall
 
-    def __ge__(self, other: "result_alignment") -> bool:
+    def __ge__(self, other: "ResultAlignment") -> bool:
         return self.score.overall >= other.score.overall
 
     @property
@@ -74,7 +73,7 @@ class result_alignment(RNAmotiFold.results.base_result.result):
 
     @property
     def header(self) -> str:
-        return RNAmotiFold.results.base_result.result.separator.join(
+        return Result.separator.join(
             [
                 "ID",
                 "Motif",
@@ -88,7 +87,7 @@ class result_alignment(RNAmotiFold.results.base_result.result):
 
     @property
     def tsv(self):
-        return RNAmotiFold.results.base_result.result.separator.join(
+        return Result.separator.join(
             [
                 self.id,
                 self.classifier,
@@ -101,7 +100,7 @@ class result_alignment(RNAmotiFold.results.base_result.result):
         )
 
     @classmethod
-    def from_string(cls, id: str, results_string: str) -> "result_alignment":
+    def from_string(cls, id: str, results_string: str) -> "ResultAlignment":
         split_result = results_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(

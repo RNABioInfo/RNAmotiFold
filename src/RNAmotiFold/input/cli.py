@@ -1,14 +1,12 @@
 from importlib.util import module_from_spec, spec_from_file_location
-
-from RNAmotiFold.bgap_rna import (
-    bgap_rna,
-    input_handler,
-    motif_handler,
-    subprocess_handler,
-)
-from RNAmotiFold.results import base_result, algorithm_output
+from RNAmotiFold.results.base_result import Result
+from RNAmotiFold.results.algorithm_output import AlgorithmOutput, AlgorithmError
 import RNAmotiFold.bgap_rna.alg_setup as setup
 import RNAmotiFold.input.arg_parsing as arg_parsing
+from RNAmotiFold.bgap_rna.input_handler import InputHandler, AlgorithmInput
+from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
+from RNAmotiFold.bgap_rna.bgap_rna import CallHandler
+from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
 import logging
 from pathlib import Path
 import sys
@@ -20,14 +18,26 @@ import shutil
 logger = logging.getLogger(__name__)
 
 try:
-    script_dir= setup.ROOT_DIR / "submodules" / "RNALoops" / "Misc" / "Applications" / "RNAmotiFold" / "motifs" / "get_RNA3D_motifs.py"
-    spec = spec_from_file_location("uniteractive_update",script_dir)
+    script_dir = (
+        setup.ROOT_DIR
+        / "submodules"
+        / "RNALoops"
+        / "Misc"
+        / "Applications"
+        / "RNAmotiFold"
+        / "motifs"
+        / "get_RNA3D_motifs.py"
+    )
+    spec = spec_from_file_location("uniteractive_update", script_dir)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {setup.ROOT_DIR}")
+        raise ImportError(
+            f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {setup.ROOT_DIR}"
+        )
     motifs = module_from_spec(spec)
     spec.loader.exec_module(motifs)
 except ImportError as e:
     raise e
+
 
 def combine_calls(base_call: str, motif_subcalls: list[str]):
     if len(motif_subcalls) == 0:
@@ -40,28 +50,32 @@ def check_install() -> bool:
     checkpath = Path(__file__).parents[3].resolve() / "Build" / "bin" / "RNAmotiFold"
     return checkpath.exists()
 
+
 def temp_cleanup():
     filepath = Path(__file__).resolve().parents[1]
     tempfolders = [x[0] for x in os.walk(filepath) if "tmp_" in x[0]]
     if len(tempfolders) > 0:
-        logger.debug(f"Identified leftover tmp folder(s) from previous run: {", ".join(tempfolders)}, deleting...")
+        logger.debug(
+            f"Identified leftover tmp folder(s) from previous run: {", ".join(tempfolders)}, deleting..."
+        )
         for folder in tempfolders:
             try:
                 shutil.rmtree(folder)
             except FileNotFoundError as e:
-                logger.info(f"Could not delete some temp files from previous runs {folder}. Continuing without deleting it. This has no impact on the current run.")
+                logger.info(
+                    f"Could not delete some temp files from previous runs {folder}. Continuing without deleting it. This has no impact on the current run."
+                )
 
 
-def create_inputs(
-    calls: list[str], inputs: list[input_handler.algorithm_input]
-) -> list[input_handler.algorithm_input]:
-    full_inputs: list[input_handler.algorithm_input] = []
+def create_inputs(calls: list[str], inputs: list[AlgorithmInput]) -> list[AlgorithmInput]:
+    full_inputs: list[AlgorithmInput] = []
     for input in inputs:
         for call in calls:
             new_input = copy.copy(input)
             new_input.call = call
             full_inputs.append(new_input)
     return full_inputs
+
 
 # configures all loggers with logging.basicConfig to use the same loglevel and output to the same destination
 def configure_logs(loglevel: str, logfile: Path | None) -> None:
@@ -82,11 +96,11 @@ def configure_logs(loglevel: str, logfile: Path | None) -> None:
         )
 
 
-def main() -> list[algorithm_output.algorithm_output | algorithm_output.error]:
+def main() -> int:
     rt_args, additional_parameters = arg_parsing.get_cmdarguments()
     configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
     temp_cleanup()
-    base_result.result.separator = rt_args.separator
+    Result.separator = rt_args.separator
     logger.debug(rt_args)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
     if not check_install():
@@ -131,41 +145,27 @@ def main() -> list[algorithm_output.algorithm_output | algorithm_output.error]:
                 if rt_args.version != motifs.currently_installed():
                     updated: bool = setup.updates(motif_version=rt_args.version)
     # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
-    input_maker = input_handler.input_handler(
-        process_type=rt_args.process_type, user_input=rt_args.input
-    )
-    motif_subcall_maker = motif_handler.motif_handler(
-        rt_args.motif_list,
-        rt_args.fast_mode,
-        rt_args.custom_hairpins,
-        rt_args.custom_internals,
-        rt_args.custom_bulges,
-        rt_args.replace_hairpins,
-        rt_args.replace_internals,
-        rt_args.replace_bulges,
-        rt_args.version,
-    )
+    input_maker = InputHandler(process_type=rt_args.process_type, user_input=rt_args.input)
+    motif_subcall_maker = MotifHandler.from_script_parameters(rt_args)
+
     motif_calls = motif_subcall_maker.motif_calls
-    call_maker = bgap_rna.bgap_rna.from_script_parameters(rt_args)
-    subprocess_manager = subprocess_handler.subprocess_handler(
-        rt_args.workers,
-        rt_args.output,
-        rt_args.alg_type(),
-        motif_subcall_maker.call_number,
+    call_maker = CallHandler.from_script_parameters(rt_args)
+    subprocess_manager = SubprocessHandler.from_script_parameters(
+        rt_args, motif_subcall_maker.call_number
     )
     full_calls: list[str] = combine_calls(call_maker.call, motif_calls)
     if rt_args.input is not None:
-        inputs: list[input_handler.algorithm_input] = input_maker.read_input(
+        inputs: list[AlgorithmInput] = input_maker.read_input(
             process_type=rt_args.process_type,
             user_input=rt_args.input,
             id=rt_args.id,
         )
-        alg_input = create_inputs(calls=full_calls, inputs=inputs)
+        cmd_inputs: list[AlgorithmInput] = create_inputs(calls=full_calls, inputs=inputs)
         results = subprocess_manager.run(
-            inputs=alg_input, merge_mfe_outputs=rt_args.fast_mode_merge
+            inputs=cmd_inputs, merge_mfe_outputs=rt_args.fast_mode_merge
         )
     else:
-        results:list[algorithm_output.algorithm_output|algorithm_output.error] = []
+        results: list[AlgorithmOutput | AlgorithmError] = []
         while True:
             print("Awaiting input...")
             user_input = input()
@@ -181,11 +181,13 @@ def main() -> list[algorithm_output.algorithm_output | algorithm_output.error]:
                 except OSError as e:
                     print(e)
                     continue
-                alg_input: list[input_handler.algorithm_input] = create_inputs(full_calls, rt_input)
+                alg_input: list[AlgorithmInput] = create_inputs(full_calls, rt_input)
                 results.extend(subprocess_manager.run(alg_input, rt_args.fast_mode_merge))
-    input_handler.algorithm_input.cleanup_temps()
+    AlgorithmInput.cleanup_temps()
     motif_subcall_maker.cleanup_tmp_files()
-    return results
+    if all([isinstance(x, AlgorithmOutput) for x in results]):
+        return 0
+    return 1
 
 
 if __name__ == "__main__":

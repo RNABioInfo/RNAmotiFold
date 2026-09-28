@@ -14,21 +14,24 @@ loggers = logging.getLogger(__name__)
 these checks. The check functions are used to check if the given input is valid and if not, raise an error.
 """
 
+
 class VersionParser(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
 
-    def __call__(self,parser:argparse.ArgumentParser,
-                 namespace:argparse.Namespace,
-                 value:None|str|Sequence[Any],
-                 option_string:None|str = None):
-        setattr(namespace,self.dest,VersionParser._parse_version(value))
-
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        value: None | str | Sequence[Any],
+        option_string: None | str = None,
+    ):
+        setattr(namespace, self.dest, VersionParser._parse_version(value))
 
     @staticmethod
-    def _parse_version(value:str|None|Sequence[Any]):
+    def _parse_version(value: str | None | Sequence[Any]):
         if value is not None:
-            return str(value).replace(".","_")
+            return str(value).replace(".", "_")
         else:
             return "current"
 
