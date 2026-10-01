@@ -20,7 +20,9 @@ class CallHandler:
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
         for i in range(0, len(v)):
-            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+            together.append(
+                "{key}={value!r}".format(key=k[i], value=v[i])
+            )
         return f"{classname}({', '.join(together)})"
 
     def __str__(self) -> str:
@@ -52,7 +54,9 @@ class CallHandler:
 
     def __init__(
         self,
-        alg: Literal["RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"] = "RNAmotiFold",
+        alg: Literal[
+            "RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"
+        ] = "RNAmotiFold",
         motif_source: int = 1,
         motif_orientation: Literal[1, 2, 3] = 1,
         kvalue: int = 5,
@@ -123,7 +127,9 @@ class CallHandler:
     @temperature.setter
     def temperature(self, temp: float):
         if not -273 < temp < 100:
-            raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
+            raise ValueError(
+                "Temperature has to be between -273 and 100 Kelvin."
+            )
         self._temperature = temp
 
     @property
@@ -175,9 +181,13 @@ class CallHandler:
     @motif_orientation.setter
     def motif_orientation(self, b: Literal[1, 2, 3]):
         if b in [1, 2, 3]:
-            self._motif_orientation: Literal[1] | Literal[2] | Literal[3] = b
+            self._motif_orientation: (
+                Literal[1] | Literal[2] | Literal[3]
+            ) = b
         else:
-            raise ValueError("Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both.")
+            raise ValueError(
+                "Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both."
+            )
 
     # Set shape abstraction level, viable inputs are 1-5
     @property
@@ -231,7 +241,9 @@ class CallHandler:
         if 0 <= value < 1:
             self._low_probability_filter = value
         else:
-            raise ValueError("Probability filter cannot be below 0 or above 1")
+            raise ValueError(
+                "Probability filter cannot be below 0 or above 1"
+            )
 
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
@@ -290,7 +302,9 @@ class CallHandler:
         """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
-        runtime_dictionary: dict[str, str | int | float | None | Path] = {
+        runtime_dictionary: dict[
+            str, str | int | float | None | Path
+        ] = {
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
             "-t": self.temperature,
@@ -321,14 +335,20 @@ class CallHandler:
         ]
 
         seq_free_call = " ".join(
-            [str(self.algorithm_path), " ".join(arguments), ""]  # "/usr/bin/time"
+            [
+                str(self.algorithm_path),
+                " ".join(arguments),
+                "",
+            ]  # "/usr/bin/time"
         )  # Creates call string without a sequence
         logger.debug(f"Set call as {seq_free_call}")
         return seq_free_call
 
     @call.setter
     def call(self):
-        raise ValueError("Please use the custom_call property so set a custom call.")
+        raise ValueError(
+            "Please use the custom_call property so set a custom call."
+        )
 
     @property
     def motif_string(self) -> str:

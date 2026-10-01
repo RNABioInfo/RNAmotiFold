@@ -264,39 +264,6 @@ class AlgorithmMatching(argparse.Action):
                     f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
                 )
 
-
-class CMakeCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
-        if isinstance(value, str):
-            if Path(value).is_file():
-                try:
-                    version_check = subprocess.run(
-                        [f"{value}", "--version"], capture_output=True, check=True
-                    )
-                except (subprocess.CalledProcessError, PermissionError) as error:
-                    raise RuntimeError(
-                        "Unable to open file, check the above error for more information."
-                    ) from error
-                else:
-                    if "cmake version" in version_check.stdout.decode().lower():
-                        setattr(namespace, self.dest, Path(value))
-                    else:
-                        raise RuntimeError("The given file is not an instance of CMake.")
-            else:
-                raise FileNotFoundError("The given file does not exist.")
-        else:
-            raise ValueError("Why is my value a Sequence ?")
-
-
 class gapcMCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
@@ -308,27 +275,32 @@ class gapcMCheck(argparse.Action):
         value: None | str | Sequence[Any],
         option_string: None | str = None,
     ):
-        if isinstance(value, str) or isinstance(value, Path):
-            if Path(value).is_file():
-                try:
-                    version_check = subprocess.run(
-                        [f"{value}", "--version"], capture_output=True, check=True
-                    )
-                except (subprocess.CalledProcessError, PermissionError) as error:
-                    raise RuntimeError(
-                        "Unable to open file, check the above error for more information."
-                    ) from error
-                else:
-                    if "gapc" in version_check.stdout.decode():
-                        setattr(namespace, self.dest, Path(value))
-                    else:
-                        raise RuntimeError(
-                            "The given file is not an instance of the modified Bellman's GAP compiler."
-                        )
+        setattr(namespace,self.dest,gapcm_check_function(value))
+
+
+@staticmethod
+def gapcm_check_function(value: None | str | Sequence[Any]) -> Path | None:
+    if isinstance(value, str) or isinstance(value, Path):
+        if Path(value).is_file():
+            try:
+                version_check = subprocess.run(
+                    [f"{value}", "--version"], capture_output=True, check=True
+                )
+            except (subprocess.CalledProcessError, PermissionError) as error:
+                raise RuntimeError(
+                    "Unable to open file, check the above error for more information."
+                ) from error
             else:
-                raise FileNotFoundError("The given file does not exist.")
+                if "gapcM" in version_check.stdout.decode():
+                    return Path(value)
+                else:
+                    raise RuntimeError(
+                        "The given file is not an instance of the modified Bellman's GAP compiler."
+                    )
         else:
-            raise ValueError("Why is my value a Sequence ?")
+            raise FileNotFoundError("The given file does not exist.")
+    else:
+        raise ValueError("Why is my value a Sequence ?")
 
 
 class PerlCheck(argparse.Action):

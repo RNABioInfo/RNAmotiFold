@@ -38,7 +38,7 @@ where = ["src"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-RNAmotiFold = ["RNALoops/**/*","RNALoops/*","defaults/defaults.ini"]
+RNAmotiFold = ["RNALoops/**/*","RNALoops/*","configs/*.ini"]
 
 [project.urls]
 Homepage = "https://github.com/RNABioInfo/RNAmotiFold"

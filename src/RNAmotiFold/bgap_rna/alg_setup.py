@@ -3,12 +3,12 @@ import shutil
 from pathlib import Path
 import configparser
 import subprocess
-import sys
 import logging
 import multiprocessing
 from itertools import product
 import RNAmotiFold
 import RNAmotiFold.input.cli
+import RNAmotiFold.input.dependency_finder
 
 logger = logging.getLogger(__name__)
 
@@ -21,26 +21,14 @@ class AlgorithmCompilation:
         self.compiled: bool = False
 
     def move(self, source_dir: Path, destination_dir: Path):
-        logger.debug(f"Moving {self.algorithm} from {source_dir} to {destination_dir}")
+        logger.debug(
+            f"Moving {self.algorithm} from {source_dir} to {destination_dir}"
+        )
         source_file: Path = source_dir.joinpath(self.algorithm)
-        destination_file: Path = destination_dir.joinpath(self.algorithm)
+        destination_file: Path = destination_dir.joinpath(
+            self.algorithm
+        )
         shutil.move(source_file, destination_file)
-
-
-def detect_gapc() -> Path:
-    """Checks for a gapc installation with which and globs RNAmotiFold folder for any gapc instance (which is presumed to be a modified gapc, if you have a different gapc in here that's on you)"""
-    global_gapc = shutil.which("gapc")
-    if global_gapc is not None:
-        return Path(global_gapc)
-    else:
-        local_gapc = list(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR.glob("**/gapcM-install//bin/gapc"))
-        try:
-            return local_gapc[0]
-        except IndexError:
-            raise RuntimeError(
-                "Could not find installed gapc, install gapc if necessary or set path to your gapcM executable with --gapc_path or in defaults config"
-            )
-
 
 def fallback_finder(name: str) -> Path:
     whichpath = shutil.which(f"{name}")
@@ -53,7 +41,10 @@ def fallback_finder(name: str) -> Path:
             check=True,
             capture_output=True,
         )
-        if answer.returncode == 0 and f"{name}" in answer.stdout.decode():
+        if (
+            answer.returncode == 0
+            and f"{name}" in answer.stdout.decode()
+        ):
             return Path(answer.stdout.decode()).resolve()
         else:
             raise RuntimeError(
@@ -61,9 +52,13 @@ def fallback_finder(name: str) -> Path:
             )
 
 
-def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
+def setup_algorithms(
+    gapc_path: Path, perl_path: Path, poolboys: int
+) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
-    RNAMOTIFOLD_BIN = Path.joinpath(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, "bin")
+    RNAMOTIFOLD_BIN = Path.joinpath(
+        RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, "bin"
+    )
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
     COMPILE_SCRIPT = Path.joinpath(
         RNALOOPS_PATH,
@@ -98,7 +93,9 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
         else:
             options = "-t --kbacktrace --kbest --no-coopt-class"
             compilation = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="{algorithm}" ARGS="{options}" FILE="RNAmotiFold.gap" PERL="{perl_path}"'
-        compilation_list.append(AlgorithmCompilation(algorithm, compilation))
+        compilation_list.append(
+            AlgorithmCompilation(algorithm, compilation)
+        )
 
     align = f'{COMPILE_SCRIPT} GAPC="{gapc_path}" ALG="RNAmotiAlign" ARGS="-t --kbacktrace --kbest --no-coopt-class" FILE="RNAmotiAlign.gap" PERL="{perl_path}"'
     compilation_list.append(AlgorithmCompilation("RNAmotiAlign", align))
@@ -124,13 +121,18 @@ def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
 
 def work_func(comp_obj: AlgorithmCompilation):
     try:
-        subprocess.run([comp_obj.compilescript_call], shell=True, check=True)
+        subprocess.run(
+            [comp_obj.compilescript_call], shell=True, check=True
+        )
         return True
     except subprocess.CalledProcessError as error:
         raise error
 
+
 def _check_submodule(submodule: str) -> Path:
-    SUBMOD_DIR = Path.joinpath(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
+    SUBMOD_DIR = Path.joinpath(
+        RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, f"{submodule}"
+    )
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
         raise ModuleNotFoundError(
             f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAmotiFold._RNAMOTIFOLD_ROOT_DIR}"
@@ -138,72 +140,61 @@ def _check_submodule(submodule: str) -> Path:
     else:
         return SUBMOD_DIR
 
-def updates(motif_version: str) -> bool:
-    """Does all the updating, fetches perl and gapc paths from defaults or detects them and uses to set up algorithms, returns True if algorithms were updated, False if not"""
-    config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(
-        open(
-            file=Path.joinpath(
-                RNAmotiFold._RNAMOTIFOLD_ROOT_DIR,
-                "defaults",
-                "defaults.ini",
-            )
-        )
-    )
-    update = RNAmotiFold.input.cli.motifs.uninteractive_update(requested_version=motif_version)
-    if update:
-        if config.get(config.default_section, "perl_path"):
-            perl_path = Path(config.get(config.default_section, "perl_path"))
-        else:
-            try:
-                perl_path = fallback_finder("perl")
-            except RuntimeError as error:
-                logger.critical(error)
-                raise error
-        if config.get(config.default_section, "gapc_path"):
-            gapc_path = Path(config.get(config.default_section, "gapc_path"))
-        else:
-            try:
-                gapc_path = detect_gapc()
-            except RuntimeError as error:
-                logger.critical(error)
-                raise error
-        if config.get(config.default_section, "setup_workers"):
-            poolboys = config.getint(config.default_section, "setup_workers")
-        else:
-            try:
-                poolboys = multiprocessing.cpu_count() - 1
-            except NotImplementedError as error:
-                logger.info("Could not count cpus, playing it safe and setting CPU_count to 2")
-                poolboys = 2
-        setup_algorithms(gapc_path=gapc_path, perl_path=perl_path, poolboys=poolboys)
-        return True
-    else:
-        return False
 
+def get_dependency(configurer:configparser.ConfigParser,configpath:Path,dependency:str,user_input_path:Path|str|None) -> Path|None:
+    if user_input_path is not None:
+        answer = subprocess.run([f"{user_input_path}","-v"],capture_output=True,check=True)
+        if answer.returncode == 0 and f"{dependency}" in answer.stdout.decode():
+            configurer.set(configurer.default_section,f"{dependency}_path",str(user_input_path))
+            with open(configpath,"w+") as of:
+                configurer.write(of)
+            return Path(user_input_path)
+        else:
+            logger.error(f"Set path for {dependency}: {str(user_input_path)} could not be identified as a valid instance of {dependency}. Trying prior input...")   
+    default_path = configurer.get(configurer.default_section,f"{dependency}_path")
+    if default_path:
+        logger.error(f"Using {default_path}")
+        return Path(default_path)
+    else:
+        logger.critical(f"Not viable instance of dependency {dependency} was set, neither in {configpath} nor by the user")
+        return None
 
 def main(
     version: str,
     gapc_path: Path | None,
     perl_path: Path | None,
     workers: int,
+    force_recompile:bool,
+    version_update:bool
 ):
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
-    if perl_path is None:
-        perl_path = fallback_finder("perl")
-    if gapc_path is None:
-        try:
-            gapc_path = detect_gapc()
-        except RuntimeError as error:
-            logger.critical(error)
+    config = configparser.ConfigParser(allow_no_value=True)
+    configpath = RNAmotiFold._RNAMOTIFOLD_ROOT_DIR / "configs" /"paths.ini"
+    with open(configpath,"r+") as of:
+        config.read_file(of,source=str(configpath))
 
-    done: bool = False
-    RNAmotiFold.input.cli.motifs.uninteractive_update(version)
-
-    done = setup_algorithms(gapc_path, perl_path, workers)
-    if done:
-        logger.info("Algorithms are all set up, you can now use RNAmotiFold")
+    #Check if we need to update anyways because we're on the wrong motif version
+    if version_update:
+        update = RNAmotiFold.input.cli.motifs.uninteractive_update(version)
     else:
-        logger.critical(
-            "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"
-        )
+        update = False
+
+    gapc_path = get_dependency(config, configpath, "gapc",gapc_path)
+    if gapc_path is None:
+        logger.critical("No valid gapc path was set, trying to find it myself")
+        gapc_path = RNAmotiFold.input.dependency_finder.find("gapc")
+    perl_path = get_dependency(config,configpath,"perl",perl_path)
+    if perl_path is None:
+        logger.critical("No valid perl path was set, trying to find it myself")
+        perl_path = RNAmotiFold.input.dependency_finder.find("perl")
+    logger.info(f"Using gapc at {gapc_path} and perl at {perl_path}")
+    if update or not force_recompile:
+        done = setup_algorithms(gapc_path, perl_path, workers)
+        if done:
+            logger.info(
+                "Algorithms are all set up, you can now use RNAmotiFold"
+            )
+        else:
+            logger.critical(
+                "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"
+            )

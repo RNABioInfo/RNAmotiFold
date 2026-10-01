@@ -1,0 +1,54 @@
+import shutil
+from pathlib import Path
+from subprocess import run, CalledProcessError
+import logging
+
+logger = logging.getLogger(__name__)
+class dependency_finder:
+
+    def __init__(self, prog):
+        self.prog = prog
+
+
+    @staticmethod
+    def check_which(prog:str):
+        answer = shutil.which(f"{prog}")
+        if answer is not None:
+            return Path(answer).resolve()
+        return None
+
+
+    @staticmethod
+    def check_command(prog:str):
+        try:
+            answer = run(f"command -v {prog}",shell=True,check=True,capture_output=True)
+        except CalledProcessError as e:
+            logger.error(f"Error while checking for {prog} with command -v: {e}")
+        else: 
+            if answer.returncode == 0 and f"{prog}" in answer.stdout.decode():
+                return Path(answer.stdout.decode()).resolve()
+        return None
+
+    def find_dep_path(self):
+        dep_path = self.check_which(self.prog)
+        if dep_path is None:
+            dep_path = self.check_command(self.prog)
+        #Add in additional finder steps here if necessary
+        
+        if dep_path is not None:
+            return dep_path
+        raise FileNotFoundError(f"Could not find {self.prog} on the system, install if you havent already or set it with --{self.prog}_path")
+
+def find(dependency:str):
+    """Attempts to find a RNAmotiFold dependency with which and command -v /your dependency here/"""
+    finder = dependency_finder(dependency)
+    try:
+        path = finder.find_dep_path()
+    except FileNotFoundError as e:
+        logger.critical(f"Could not find {dependency} on the system, install if you havent already or set it with --{dependency}_path")
+        raise e
+    except CalledProcessError as e:
+        logger.critical(f"Error while checking for {dependency}: {e}")
+        raise e
+    else:
+        return path

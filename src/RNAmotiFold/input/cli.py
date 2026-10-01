@@ -1,12 +1,12 @@
-from importlib.util import module_from_spec, spec_from_file_location
 from RNAmotiFold.results.base_result import Result
 from RNAmotiFold.results.algorithm_output import AlgorithmOutput, AlgorithmError
-import RNAmotiFold.bgap_rna.alg_setup as setup
+import RNAmotiFold.bgap_rna.alg_setup as alg_setup
 import RNAmotiFold.input.arg_parsing as arg_parsing
 from RNAmotiFold.bgap_rna.input_handler import InputHandler, AlgorithmInput
 from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
-from RNAmotiFold.bgap_rna.bgap_rna import CallHandler
+from RNAmotiFold.bgap_rna.call_handler import CallHandler
 from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
+from RNAmotiFold import motifs
 from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
 import logging
 from pathlib import Path
@@ -17,26 +17,6 @@ import os
 import shutil
 
 logger = logging.getLogger(__name__)
-
-try:
-    script_dir = (
-        _RNAMOTIFOLD_ROOT_DIR
-        / "RNALoops"
-        / "Misc"
-        / "Applications"
-        / "RNAmotiFold"
-        / "motifs"
-        / "get_RNA3D_motifs.py"
-    )
-    spec = spec_from_file_location("uniteractive_update", script_dir)
-    if spec is None or spec.loader is None:
-        raise ImportError(
-            f"Submodule RNALoops was not correctly cloned."
-        )
-    motifs = module_from_spec(spec)
-    spec.loader.exec_module(motifs)
-except ImportError as e:
-    raise e
 
 
 def combine_calls(base_call: str, motif_subcalls: list[str]):
@@ -102,49 +82,27 @@ def main() -> int:
     temp_cleanup()
     Result.separator = rt_args.separator
     logger.debug(rt_args)
+    installed = check_install(rt_args.algorithm)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
-    if not check_install(rt_args.algorithm):
+    if not installed  or rt_args.update:
         logger.critical(
-            "Couldn't find RNAmotiFold, attempting to install algorithms and gapc if necessary"
+            f"(Re)compiling algorithms..."
         )
-        setup.main(
+
+        alg_setup.main(
             rt_args.version,
             rt_args.gapc_path,
             rt_args.perl_path,
-            workers=rt_args.workers,
-            cmake_path=rt_args.cmake_path,
+            rt_args.workers,
+            check_install(rt_args.algorithm),
+            rt_args.update
         )
         if not check_install(rt_args.algorithm):
             raise FileNotFoundError(
-                "Something went wrong setting up algorithms, check if dependencies are installed and re-run installer.py"
+                "Something went wrong setting up your algorithm, check if dependencies are installed and re-run installer.py"
             )
-        else:
-            logger.critical("Installation successfull, running RNAmotiFold")
-    else:
-        if rt_args.update:
-            logger.info(
-                "Update is set, attempting to update algorithms to given version or current version"
-            )
-            try:
-                updated: bool = setup.updates(motif_version=rt_args.version)
-            except RuntimeError as e:
-                raise e
-            except subprocess.CalledProcessError as e:
-                raise e
-            else:
-                if updated:
-                    logger.info(f"Updated to {rt_args.version}")
-                else:
-                    logger.info(
-                        f"Failed to update to version {rt_args.version}, trying to run with currently installed version"
-                    )
-        else:
-            if rt_args.version == "current":
-                rt_args.version = motifs.currently_installed()
-            else:
-                if rt_args.version != motifs.currently_installed():
-                    updated: bool = setup.updates(motif_version=rt_args.version)
     # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
+
     input_maker = InputHandler(process_type=rt_args.process_type, user_input=rt_args.input)
     motif_subcall_maker = MotifHandler.from_script_parameters(rt_args)
 
@@ -188,7 +146,6 @@ def main() -> int:
     if all([isinstance(x, AlgorithmOutput) for x in results]):
         return 0
     return 1
-
 
 if __name__ == "__main__":
     main()

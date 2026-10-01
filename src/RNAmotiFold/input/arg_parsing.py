@@ -14,24 +14,29 @@ from RNAmotiFold.input.action_overwrites import (
     MotifListCheck,
     AlgorithmMatching,
     VersionParser,
-    CMakeCheck,
     PerlCheck,
     gapcMCheck,
 )
 
 loggers = logging.getLogger(__name__)
-_defaults_config_path =_RNAMOTIFOLD_ROOT_DIR.joinpath("defaults", "defaults.ini")
-
+_defaults_config_path =_RNAMOTIFOLD_ROOT_DIR.joinpath("configs", "defaults.ini")
+_paths_config_path = _RNAMOTIFOLD_ROOT_DIR.joinpath("configs", "paths.ini")
 
 def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     """Sets up argument parser using defaults/defaults.ini for default values. Checks set arguments using action_overwrites and will raise Errors if something is not right. Returns a tuple of ScriptParameters and a list of unknown arguments"""
     config = configparser.ConfigParser(allow_no_value=True)
     config.read_file(open(_defaults_config_path))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
+    path_config = configparser.ConfigParser(allow_no_value=True)
+    path_config.read_file(open(_paths_config_path))
     for option in [
         x for x in config[config.default_section] if config[config.default_section][x] == ""
     ]:
         config.set(config.default_section, option, None)
+    for option in [
+        x for x in path_config[path_config.default_section] if path_config[path_config.default_section][x] == ""
+    ]:
+        path_config.set(path_config.default_section, option, None)
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
@@ -331,33 +336,24 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     )
     # Installation parameters
     parser.add_argument(
-        "--cmake_path",
-        nargs="?",
-        dest="cmake_path",
-        action=CMakeCheck,
-        default=config.get(config.default_section, "cmake_path"),  # shutil.which("cmake"),
-        type=str,
-        help=f"Installation Parameter, only used on first setup when compiling the gap compiler. Default can be set at {str(Path.joinpath(_RNAMOTIFOLD_ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a cmake with shutil.which and command -v cmake.",
-    )
-    parser.add_argument(
         "--gapc_path",
         nargs="?",
         action=gapcMCheck,
         dest="gapc_path",
-        default=config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
+        default=path_config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
         type=Path,
-        help=f"GAPC Path for compilation, used when (re)compiling algorithms, default can be set at {str(Path.joinpath(_RNAMOTIFOLD_ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}.If no default is set the script will try to find a gapc with shutil.which and check the RNAmotiFold folder structure for a local installation (it is automatically installed by this script usually).",
+        help=f"GAPC Path for compilation, used when (re)compiling algorithms. If not set the script will try to find a gapc",
     )
     parser.add_argument(
         "--perl_path",
         nargs="?",
         dest="perl_path",
         action=PerlCheck,
-        default=config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
+        default=path_config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
         type=Path,
-        help=f"Perl interpreter path, used when (re)compilation, default can be set at {str(Path.joinpath(_RNAMOTIFOLD_ROOT_DIR,"src","RNAmotiFold","defaults","defaults.ini"))}. If no default is set the script will try to find a perl interpreter with attempt to find one with 'shutil.which' and command -v perl",
+        help=f"Perl interpreter path, used for (re)compilation of algorithms. If no default is set the script will try to find a perl interpreter with attempt to find one with 'shutil.which' and command -v perl",
     )
-    loggers.info("Parsing cmgiven arguments args")
+    loggers.info("Parsing given arguments args")
     args = parser.parse_known_args()
     loggers.debug(f"Known args: {args[0]}")
     loggers.debug(f"Leftover args: {args[1]}")
