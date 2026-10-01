@@ -10,7 +10,6 @@ from itertools import product
 import RNAmotiFold
 import RNAmotiFold.input.cli
 
-ROOT_DIR = Path(__file__).absolute().parents[3]
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +33,7 @@ def detect_gapc() -> Path:
     if global_gapc is not None:
         return Path(global_gapc)
     else:
-        local_gapc = list(ROOT_DIR.glob("**/gapcM-install//bin/gapc"))
+        local_gapc = list(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR.glob("**/gapcM-install//bin/gapc"))
         try:
             return local_gapc[0]
         except IndexError:
@@ -64,7 +63,7 @@ def fallback_finder(name: str) -> Path:
 
 def setup_algorithms(gapc_path: Path, perl_path: Path, poolboys: int) -> bool:
     RNALOOPS_PATH = _check_submodule("RNALoops")
-    RNAMOTIFOLD_BIN = Path.joinpath(ROOT_DIR, "Build", "bin")
+    RNAMOTIFOLD_BIN = Path.joinpath(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, "bin")
     RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
     COMPILE_SCRIPT = Path.joinpath(
         RNALOOPS_PATH,
@@ -130,52 +129,14 @@ def work_func(comp_obj: AlgorithmCompilation):
     except subprocess.CalledProcessError as error:
         raise error
 
-
 def _check_submodule(submodule: str) -> Path:
-    SUBMOD_DIR = Path.joinpath(ROOT_DIR, "submodules", f"{submodule}")
+    SUBMOD_DIR = Path.joinpath(RNAmotiFold._RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
         raise ModuleNotFoundError(
-            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {ROOT_DIR}"
+            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAmotiFold._RNAMOTIFOLD_ROOT_DIR}"
         )
     else:
         return SUBMOD_DIR
-
-
-def run_cmake(cmake_path: str | None) -> Path:
-    if cmake_path is None:
-        raise FileNotFoundError(
-            "CMake was not found, please install it or set the path with --cmake_path"
-        )
-    BUILD_PATH = Path.joinpath(ROOT_DIR, "Build")
-    BUILD_PATH.mkdir(exist_ok=True)
-    try:
-        configure_process = subprocess.run(
-            f"{cmake_path} ..",
-            shell=True,
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stdout,
-            cwd=BUILD_PATH,
-        )
-    except subprocess.CalledProcessError as error:
-        logger.critical("Error during CMake configuration, exiting...")
-        raise error
-    try:
-        build_process = subprocess.run(
-            f"{cmake_path} --build .",
-            shell=True,
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stdout,
-            cwd=BUILD_PATH,
-        )
-    except subprocess.CalledProcessError as error:
-        logger.critical("Error during CMake building, exiting...")
-        raise error
-    if not build_process.returncode and not configure_process.returncode:
-        return Path.joinpath(BUILD_PATH, "gapcM-install", "bin", "gapc")
-    raise RuntimeError(f"Could not build RNAmotiFold, something went wrong: {build_process.stderr}")
-
 
 def updates(motif_version: str) -> bool:
     """Does all the updating, fetches perl and gapc paths from defaults or detects them and uses to set up algorithms, returns True if algorithms were updated, False if not"""
@@ -183,9 +144,7 @@ def updates(motif_version: str) -> bool:
     config.read_file(
         open(
             file=Path.joinpath(
-                ROOT_DIR,
-                "src",
-                "RNAmotiFold",
+                RNAmotiFold._RNAMOTIFOLD_ROOT_DIR,
                 "defaults",
                 "defaults.ini",
             )
@@ -228,11 +187,8 @@ def main(
     gapc_path: Path | None,
     perl_path: Path | None,
     workers: int,
-    cmake_path: Path | None,
 ):
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
-    if cmake_path is None:
-        cmake_path = fallback_finder("cmake")
     if perl_path is None:
         perl_path = fallback_finder("perl")
     if gapc_path is None:
@@ -240,10 +196,9 @@ def main(
             gapc_path = detect_gapc()
         except RuntimeError as error:
             logger.critical(error)
-            gapc_path = run_cmake(cmake_path)  # type: ignore
 
     done: bool = False
-    RNAmotiFold.input.cli.motifs.uninteractive_update(version)  # type: ignore
+    RNAmotiFold.input.cli.motifs.uninteractive_update(version)
 
     done = setup_algorithms(gapc_path, perl_path, workers)
     if done:

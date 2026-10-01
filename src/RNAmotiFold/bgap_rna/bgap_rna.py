@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 from RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
 import logging
 
 logger = logging.getLogger(__name__)
@@ -235,13 +236,7 @@ class CallHandler:
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
-        path = str(
-            Path(__file__)
-            .resolve()
-            .parents[3]
-            .joinpath("Build", "bin")
-            .joinpath(self.algorithm_binary)
-        )
+        path = _RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
         logger.debug(f"Set algorithm path as {path}")
         return path
 
@@ -326,7 +321,7 @@ class CallHandler:
         ]
 
         seq_free_call = " ".join(
-            [self.algorithm_path, " ".join(arguments), ""]  # "/usr/bin/time"
+            [str(self.algorithm_path), " ".join(arguments), ""]  # "/usr/bin/time"
         )  # Creates call string without a sequence
         logger.debug(f"Set call as {seq_free_call}")
         return seq_free_call

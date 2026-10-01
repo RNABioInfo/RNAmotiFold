@@ -308,7 +308,7 @@ class gapcMCheck(argparse.Action):
         value: None | str | Sequence[Any],
         option_string: None | str = None,
     ):
-        if isinstance(value, str):
+        if isinstance(value, str) or isinstance(value, Path):
             if Path(value).is_file():
                 try:
                     version_check = subprocess.run(

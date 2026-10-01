@@ -7,6 +7,7 @@ from RNAmotiFold.bgap_rna.input_handler import InputHandler, AlgorithmInput
 from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
 from RNAmotiFold.bgap_rna.bgap_rna import CallHandler
 from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
+from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
 import logging
 from pathlib import Path
 import sys
@@ -19,8 +20,7 @@ logger = logging.getLogger(__name__)
 
 try:
     script_dir = (
-        setup.ROOT_DIR
-        / "submodules"
+        _RNAMOTIFOLD_ROOT_DIR
         / "RNALoops"
         / "Misc"
         / "Applications"
@@ -31,7 +31,7 @@ try:
     spec = spec_from_file_location("uniteractive_update", script_dir)
     if spec is None or spec.loader is None:
         raise ImportError(
-            f"Submodule RNALoops was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {setup.ROOT_DIR}"
+            f"Submodule RNALoops was not correctly cloned."
         )
     motifs = module_from_spec(spec)
     spec.loader.exec_module(motifs)
@@ -46,8 +46,8 @@ def combine_calls(base_call: str, motif_subcalls: list[str]):
         return [base_call + " " + x for x in motif_subcalls]
 
 
-def check_install() -> bool:
-    checkpath = Path(__file__).parents[3].resolve() / "Build" / "bin" / "RNAmotiFold"
+def check_install(algorithm:str) -> bool:
+    checkpath =  _RNAMOTIFOLD_ROOT_DIR / "bin" / algorithm
     return checkpath.exists()
 
 
@@ -103,7 +103,7 @@ def main() -> int:
     Result.separator = rt_args.separator
     logger.debug(rt_args)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
-    if not check_install():
+    if not check_install(rt_args.algorithm):
         logger.critical(
             "Couldn't find RNAmotiFold, attempting to install algorithms and gapc if necessary"
         )
@@ -114,7 +114,7 @@ def main() -> int:
             workers=rt_args.workers,
             cmake_path=rt_args.cmake_path,
         )
-        if not check_install():
+        if not check_install(rt_args.algorithm):
             raise FileNotFoundError(
                 "Something went wrong setting up algorithms, check if dependencies are installed and re-run installer.py"
             )
