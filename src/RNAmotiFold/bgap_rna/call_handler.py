@@ -48,15 +48,14 @@ class CallHandler:
             motif_string=params.motif_list,
             weight=params.motif_weight,
             fraction=params.motif_fraction,
+            version=params.version,
         )
         logger.debug(f"Created bgap obj {str(obj)} from {vars(params)}")
         return obj
 
     def __init__(
         self,
-        alg: Literal[
-            "RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"
-        ] = "RNAmotiFold",
+        alg: Literal["RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"] = "RNAmotiFold",
         motif_source: int = 1,
         motif_orientation: Literal[1, 2, 3] = 1,
         kvalue: int = 5,
@@ -73,6 +72,7 @@ class CallHandler:
         motif_string: str = "",
         weight: float = 1.0,
         fraction: float = 0.7,
+        version: str = "4_10",
     ):
         self.id = session_id
         self.subopt = subopt
@@ -92,6 +92,7 @@ class CallHandler:
         self.motif_string = motif_string
         self.motif_weighting = weight
         self.motif_fraction = fraction
+        self.version = version
 
     # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
     # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
@@ -302,12 +303,11 @@ class CallHandler:
         """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
         if hasattr(self, "custom_call"):
             return self.custom_call
-        runtime_dictionary: dict[
-            str, str | int | float | None | Path
-        ] = {
+        runtime_dictionary: dict[str, str | int | float | None | Path] = {
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
             "-t": self.temperature,
+            "-v": self.version,
         }
         if self.subopt:
             # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary

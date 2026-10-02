@@ -116,7 +116,7 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
         dest="version",
         action=VersionParser,
         type=str,
-        default="current",
+        default=config.get(config.default_section, "version"),
     )
     pfc_or_subopt.add_argument(
         "--s",

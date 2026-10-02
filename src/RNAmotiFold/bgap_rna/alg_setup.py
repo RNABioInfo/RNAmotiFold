@@ -159,42 +159,33 @@ def get_dependency(configurer:configparser.ConfigParser,configpath:Path,dependen
         logger.critical(f"Not viable instance of dependency {dependency} was set, neither in {configpath} nor by the user")
         return None
 
+
 def main(
-    version: str,
     gapc_path: Path | None,
     perl_path: Path | None,
     workers: int,
-    force_recompile:bool,
-    version_update:bool
 ):
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
     config = configparser.ConfigParser(allow_no_value=True)
-    configpath = RNAmotiFold._RNAMOTIFOLD_ROOT_DIR / "configs" /"paths.ini"
-    with open(configpath,"r+") as of:
-        config.read_file(of,source=str(configpath))
+    configpath = RNAmotiFold._RNAMOTIFOLD_ROOT_DIR / "configs" / "paths.ini"
+    with open(configpath, "r+") as of:
+        config.read_file(of, source=str(configpath))
 
-    #Check if we need to update anyways because we're on the wrong motif version
-    if version_update:
-        update = RNAmotiFold.input.cli.motifs.uninteractive_update(version)
-    else:
-        update = False
+    # Check if we need to update anyways because we're on the wrong motif version
 
-    gapc_path = get_dependency(config, configpath, "gapc",gapc_path)
+    gapc_path = get_dependency(config, configpath, "gapc", gapc_path)
     if gapc_path is None:
         logger.critical("No valid gapc path was set, trying to find it myself")
         gapc_path = RNAmotiFold.input.dependency_finder.find("gapc")
-    perl_path = get_dependency(config,configpath,"perl",perl_path)
+    perl_path = get_dependency(config, configpath, "perl", perl_path)
     if perl_path is None:
         logger.critical("No valid perl path was set, trying to find it myself")
         perl_path = RNAmotiFold.input.dependency_finder.find("perl")
     logger.info(f"Using gapc at {gapc_path} and perl at {perl_path}")
-    if update or not force_recompile:
-        done = setup_algorithms(gapc_path, perl_path, workers)
-        if done:
-            logger.info(
-                "Algorithms are all set up, you can now use RNAmotiFold"
-            )
-        else:
-            logger.critical(
-                "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"
-            )
+    done = setup_algorithms(gapc_path, perl_path, workers)
+    if done:
+        logger.info("Algorithms are all set up, you can now use RNAmotiFold")
+    else:
+        logger.critical(
+            "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"
+        )

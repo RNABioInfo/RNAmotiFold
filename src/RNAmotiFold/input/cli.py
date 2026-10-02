@@ -84,22 +84,16 @@ def main() -> int:
     logger.debug(rt_args)
     installed = check_install(rt_args.algorithm)
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
-    if not installed  or rt_args.update:
-        logger.critical(
-            f"(Re)compiling algorithms..."
-        )
-
+    if not installed or rt_args.update:
+        logger.critical(f"Compiling algorithms...")
         alg_setup.main(
-            rt_args.version,
             rt_args.gapc_path,
             rt_args.perl_path,
             rt_args.workers,
-            check_install(rt_args.algorithm),
-            rt_args.update
         )
         if not check_install(rt_args.algorithm):
             raise FileNotFoundError(
-                "Something went wrong setting up your algorithm, check if dependencies are installed and re-run installer.py"
+                f"Something went wrong setting up {rt_args.algorithm}, check if dependencies are installed and re-run installer.py"
             )
     # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
 
