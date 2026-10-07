@@ -27,7 +27,7 @@ def flatten(xss: list[list[Any]]) -> list[Any]:
 class AlgorithmInput:
 
     tmp_files: ClassVar[list[Path]] = []
-    id: str
+    _id: str | None
     input_str: str
     process_type: Literal["ali", "single"]
     _call: str = ""
@@ -70,6 +70,13 @@ class AlgorithmInput:
     def call(self, new_call: str) -> None:
         self._call = new_call
 
+    @property
+    def id(self):
+        if self._id is None:
+            return "N/A"
+        else:
+            return self._id
+
     @classmethod
     def from_generators(
         cls, process_type: Literal["ali", "single"], input_generator: Any
@@ -99,7 +106,7 @@ class AlgorithmInput:
                 for sequence in input_generator:
                     returnlist.append(
                         AlgorithmInput(
-                            id=sequence.id, input_str=str(sequence.seq), process_type=process_type
+                            _id=sequence.id, input_str=str(sequence.seq), process_type=process_type
                         )
                     )
             case _:
@@ -166,7 +173,37 @@ class InputHandler:
         except ValueError as e:
             raise e
         # No error was raised so we can assume that it is not a directory or file in the system but it is a viable sequence
-        return [AlgorithmInput(id=id, input_str=user_input.strip(), process_type=process_type)]
+        return [AlgorithmInput(_id=id, input_str=user_input.strip(), process_type=process_type)]
+
+    @staticmethod
+    def script_read_input(
+        process_type: Literal["single", "ali"],
+        user_input: str | SeqRecord | Path | list[SeqRecord] | list[str],
+        id: str = "N/A",
+    ):
+        match user_input:
+            case str():
+                return InputHandler.read_input(process_type, user_input)
+            case Path():
+                return InputHandler.read_input(process_type, str(user_input))
+            case SeqRecord():
+                return [
+                    AlgorithmInput(
+                        _id=user_input.id, input_str=str(user_input.seq), process_type=process_type
+                    )
+                ]
+            case list():
+                if all(isinstance(x, str) for x in user_input):
+                    return flatten([InputHandler.read_input(process_type, x) for x in user_input])
+                elif all(isinstance(x, SeqRecord) for x in user_input):
+                    return [
+                        AlgorithmInput(_id=x.id, input_str=str(x.seq), process_type=process_type)
+                        for x in user_input
+                    ]
+                else:
+                    raise ValueError("Unknown type in input detected")
+            case _:
+                raise ValueError("Couldnt parse input")
 
     # Read input file
     @staticmethod

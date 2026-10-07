@@ -12,9 +12,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ScriptParameters:
-    """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser. 
+    """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser.
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
     """
 
@@ -29,7 +30,7 @@ class ScriptParameters:
     motif_orientation: Literal[1, 2, 3]
     kvalue: int
     shape_level: int
-    energy: str
+    energy: float
     temperature: float
     basepairs: Literal[0, 1, 2]
     energy_percent: float
@@ -168,7 +169,7 @@ class ScriptParameters:
             motif_orientation=confs.getint(section_name, "motif_orientation"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=confs.getint(section_name, "kvalue"),
             shape_level=confs.getint(section_name, "shape_level"),
-            energy=confs.get(section_name, "energy"),
+            energy=confs.getfloat(section_name, "energy"),
             temperature=confs.getfloat(section_name, "temperature"),
             basepairs=confs.getint(section_name, "basepairs"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             energy_percent=confs.getfloat(section_name, "energy_percent"),

@@ -8,6 +8,8 @@ import logging
 import subprocess
 from multiprocessing import cpu_count
 
+import RNAmotiFold
+
 loggers = logging.getLogger(__name__)
 
 """"Module for different types of check function used during cmd argument parsing and config file parsing. Overwrites of argparse.Action are used to implement
@@ -31,9 +33,19 @@ class VersionParser(argparse.Action):
     @staticmethod
     def _parse_version(value: str | None | Sequence[Any]):
         if value is not None:
-            return str(value).replace(".", "_")
+            vers = str(value).replace(".", "_")
+            print(vers)
+            if vers in RNAmotiFold.AVAILABLE_VERSIONS:
+                return vers
+            else:
+                raise ValueError(
+                    "Invalid version specified, please select one of the available versions: "
+                    + ", ".join(RNAmotiFold.AVAILABLE_VERSIONS)
+                )
         else:
-            return "current"
+            raise ValueError(
+                "-v Set but not version specified, please specify a version with -v <version> or --version <version>"
+            )
 
 
 class MotifFileCheck(argparse.Action):
@@ -264,6 +276,7 @@ class AlgorithmMatching(argparse.Action):
                     f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
                 )
 
+
 class gapcMCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any):
         super().__init__(option_strings, dest, **kwargs)
@@ -275,7 +288,7 @@ class gapcMCheck(argparse.Action):
         value: None | str | Sequence[Any],
         option_string: None | str = None,
     ):
-        setattr(namespace,self.dest,gapcm_check_function(value))
+        setattr(namespace, self.dest, gapcm_check_function(value))
 
 
 @staticmethod

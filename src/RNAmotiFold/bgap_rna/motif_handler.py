@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import glob
 from typing import Literal
-from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.input.parameters import ScriptParameters
 import logging
 
@@ -56,9 +56,7 @@ class MotifHandler:
         self._call_number = new_number
 
     @classmethod
-    def from_script_parameters(
-        cls, params: ScriptParameters
-    ) -> "MotifHandler":
+    def from_script_parameters(cls, params: ScriptParameters) -> "MotifHandler":
         return cls(
             params.motif_list,
             params.fast_mode,
@@ -122,15 +120,9 @@ class MotifHandler:
         )
         if self.single_motif_mode:
             temp_folders = (
-                MotifHandler._split_sequences(
-                    self.motif_string, hairpins, self._tmp_folder
-                ),
-                MotifHandler._split_sequences(
-                    self.motif_string, internals, self._tmp_folder
-                ),
-                MotifHandler._split_sequences(
-                    self.motif_string, bulges, self._tmp_folder
-                ),
+                MotifHandler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, internals, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, bulges, self._tmp_folder),
             )
             # Jetzt: alle drei Folder globben, dann hab ich die Paths zu jedem einzelnen Motif separat. Danach einfach kombinieren jedes file mit 2x empty csv und die kombinationen returnen
             hairpin_calls = MotifHandler._split_calls(
@@ -142,34 +134,24 @@ class MotifHandler:
             bulge_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[2] / "*.tmp")), "bulge"
             )
-            self.call_number = len(
-                hairpin_calls + internal_calls + bulge_calls
-            )
+            self.call_number = len(hairpin_calls + internal_calls + bulge_calls)
             logger.debug(
                 f"Single motif mode was set, sequences calls are: {[hairpin_calls + internal_calls + bulge_calls]}"
             )
             return hairpin_calls + internal_calls + bulge_calls
         else:
-            concat_hairpins = self._filter_concat(
-                hairpins, self.motif_string, self._tmp_folder
-            )
-            concat_internals = self._filter_concat(
-                internals, self.motif_string, self._tmp_folder
-            )
-            concat_bulges = self._filter_concat(
-                bulges, self.motif_string, self._tmp_folder
-            )
+            concat_hairpins = self._filter_concat(hairpins, self.motif_string, self._tmp_folder)
+            concat_internals = self._filter_concat(internals, self.motif_string, self._tmp_folder)
+            concat_bulges = self._filter_concat(bulges, self.motif_string, self._tmp_folder)
             self.call_number = 1
             logger.debug(
                 f"No single motif mode set, motif call: -X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"
             )
-            return [
-                f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"
-            ]
+            return [f"-X {concat_hairpins} -Y {concat_internals} -Z {concat_bulges} -L 1 -E 1 -G 1"]
 
     def get_motif_files(self) -> list[Path]:
         motif_dir_path = (
-            _RNAMOTIFOLD_ROOT_DIR
+            RNAMOTIFOLD_ROOT_DIR
             / "RNALoops"
             / "Misc"
             / "Applications"
@@ -187,7 +169,7 @@ class MotifHandler:
         loop_type: Literal["hairpin", "internal", "bulge"],
     ):
         empty_csv = (
-            _RNAMOTIFOLD_ROOT_DIR
+            RNAMOTIFOLD_ROOT_DIR
             / "RNALoops"
             / "Misc"
             / "Applications"
@@ -198,20 +180,11 @@ class MotifHandler:
         )
         match loop_type:
             case "hairpin":
-                return [
-                    f"-X {x} -Y {empty_csv} -Z {empty_csv} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {x} -Y {empty_csv} -Z {empty_csv} -L 1 -E 1 -G 1" for x in file_list]
             case "internal":
-                return [
-                    f"-X {empty_csv} -Y {x} -Z {empty_csv} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {empty_csv} -Y {x} -Z {empty_csv} -L 1 -E 1 -G 1" for x in file_list]
             case "bulge":
-                return [
-                    f"-X {empty_csv} -Y {empty_csv} -Z {x} -L 1 -E 1 -G 1"
-                    for x in file_list
-                ]
+                return [f"-X {empty_csv} -Y {empty_csv} -Z {x} -L 1 -E 1 -G 1" for x in file_list]
 
     @staticmethod
     def _filter_concat(
@@ -222,9 +195,7 @@ class MotifHandler:
         """Takes a list of motif files and a motif string, reads all the files, filters out only those in the motif string and puts them back together. If the motif string is empty it takes all sequences
         Returns the path to the new temp file with the sequences in it.
         """
-        all_sequences = MotifHandler._sort_sequences(
-            file_list, motif_string
-        )
+        all_sequences = MotifHandler._sort_sequences(file_list, motif_string)
         contents: list[str] = []
         for key in all_sequences:
             contents.extend(all_sequences[key])
@@ -271,12 +242,8 @@ class MotifHandler:
         write each set to a separate temp file and finally return the path to a tempdir where all the tempfiles have been written.
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
-        subdir = tempfile.TemporaryDirectory(
-            dir=tempdir.name, delete=False, prefix="tmp_"
-        )
-        groups: dict[str, list[str]] = MotifHandler._sort_sequences(
-            file_list, motif_string
-        )
+        subdir = tempfile.TemporaryDirectory(dir=tempdir.name, delete=False, prefix="tmp_")
+        groups: dict[str, list[str]] = MotifHandler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
             motif_temp = tempfile.NamedTemporaryFile(
@@ -306,20 +273,15 @@ class MotifHandler:
             motif_paths = [
                 x
                 for x in files
-                if motif_type in x.parent.name
-                and MotifHandler._check_abb(x, motif_string)
+                if motif_type in x.parent.name and MotifHandler._check_abb(x, motif_string)
             ]
             if custom_motifs is not None:
                 motif_paths.append(custom_motifs)
-            logger.debug(
-                f"Set motif file list as  {[str(x) for x in motif_paths]}"
-            )
+            logger.debug(f"Set motif file list as  {[str(x) for x in motif_paths]}")
             return motif_paths
         else:
             if custom_motifs is not None:
-                logger.debug(
-                    f"Custom motifs for {motif_type} set to {custom_motifs}"
-                )
+                logger.debug(f"Custom motifs for {motif_type} set to {custom_motifs}")
                 return [custom_motifs]
             raise ValueError(
                 f"Replacement of {motif_type} motifs was set to True but no custom motif file was provided, please provide a custom motif file or set replacement to False"
@@ -331,15 +293,11 @@ class MotifHandler:
             return True
         with open(filepath, "r") as motif_seq_file:
             lines = motif_seq_file.readlines()
-            abbreviations = set(
-                [x.split(",")[1].strip() for x in lines]
-            )
+            abbreviations = set([x.split(",")[1].strip() for x in lines])
             return all([x in motif_string for x in abbreviations])
 
     def cleanup_tmp_files(self):
         if self._tmp_folder is not None:
-            logger.debug(
-                f"Cleaning up temp files from {self._tmp_folder}"
-            )
+            logger.debug(f"Cleaning up temp files from {self._tmp_folder}")
             self._tmp_folder.cleanup()
         del self._tmp_folder

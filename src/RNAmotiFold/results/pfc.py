@@ -1,5 +1,6 @@
 from RNAmotiFold.results.base_result import Result
 
+
 class ResultPFC(Result):
     """Subclass of result for PFC results, adds pfc_value and pfc_sum attributes as well as probability calculation. Implements comparison based on pfc values."""
 

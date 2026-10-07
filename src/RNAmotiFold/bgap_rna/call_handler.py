@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 from RNAmotiFold.input.parameters import ScriptParameters
-from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,9 +20,7 @@ class CallHandler:
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
         for i in range(0, len(v)):
-            together.append(
-                "{key}={value!r}".format(key=k[i], value=v[i])
-            )
+            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
 
     def __str__(self) -> str:
@@ -43,9 +41,6 @@ class CallHandler:
             energy_percent=params.energy_percent,
             allowLonelyBasepairs=params.basepairs,
             subopt=params.subopt,
-            session_id=params.id,
-            fast_mode=params.fast_mode,
-            motif_string=params.motif_list,
             weight=params.motif_weight,
             fraction=params.motif_fraction,
             version=params.version,
@@ -60,21 +55,18 @@ class CallHandler:
         motif_orientation: Literal[1, 2, 3] = 1,
         kvalue: int = 5,
         shape_level: int = 3,
-        energy: str | None = None,
+        energy: float | None = None,
         temperature: float = 37.0,
         energy_percent: float = 5.0,
         allowLonelyBasepairs: Literal[0, 1, 2] = 0,
         subopt: bool = False,
         pfc: bool = False,
         low_prob_filter: float = 0.000001,
-        session_id: str = "N/A",
         fast_mode: bool = False,
-        motif_string: str = "",
         weight: float = 1.0,
         fraction: float = 0.7,
         version: str = "4_10",
     ):
-        self.id = session_id
         self.subopt = subopt
         self.pfc = pfc
         self.low_probability_filter = low_prob_filter
@@ -88,26 +80,23 @@ class CallHandler:
         self.allowLonelyBasepairs = allowLonelyBasepairs
         self.algorithm = alg  # Set algorithm after all the other parameters since it depends on some of them (like pfc,subopt and allowlonelybasepairs)
         # Custom motif variables, custom_X is for the filepaths to the .csv files, replace_X is for if the customs should append to or replace the underlying motifs from RNA3D or Rfam
-        self.fast_mode = fast_mode
-        self.motif_string = motif_string
         self.motif_weighting = weight
         self.motif_fraction = fraction
         self.version = version
 
-    # Slightly controversial addition, if custom_call is set it permanently overwrites the default call and is even returned whenever
-    # the standard self.call is asked for. This avoids duplicating and overcomplicating code down the line. Deleting this will return normal calls
-
     @property
     def process_type(self) -> Literal["single", "ali"]:
-        if self.algorithm in ["RNAmoSh", "RNAmotiCes", "RNAmotiFold"]:
-            logger.debug("Set process type as single")
-            return "single"
-        elif self.algorithm in ["RNAmotiAlign"]:
-            logger.debug("Set process type as ali")
-            return "ali"
-        raise ValueError(
-            "Could not identify process type as single folding or alignment folding, check your set algorithm"
-        )
+        match self.algorithm:
+            case "RNAmotiAlign":
+                progtype = "ali"
+            case "RNAmotiFold" | "RNAmoSh" | "RNAmotiCes":
+                progtype = "single"
+            case _:
+                raise ValueError(
+                    "Could not identify process type as single folding or alignment folding, check your set algorithm"
+                )
+        logger.debug("Set process type as " + progtype)
+        return progtype
 
     @property
     def custom_call(self):
@@ -128,9 +117,7 @@ class CallHandler:
     @temperature.setter
     def temperature(self, temp: float):
         if not -273 < temp < 100:
-            raise ValueError(
-                "Temperature has to be between -273 and 100 Kelvin."
-            )
+            raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
         self._temperature = temp
 
     @property
@@ -182,13 +169,9 @@ class CallHandler:
     @motif_orientation.setter
     def motif_orientation(self, b: Literal[1, 2, 3]):
         if b in [1, 2, 3]:
-            self._motif_orientation: (
-                Literal[1] | Literal[2] | Literal[3]
-            ) = b
+            self._motif_orientation: Literal[1] | Literal[2] | Literal[3] = b
         else:
-            raise ValueError(
-                "Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both."
-            )
+            raise ValueError("Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both.")
 
     # Set shape abstraction level, viable inputs are 1-5
     @property
@@ -210,16 +193,14 @@ class CallHandler:
         return self._energy
 
     @absolute_energy.setter
-    def absolute_energy(self, e: str | None):
-        if e == "":
-            e = None
-        if e is not None:
+    def absolute_energy(self, e: float | None):
+        if e is None:
+            self._energy = None
+        else:
             if float(e) >= 0:
                 self._energy = e
             else:
                 raise ValueError("Energy range cannot be lower than 0.")
-        else:
-            self._energy = e
 
     # Set kvalue fpr kbest and kbacktracing
     @property
@@ -242,14 +223,12 @@ class CallHandler:
         if 0 <= value < 1:
             self._low_probability_filter = value
         else:
-            raise ValueError(
-                "Probability filter cannot be below 0 or above 1"
-            )
+            raise ValueError("Probability filter cannot be below 0 or above 1")
 
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
-        path = _RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
+        path = RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
         logger.debug(f"Set algorithm path as {path}")
         return path
 
@@ -346,19 +325,4 @@ class CallHandler:
 
     @call.setter
     def call(self):
-        raise ValueError(
-            "Please use the custom_call property so set a custom call."
-        )
-
-    @property
-    def motif_string(self) -> str:
-        return self._motif_string
-
-    @motif_string.setter
-    def motif_string(self, motif_str: str | None) -> None:
-        if motif_str is None:
-            logger.debug("No motif string set, using all motifs")
-            self._motif_string = ""
-        else:
-            logger.debug(f"Motif string set as {motif_str}")
-            self._motif_string = motif_str
+        raise ValueError("Please use the custom_call property so set a custom call.")

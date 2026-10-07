@@ -2,6 +2,7 @@ import re
 from typing import NamedTuple
 from RNAmotiFold.results.base_result import Result
 
+
 class alignment_score(NamedTuple):
     energy: float
     covariance: float

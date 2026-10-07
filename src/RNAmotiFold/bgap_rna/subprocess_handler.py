@@ -61,6 +61,7 @@ class SubprocessHandler:
         pipe: multiprocessing.connection.Connection,
         calls_per_input: int,
         merge_mfe: bool,
+        no_print: bool,
     ):
         """Simplest listener funtion that should also work universally, takes the result objects put into its queue by the workers, writes them down or prints them.
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
@@ -103,6 +104,8 @@ class SubprocessHandler:
                                     else:
                                         writing_started = full_output.write_results(writing_started)
                         else:
+                            if no_print:
+                                continue
                             if isinstance(full_output, list):
                                 for element in full_output:
                                     writing_started = element.write_results(writing_started)
@@ -118,38 +121,48 @@ class SubprocessHandler:
         self,
         max_processes: int,
         output_path: Path | None,
-        process_type: Literal["mfe", "pfc", "ali"],
-        calls_per_input: int,
+        prediction_type: Literal["mfe", "pfc", "ali"],
     ):
         # Set up the very basics of a new multiprocessing step, How Many processes can we start, what are our inputs and where are we supposed to write the output.
         # If we come from the full RNAmotiFold pipeline the input is pre-processed and output location is confirmed to work -> Alternate contsructor for checking these ?
         self.max_processes = max_processes
         self.output_path = output_path
-        self.process_type = process_type
-        self.calls_per_input = calls_per_input
+        self.process_type = prediction_type
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters, calls_per_input: int):
-        return cls(params.workers, params.output, params.alg_type(), calls_per_input)
+    def from_script_parameters(cls, params: ScriptParameters):
+        return cls(params.workers, params.output, params.alg_type())
+
+    def single_run(
+        self,
+        input_obj: AlgorithmInput,
+        process_type: Literal["mfe", "ali", "pfc"],
+        merge_mfe_outputs: bool,
+    ) -> AlgorithmOutput | AlgorithmError:
+        subprocess_output = subprocess.run(
+            input_obj.runtime_call, text=True, capture_output=True, shell=True
+        )
+        if subprocess_output.returncode == 0:
+            result = AlgorithmOutput(
+                input_obj.id, subprocess_output.stdout, [subprocess_output.stderr], process_type
+            )
+            if process_type == "mfe" and merge_mfe_outputs:
+                result = self.postprocessing_mfe(result)
+            return result
+        else:
+            return AlgorithmError(input_obj.id, subprocess_output.stderr)
 
     def run(
         self,
         inputs: list[AlgorithmInput],
         merge_mfe_outputs: bool,
+        calls_per_input: int,
+        no_print: bool,
     ) -> list[AlgorithmOutput | AlgorithmError]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
         input_q: multiprocessing.Queue[AlgorithmInput | None] = manager.Queue()  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
-        for record in inputs:
-            input_q.put(record)
-        # First we set up  a listener with a connection to the main process
-        PipeOut, PipeIn = multiprocessing.Pipe(duplex=False)
-        listening = multiprocessing.Process(
-            target=self._listener,
-            args=(listener_q, self.output_path, PipeIn, self.calls_per_input, merge_mfe_outputs),
-        )
-        listening.start()
         if len(inputs) < self.max_processes:
             logger.debug(
                 f"Number of inputs is less than max allowed processes ({self.max_processes}), starting only {len(inputs)} workers."
@@ -157,6 +170,23 @@ class SubprocessHandler:
             necessary_processes = len(inputs)
         else:
             necessary_processes = self.max_processes
+        for record in inputs:
+            input_q.put(record)
+        # First we set up  a listener with a connection to the main process
+        PipeOut, PipeIn = multiprocessing.Pipe(duplex=False)
+        listening = multiprocessing.Process(
+            target=self._listener,
+            args=(
+                listener_q,
+                self.output_path,
+                PipeIn,
+                calls_per_input,
+                merge_mfe_outputs,
+                no_print,
+            ),
+        )
+        listening.start()
+
         # Now we make a pool of workers and
         pool = multiprocessing.Pool(necessary_processes)
         workers: list[multiprocessing.pool.AsyncResult[Any]] = []
@@ -180,7 +210,6 @@ class SubprocessHandler:
         )  # Receive the list of outputs from the listener
         return listener_output
 
-    # Postprocessing function are not fully implemented yet, update this later FIXME
     @staticmethod
     def postprocessing_pfc(
         merged_output: list[AlgorithmOutput],

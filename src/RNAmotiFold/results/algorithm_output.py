@@ -49,7 +49,7 @@ class AlgorithmOutput:
     def __init__(
         self,
         name: str,
-        result_str: str | list[ResultMFE | ResultPFC | ResultAlignment],
+        result_str: str | list[ResultMFE] | list[ResultPFC] | list[ResultAlignment],
         stderr: list[str],
         process_type: Literal["mfe", "pfc", "ali"],
         motif: Literal["hairpin", "internal", "bulge", "all"] = "all",
@@ -64,42 +64,45 @@ class AlgorithmOutput:
     @property
     def results(
         self,
-    ) -> list[ResultMFE | ResultPFC | ResultAlignment]:
+    ) -> list[ResultMFE] | list[ResultPFC] | list[ResultAlignment]:
         return self._results
 
     @results.setter
     def results(
         self,
-        result: str | list[ResultMFE | ResultPFC | ResultAlignment],
+        result: str | list[ResultMFE] | list[ResultPFC] | list[ResultAlignment],
     ) -> None:
         if isinstance(result, list):
             self._results = result
         else:
-            reslist: list[ResultMFE | ResultPFC | ResultAlignment] = []
             split = result.strip().split("\n")
             match self.process_type:
                 case "pfc":
+                    reslist_pfc: list[ResultPFC] = []
                     pfc_sum = float(sum([float(x.split("|")[1]) for x in split]))
                     for output in split:
                         res_pfc: ResultPFC = ResultPFC.from_string(
                             id=self.id, result_string=output, pfc_sum=pfc_sum
                         )
-                        reslist.append(res_pfc)
+                        reslist_pfc.append(res_pfc)
+                    self._results = sorted(reslist_pfc)
+                    self.results.reverse()  # pfc has to be flipped because bigger pfc  --> more probable
+
                 case "mfe":
+                    reslist_mfe: list[ResultMFE] = []
                     for output in split:
                         res_mfe: ResultMFE = ResultMFE.from_string(id=self.id, result_string=output)
-                        reslist.append(res_mfe)
+                        reslist_mfe.append(res_mfe)
+                    self._results = sorted(reslist_mfe)
+
                 case "ali":
+                    reslist_ali: list[ResultAlignment] = []
                     for output in split:
                         res_ali: ResultAlignment = ResultAlignment.from_string(
                             id=self.id, results_string=output
                         )
-                        reslist.append(res_ali)
-                case _:
-                    raise ValueError(f"Invalid result process type detected: {self.process_type}")
-            self._results = sorted(reslist)
-            if self.process_type == "pfc":
-                self.results.reverse()  # pfc has to be flipped because bigger pfc  --> more probable
+                        reslist_ali.append(res_ali)
+                    self._results = sorted(reslist_ali)
 
     @property
     def stderr(self) -> list[str]:

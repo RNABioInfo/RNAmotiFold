@@ -2,7 +2,7 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold import RNAMOTIFOLD_DEFAULTS_CONFIG, RNAMOTIFOLD_PATHS_CONFIG
 from RNAmotiFold.input.parameters import ScriptParameters
 from RNAmotiFold.input.action_overwrites import (
     MotifFileCheck,
@@ -19,22 +19,23 @@ from RNAmotiFold.input.action_overwrites import (
 )
 
 loggers = logging.getLogger(__name__)
-_defaults_config_path =_RNAMOTIFOLD_ROOT_DIR.joinpath("configs", "defaults.ini")
-_paths_config_path = _RNAMOTIFOLD_ROOT_DIR.joinpath("configs", "paths.ini")
 
-def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
+
+def get_cmdarguments() -> ScriptParameters:
     """Sets up argument parser using defaults/defaults.ini for default values. Checks set arguments using action_overwrites and will raise Errors if something is not right. Returns a tuple of ScriptParameters and a list of unknown arguments"""
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(open(_defaults_config_path))
+    config.read_file(open(RNAMOTIFOLD_DEFAULTS_CONFIG))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
     path_config = configparser.ConfigParser(allow_no_value=True)
-    path_config.read_file(open(_paths_config_path))
+    path_config.read_file(open(RNAMOTIFOLD_PATHS_CONFIG))
     for option in [
         x for x in config[config.default_section] if config[config.default_section][x] == ""
     ]:
         config.set(config.default_section, option, None)
     for option in [
-        x for x in path_config[path_config.default_section] if path_config[path_config.default_section][x] == ""
+        x
+        for x in path_config[path_config.default_section]
+        if path_config[path_config.default_section][x] == ""
     ]:
         path_config.set(path_config.default_section, option, None)
     # Configure parser and help message
@@ -102,7 +103,7 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     parser.add_argument(
         "-a",
         "--algorithm",
-        help=f"Specify which algorithm should be used, prebuild choices are: RNAmotiFold, RNAmoSh and RNAmotiCes. Set RNAmoSh shape level with -q [1-5].. Use -s to use subopt folding. --pfc activates pfc calcualtions instead of minimum free energy.",
+        help=f"Specify which algorithm should be used, your choices are: RNAmotiFold, RNAmoSh, RNAmotiCes and RNAmotiAlign.",
         type=str,
         action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
@@ -112,7 +113,7 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
     parser.add_argument(
         "-v",
         "--version",
-        help=f"Specify which RNA 3D Motif sequence version you want to use.",
+        help=f"Specify which RNA 3D Motif Atlas version you want to use.",
         dest="version",
         action=VersionParser,
         type=str,
@@ -354,14 +355,13 @@ def get_cmdarguments() -> tuple[ScriptParameters, list[str]]:
         help=f"Perl interpreter path, used for (re)compilation of algorithms. If no default is set the script will try to find a perl interpreter with attempt to find one with 'shutil.which' and command -v perl",
     )
     loggers.info("Parsing given arguments args")
-    args = parser.parse_known_args()
-    loggers.debug(f"Known args: {args[0]}")
-    loggers.debug(f"Leftover args: {args[1]}")
+    args = parser.parse_args()
+    loggers.debug(f"Args: {args}")
     # Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
-    if args[0].algorithm != "RNAmotiFold" and args[0].merge:
+    if args.algorithm != "RNAmotiFold" and args.merge:
         raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")
-    if args[0].config is not None:
-        config.read_file(open(args[0].config))
-        return (ScriptParameters.from_configparser(config), args[1])
+    if args.config is not None:
+        config.read_file(open(args.config))
+        return ScriptParameters.from_configparser(config)
     else:
-        return (ScriptParameters.from_argparser(args[0]), args[1])
+        return ScriptParameters.from_argparser(args)

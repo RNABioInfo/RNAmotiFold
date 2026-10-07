@@ -29,7 +29,9 @@ dependencies = [
 ]
 
 [project.scripts]
-RNAmotiFold = "RNAmotiFold.input.cli:main"
+RNAmotiFold = "RNAmotiFold.input.cli:rnamotifold"
+RNAmotiCes = "RNAmotiFold.input.cli:rnamotices"
+RNAmotiAlign = "RNAmotiFold.input.cli:rnamotialign"
 
 [tool.setuptools.packages.find]
 where = ["src"]
