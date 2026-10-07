@@ -1,12 +1,12 @@
 import unittest
 
-from RNAmotiFold.bgap_rna.call_handler import CallHandler
+from RNAmotiFold.bgap_rna.call_handler import _CallHandler
 
 
 class TestBgapObject(unittest.TestCase):
     def setUp(self):
         #Arrange an empty bgap_rna obj for all tests on it
-        self.obj = CallHandler()
+        self.obj = _CallHandler()
 
 
     def test_algorithm_binary_rnamotifold_default(self):

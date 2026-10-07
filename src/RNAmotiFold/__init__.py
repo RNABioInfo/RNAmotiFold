@@ -1,22 +1,23 @@
-from pathlib import Path
-from importlib.util import module_from_spec, spec_from_file_location
-
-RNAMOTIFOLD_ROOT_DIR = Path(__file__).resolve().absolute().parent
+from pathlib import Path as _Path
+import importlib.util as _importlib
 
 
-def _check_submodule(submodule: str) -> Path:
-    SUBMOD_DIR = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
+_RNAMOTIFOLD_ROOT_DIR = _Path(__file__).resolve().absolute().parent
+
+
+def _check_submodule(submodule: str) -> _Path:
+    SUBMOD_DIR = _Path.joinpath(_RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
         raise ModuleNotFoundError(
-            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAMOTIFOLD_ROOT_DIR}"
+            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {_RNAMOTIFOLD_ROOT_DIR}"
         )
     else:
         return SUBMOD_DIR
 
 
 try:
-    script_dir: Path = (
-        RNAMOTIFOLD_ROOT_DIR
+    _script_dir: _Path = (
+        _RNAMOTIFOLD_ROOT_DIR
         / "RNALoops"
         / "Misc"
         / "Applications"
@@ -24,25 +25,39 @@ try:
         / "motifs"
         / "get_RNA3D_motifs.py"
     )
-    spec = spec_from_file_location("uniteractive_update", script_dir)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Submodule RNALoops was not correctly cloned.")
-    motifs = module_from_spec(spec)
-    spec.loader.exec_module(motifs)
-except ImportError as e:
-    raise e
+    _spec = _importlib.spec_from_file_location("uniteractive_update", _script_dir)
+    if _spec is None or _spec.loader is None:
+        raise ImportError(
+            f"Submodule RNALoops was not correctly cloned."
+        )
+    _motifs = _importlib.module_from_spec(_spec)
+    _spec.loader.exec_module(_motifs)
+except ImportError as _e:
+    raise _e
 
 
-RNAMOTIFOLD_CONFIG_DIR: Path = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
-RNAMOTIFOLD_DEFAULTS_CONFIG = Path.joinpath(RNAMOTIFOLD_CONFIG_DIR, "defaults.ini")
-RNAMOTIFOLD_PATHS_CONFIG: Path = Path.joinpath(RNAMOTIFOLD_CONFIG_DIR, "paths.ini")
-RNAMOTIFOLD_BIN: Path = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
-RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
-RNALOOPS_PATH: Path = _check_submodule("RNALoops")
-RNAMOTIFOLD_MOTIFS_PATH: Path = Path.joinpath(
-    RNALOOPS_PATH, "Misc", "Applications", "RNAmotiFold", "motifs", "versions", "combined"
+_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(
+    _RNAMOTIFOLD_ROOT_DIR, "configs"
 )
-AVAILABLE_ALGORITHMS: list[str] = [
+_RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(
+    _RNAMOTIFOLD_CONFIG_DIR, "defaults.ini"
+)
+_RNAMOTIFOLD_PATHS_CONFIG: _Path = _Path.joinpath(
+    _RNAMOTIFOLD_CONFIG_DIR, "paths.ini"
+)
+_RNAMOTIFOLD_BIN: _Path = _Path.joinpath(_RNAMOTIFOLD_ROOT_DIR, "bin")
+_RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
+_RNALOOPS_PATH: _Path = _check_submodule("RNALoops")
+_RNAMOTIFOLD_MOTIFS_PATH: _Path = _Path.joinpath(
+    _RNALOOPS_PATH,
+    "Misc",
+    "Applications",
+    "RNAmotiFold",
+    "motifs",
+    "versions",
+    "combined",
+)
+_AVAILABLE_BINARIES: list[str] = [
     "RNAmotiFold",
     "RNAmoSh",
     "RNAmotiCes",
@@ -63,4 +78,32 @@ AVAILABLE_ALGORITHMS: list[str] = [
     "RNAmotiCes_motmacro_subopt",
     "RNAmotiAlign",
 ]
-AVAILABLE_VERSIONS: list[str] = [x.name for x in RNAMOTIFOLD_MOTIFS_PATH.iterdir() if x.is_dir()]
+AVAILABLE_VERSIONS: list[str] = [
+    x.name for x in _RNAMOTIFOLD_MOTIFS_PATH.iterdir() if x.is_dir()
+]
+
+from RNAmotiFold.api import (
+    rnamotifold,
+    rnamotifold_subopt,
+    rnamotifold_pfc,
+    rnamotices,
+    rnamotices_subopt,
+    rnamotices_pfc,
+    rnamosh,
+    rnamosh_subopt,
+    rnamosh_pfc,
+    rnamotialign,
+)
+
+__all__ = (
+    "rnamotifold",
+    "rnamotifold_subopt",
+    "rnamotifold_pfc",
+    "rnamotices",
+    "rnamotices_subopt",
+    "rnamotices_pfc",
+    "rnamosh",
+    "rnamosh_subopt",
+    "rnamosh_pfc",
+    "rnamotialign",
+)

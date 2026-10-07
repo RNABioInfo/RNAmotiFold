@@ -24,7 +24,7 @@ def flatten(xss: list[list[Any]]) -> list[Any]:
 
 
 @dataclass
-class AlgorithmInput:
+class _AlgorithmInput:
 
     tmp_files: ClassVar[list[Path]] = []
     _id: str | None
@@ -40,9 +40,9 @@ class AlgorithmInput:
     @staticmethod
     def cleanup_temps():
         """Removes temporary files created for RNAmotiAlign"""
-        if len(AlgorithmInput.tmp_files) > 0:
-            logger.debug(f"Cleaning up input temp files {AlgorithmInput.tmp_files}")
-            for file in AlgorithmInput.tmp_files:
+        if len(_AlgorithmInput.tmp_files) > 0:
+            logger.debug(f"Cleaning up input temp files {_AlgorithmInput.tmp_files}")
+            for file in _AlgorithmInput.tmp_files:
                 remove(file)
 
     @property
@@ -51,13 +51,12 @@ class AlgorithmInput:
         if self.call == "":
             raise ValueError("No call set yet for this algorithm input object")
         if self.process_type == "ali":
-            logger.info("Writing alignment folding input to temp file")
             tmp = tempfile.NamedTemporaryFile(
-                delete=False, delete_on_close=False, dir=AlgorithmInput._tmp_folder
+                delete=False, delete_on_close=False, dir=_AlgorithmInput._tmp_folder
             )
+            logger.info(f"Writing alignment folding input {self.id} to temp file {tmp.name}")
             tmp.write(self.input_str.encode())
-            logger.info(f"Input for id {self.id} written to {tmp.name}")
-            AlgorithmInput.tmp_files.append(Path(tmp.name))
+            _AlgorithmInput.tmp_files.append(Path(tmp.name))
             return " ".join([self.call, f"-f {tmp.name}"])
         else:
             return " ".join([self.call, self.input_str])
@@ -80,11 +79,11 @@ class AlgorithmInput:
     @classmethod
     def from_generators(
         cls, process_type: Literal["ali", "single"], input_generator: Any
-    ) -> list["AlgorithmInput"]:
+    ) -> list["_AlgorithmInput"]:
         """Classmethod to create list of algroithm inputs (concated alignment sequences or individual mfe prediction sequences), depending on the process type
         given to the input handler by the bgap object.
         """
-        returnlist: list[AlgorithmInput] = []
+        returnlist: list[_AlgorithmInput] = []
         match process_type:
             case "ali":
                 for alignment in input_generator:
@@ -101,11 +100,11 @@ class AlgorithmInput:
                     except:
                         raise TypeError("Couldn't convert sequences from DNA to RNA")
                     concat = "#".join(seqs)
-                    returnlist.append(AlgorithmInput("N/A", concat, process_type=process_type))
+                    returnlist.append(_AlgorithmInput("N/A", concat, process_type=process_type))
             case "single":
                 for sequence in input_generator:
                     returnlist.append(
-                        AlgorithmInput(
+                        _AlgorithmInput(
                             _id=sequence.id, input_str=str(sequence.seq), process_type=process_type
                         )
                     )
@@ -114,7 +113,7 @@ class AlgorithmInput:
         return returnlist
 
 
-class InputHandler:
+class _InputHandler:
     """Class to manage inputs, takes the chosen algorithm, the given inputs etc into account and creates calls from them"""
 
     def __iter__(self):
@@ -132,7 +131,7 @@ class InputHandler:
     def __init__(self, process_type: Literal["single", "ali"], user_input: str | None) -> None:
         self.process_type: Literal["single"] | Literal["ali"] = process_type
         if user_input is not None:
-            self.user_input: list[AlgorithmInput] = InputHandler.read_input(
+            self.user_input: list[_AlgorithmInput] = _InputHandler.read_input(
                 process_type, user_input
             )
         self._index = 0
@@ -141,7 +140,7 @@ class InputHandler:
     @staticmethod
     def read_input(
         process_type: Literal["single", "ali"], user_input: str, id: str = "N/A"
-    ) -> list[AlgorithmInput]:
+    ) -> list[_AlgorithmInput]:
         """Read input given by user and tries to determine if it's a file, a directory or just a single sequence.
         I really wanted to strictly type this but the number of different possible iterators make it basically impossible.
         This will always return a list of Iterators, even if there is only on MSA or seq in the file, we take care of that after."
@@ -153,17 +152,17 @@ class InputHandler:
             )  # If this one doesn't work then it's also not a directory
             if pathd.resolve().is_file():
                 logger.debug("Input recognized as file, reading now")
-                result = [InputHandler._read_input_file(pathd, process_type)]
+                result = [_InputHandler._read_input_file(pathd, process_type)]
                 logger.debug("Input file read worked, generating algorithm inputs")
-                return flatten([AlgorithmInput.from_generators(process_type, x) for x in result])
+                return flatten([_AlgorithmInput.from_generators(process_type, x) for x in result])
             elif pathd.resolve().is_dir():
                 logger.debug("Input recognized as folder, parsing now")
                 result = [
-                    InputHandler._read_input_file(pathd / Path(file), process_type)
+                    _InputHandler._read_input_file(pathd / Path(file), process_type)
                     for file in glob.glob("*", root_dir=pathd)
                 ]
                 logger.debug("Folder parsing successfull, generating algorithm inputs")
-                return flatten([AlgorithmInput.from_generators(process_type, x) for x in result])
+                return flatten([_AlgorithmInput.from_generators(process_type, x) for x in result])
             if any(c not in "NAUCGTnaucgt+_-#" for c in set(user_input.strip())):
                 raise ValueError(
                     "Input was neither a viable file path nor a viable RNA or DNA sequence"
@@ -173,7 +172,7 @@ class InputHandler:
         except ValueError as e:
             raise e
         # No error was raised so we can assume that it is not a directory or file in the system but it is a viable sequence
-        return [AlgorithmInput(_id=id, input_str=user_input.strip(), process_type=process_type)]
+        return [_AlgorithmInput(_id=id, input_str=user_input.strip(), process_type=process_type)]
 
     @staticmethod
     def script_read_input(
@@ -183,21 +182,21 @@ class InputHandler:
     ):
         match user_input:
             case str():
-                return InputHandler.read_input(process_type, user_input)
+                return _InputHandler.read_input(process_type, user_input,id)
             case Path():
-                return InputHandler.read_input(process_type, str(user_input))
+                return _InputHandler.read_input(process_type, str(user_input),id)
             case SeqRecord():
                 return [
-                    AlgorithmInput(
+                    _AlgorithmInput(
                         _id=user_input.id, input_str=str(user_input.seq), process_type=process_type
                     )
                 ]
             case list():
                 if all(isinstance(x, str) for x in user_input):
-                    return flatten([InputHandler.read_input(process_type, x) for x in user_input])
+                    return flatten([_InputHandler.read_input(process_type, x,id) for x in user_input])
                 elif all(isinstance(x, SeqRecord) for x in user_input):
                     return [
-                        AlgorithmInput(_id=x.id, input_str=str(x.seq), process_type=process_type)
+                        _AlgorithmInput(_id=x.id, input_str=str(x.seq), process_type=process_type)
                         for x in user_input
                     ]
                 else:
@@ -214,7 +213,7 @@ class InputHandler:
         | Bio.SeqIO.QualityIO.FastqPhredIterator
         | Generator[SeqRecord, None, None]
     ):
-        zipped, filetype = InputHandler._find_filetype(file_path)
+        zipped, filetype = _InputHandler._find_filetype(file_path)
         if (
             process_type == "ali"
         ):  # Either parse it with the Align parser if we're doing alignments or with the SeqIO if we're doing MFE/PFC calculations

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 # List flattening
-def flatten(xss: list[list[Any]]) -> list[Any]:
+def _flatten(xss: list[list[Any]]) -> list[Any]:
     """
     Used to flatten a lists of lists into a single list
     """
@@ -81,7 +81,7 @@ class AlgorithmOutput:
                     reslist_pfc: list[ResultPFC] = []
                     pfc_sum = float(sum([float(x.split("|")[1]) for x in split]))
                     for output in split:
-                        res_pfc: ResultPFC = ResultPFC.from_string(
+                        res_pfc: ResultPFC = ResultPFC._from_string(
                             id=self.id, result_string=output, pfc_sum=pfc_sum
                         )
                         reslist_pfc.append(res_pfc)
@@ -91,14 +91,14 @@ class AlgorithmOutput:
                 case "mfe":
                     reslist_mfe: list[ResultMFE] = []
                     for output in split:
-                        res_mfe: ResultMFE = ResultMFE.from_string(id=self.id, result_string=output)
+                        res_mfe: ResultMFE = ResultMFE._from_string(id=self.id, result_string=output)
                         reslist_mfe.append(res_mfe)
                     self._results = sorted(reslist_mfe)
 
                 case "ali":
                     reslist_ali: list[ResultAlignment] = []
                     for output in split:
-                        res_ali: ResultAlignment = ResultAlignment.from_string(
+                        res_ali: ResultAlignment = ResultAlignment._from_string(
                             id=self.id, results_string=output
                         )
                         reslist_ali.append(res_ali)
@@ -135,7 +135,7 @@ class AlgorithmOutput:
         return True
 
     @classmethod
-    def merge_mfe_outputs(cls, objs: list["AlgorithmOutput"]) -> "AlgorithmOutput":
+    def _merge_mfe_outputs(cls, objs: list["AlgorithmOutput"]) -> "AlgorithmOutput":
         """
         Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input
         """
@@ -149,7 +149,7 @@ class AlgorithmOutput:
         return cls(
             objs[0].id,
             sorted_results,
-            stderr=flatten([x.stderr for x in objs]),
+            stderr=_flatten([x.stderr for x in objs]),
             process_type=objs[0].process_type,
         )
 

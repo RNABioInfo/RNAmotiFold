@@ -1,6 +1,6 @@
 import re
 from typing import NamedTuple
-from RNAmotiFold.results.base_result import Result
+from RNAmotiFold.results.base_result import _Result
 
 
 class alignment_score(NamedTuple):
@@ -20,7 +20,7 @@ class alignment_score(NamedTuple):
         )
 
 
-class ResultAlignment(Result):
+class ResultAlignment(_Result):
     """Subclass of result for alignment results, adds alignment_score and motBracket attributes as well as special implementation for tsv and header functions"""
 
     def __init__(self, id: str, classifier: str, score: str, motBracket: str) -> None:
@@ -74,7 +74,7 @@ class ResultAlignment(Result):
 
     @property
     def header(self) -> str:
-        return Result.separator.join(
+        return _Result._separator.join(
             [
                 "ID",
                 "Motif",
@@ -88,7 +88,7 @@ class ResultAlignment(Result):
 
     @property
     def tsv(self):
-        return Result.separator.join(
+        return _Result._separator.join(
             [
                 self.id,
                 self.classifier,
@@ -101,7 +101,7 @@ class ResultAlignment(Result):
         )
 
     @classmethod
-    def from_string(cls, id: str, results_string: str) -> "ResultAlignment":
+    def _from_string(cls, id: str, results_string: str) -> "ResultAlignment":
         split_result = results_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(

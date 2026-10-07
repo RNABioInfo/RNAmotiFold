@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
-from RNAmotiFold.input.parameters import ScriptParameters
-from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold.input.parameters import _ScriptParameters
+from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # These are: motif_source, motif_orientation, kvalue, hishape_mode, shape_level, energy
 
 
-class CallHandler:
+class _CallHandler:
     """Main class for creating the call to the RNAmotiFold, RNAmotiCes and RNAmotiAlign binaries. Creates the correct binary name, algorithm path and organizes commandline arguments"""
 
     def __repr__(self):
@@ -27,7 +27,7 @@ class CallHandler:
         return self.call
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters):
+    def from_script_parameters(cls, params: _ScriptParameters):
         obj = cls(
             alg=params.algorithm,
             motif_source=params.motif_source,
@@ -228,7 +228,7 @@ class CallHandler:
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
     def algorithm_path(self):
-        path = RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
+        path = _RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
         logger.debug(f"Set algorithm path as {path}")
         return path
 

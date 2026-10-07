@@ -1,8 +1,8 @@
-from RNAmotiFold.results.base_result import Result
+from RNAmotiFold.results.base_result import _Result
 import re
 
 
-class ResultMFE(Result):
+class ResultMFE(_Result):
     """Subclass of result for mfe results, has extra attributes for free energy and motBracket structure. Also implements comparison and hashing for mering structures in single motif mode"""
 
     def __init__(self, id: str, classifier: str, free_energy: str, mot_bracket: str) -> None:
@@ -53,7 +53,7 @@ class ResultMFE(Result):
         self._dot_bracket = structure_string
 
     @classmethod
-    def from_string(cls, id: str, result_string: str) -> "ResultMFE":
+    def _from_string(cls, id: str, result_string: str) -> "ResultMFE":
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -65,7 +65,7 @@ class ResultMFE(Result):
 
     # Implementation of structure merging for single motif mode
     @classmethod
-    def merge_structures(cls, compatibles: list["ResultMFE"]) -> "ResultMFE|None":
+    def _merge_structures(cls, compatibles: list["ResultMFE"]) -> "ResultMFE|None":
         compatibles.sort(
             key=lambda x: x.classifier[0]
         )  # sort list in place alternative would be new = sorted(compatibles,key=...)
@@ -74,13 +74,13 @@ class ResultMFE(Result):
         motifs: set[tuple[str, str]] = set()
         for result in compatibles:
             motif = result.classifier[0]
-            locations = list(ResultMFE.find_all(result.motBracket, motif))
+            locations = list(ResultMFE._find_all(result.motBracket, motif))
             for loc in locations:
                 if loc in insertions and base_structure[loc] != motif:
-                    motifs.add((motif.lower(), result.motif_type))
+                    motifs.add((motif.lower(), result._motif_type))
                     base_structure[loc] = base_structure[loc].lower()
                 else:
-                    motifs.add((motif, result.motif_type))
+                    motifs.add((motif, result._motif_type))
                     base_structure[loc] = motif
                 insertions.add(loc)
         merged_bracket = "".join(base_structure)
@@ -90,7 +90,7 @@ class ResultMFE(Result):
             for f in founds:
                 foundslist.append((f.start(), m))
         foundslist.sort(key=lambda tup: tup[0])
-        new_classifier = ResultMFE.build_new_classifier([x[1] for x in foundslist])
+        new_classifier = ResultMFE._build_new_classifier([x[1] for x in foundslist])
         if merged_bracket not in [x.motBracket for x in compatibles]:
             return cls(
                 id=compatibles[0].id + "_merged",
@@ -102,7 +102,7 @@ class ResultMFE(Result):
             return None
 
     @staticmethod
-    def build_new_classifier(foundslist: list[tuple[str, str]]) -> str:
+    def _build_new_classifier(foundslist: list[tuple[str, str]]) -> str:
         new_classifier = ""
         for found in foundslist:
             if found[1] == "hairpin":
@@ -119,7 +119,7 @@ class ResultMFE(Result):
         return new_classifier
 
     @staticmethod
-    def find_all(a_str: str, sub: str):
+    def _find_all(a_str: str, sub: str):
         start = 0
         while True:
             start = a_str.find(sub, start)
@@ -129,7 +129,7 @@ class ResultMFE(Result):
             start += 1  # use start += 1 to find overlapping matches
 
     @staticmethod
-    def get_compatible_structures(struc_list: list["ResultMFE"]) -> list[list[int]]:
+    def _get_compatible_structures(struc_list: list["ResultMFE"]) -> list[list[int]]:
         collecting: dict[int, list[int]] = {}
         for i in range(len(struc_list)):
             for j in range(len(struc_list)):

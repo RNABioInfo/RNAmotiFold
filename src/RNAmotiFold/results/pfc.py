@@ -1,7 +1,7 @@
-from RNAmotiFold.results.base_result import Result
+from RNAmotiFold.results.base_result import _Result
 
 
-class ResultPFC(Result):
+class ResultPFC(_Result):
     """Subclass of result for PFC results, adds pfc_value and pfc_sum attributes as well as probability calculation. Implements comparison based on pfc values."""
 
     def __init__(
@@ -36,7 +36,7 @@ class ResultPFC(Result):
         return self.pfc_value >= other.pfc_value
 
     @classmethod
-    def from_string(cls, id: str, result_string: str, pfc_sum: float) -> "ResultPFC":
+    def _from_string(cls, id: str, result_string: str, pfc_sum: float) -> "ResultPFC":
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(

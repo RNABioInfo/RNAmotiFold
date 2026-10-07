@@ -6,8 +6,8 @@ from typing import Any, Literal
 from pathlib import Path
 from RNAmotiFold.results.mfe import ResultMFE
 from RNAmotiFold.results.algorithm_output import AlgorithmOutput, AlgorithmError
-from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
-from RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.bgap_rna.input_handler import _AlgorithmInput
+from RNAmotiFold.input.parameters import _ScriptParameters
 from contextlib import redirect_stdout
 import sys
 import os
@@ -16,12 +16,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SubprocessHandler:
+class _SubprocessHandler:
     """Class to manage subprocesses for running RNAmotiFold algorithms."""
 
     @staticmethod
     def _worker(
-        input_queue: "multiprocessing.Queue[AlgorithmInput|None]",
+        input_queue: "multiprocessing.Queue[_AlgorithmInput|None]",
         output_queue: "multiprocessing.Queue[AlgorithmOutput|AlgorithmError]",
         process_type: Literal["mfe", "pfc", "ali"],
     ):
@@ -29,13 +29,12 @@ class SubprocessHandler:
         pid = os.getpid()
         logger.debug(f"Started worker process at {pid}, with process type {process_type}")
         while True:
-            input_obj: AlgorithmInput | None = input_queue.get()
-
+            input_obj: _AlgorithmInput | None = input_queue.get()
             if input_obj is None:
                 logger.debug(f"Worker {pid} exiting, input queue is empty")
                 break
             logger.debug(
-                f"Worker {pid} started work on {input_obj.id} with call {input_obj.call + " "+ input_obj.input_str}"
+                f"Worker {pid} started work on {input_obj.id} with call {input_obj.runtime_call}"
             )
             subprocess_output = subprocess.run(
                 input_obj.runtime_call, text=True, capture_output=True, shell=True
@@ -84,15 +83,15 @@ class SubprocessHandler:
                     if len(output_dict[result.id]) == calls_per_input:
                         match output_dict[result.id][0].process_type:
                             case "mfe":
-                                full_output = AlgorithmOutput.merge_mfe_outputs(
+                                full_output = AlgorithmOutput._merge_mfe_outputs(
                                     output_dict[result.id]
                                 )
                                 if merge_mfe:
-                                    full_output = SubprocessHandler.postprocessing_mfe(full_output)
+                                    full_output = _SubprocessHandler.postprocessing_mfe(full_output)
                             case "pfc":
                                 full_output = output_dict[result.id]
                                 if len(full_output) > 1:
-                                    full_output = SubprocessHandler.postprocessing_pfc(full_output)
+                                    full_output = _SubprocessHandler.postprocessing_pfc(full_output)
                             case "ali":
                                 full_output = output_dict[result.id]
                         if isinstance(output_file, Path):
@@ -130,12 +129,12 @@ class SubprocessHandler:
         self.process_type = prediction_type
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters):
+    def from_script_parameters(cls, params: _ScriptParameters):
         return cls(params.workers, params.output, params.alg_type())
 
     def single_run(
         self,
-        input_obj: AlgorithmInput,
+        input_obj: _AlgorithmInput,
         process_type: Literal["mfe", "ali", "pfc"],
         merge_mfe_outputs: bool,
     ) -> AlgorithmOutput | AlgorithmError:
@@ -154,14 +153,14 @@ class SubprocessHandler:
 
     def run(
         self,
-        inputs: list[AlgorithmInput],
+        inputs: list[_AlgorithmInput],
         merge_mfe_outputs: bool,
         calls_per_input: int,
         no_print: bool,
     ) -> list[AlgorithmOutput | AlgorithmError]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
-        input_q: multiprocessing.Queue[AlgorithmInput | None] = manager.Queue()  # type: ignore Because Queue has type Any
+        input_q: multiprocessing.Queue[_AlgorithmInput | None] = manager.Queue()  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
         if len(inputs) < self.max_processes:
             logger.debug(
@@ -194,7 +193,7 @@ class SubprocessHandler:
             necessary_processes
         ):  # Populate the pool with worker functions, each doing nothing but getting items from the input queue and processing them
             work = pool.apply_async(
-                SubprocessHandler._worker, (input_q, listener_q, self.process_type)
+                _SubprocessHandler._worker, (input_q, listener_q, self.process_type)
             )
             workers.append(work)
             input_q.put(None)
@@ -240,9 +239,9 @@ class SubprocessHandler:
                     mfe_dict[res.free_energy].append(res)
         for key in mfe_dict.keys():
             if len(mfe_dict[key]) > 1:
-                merge_candidates = ResultMFE.get_compatible_structures(mfe_dict[key])
+                merge_candidates = ResultMFE._get_compatible_structures(mfe_dict[key])
                 for compatible_structures in merge_candidates:
-                    new_result = ResultMFE.merge_structures(
+                    new_result = ResultMFE._merge_structures(
                         [mfe_dict[key][i] for i in compatible_structures]
                     )
                     if new_result is not None:

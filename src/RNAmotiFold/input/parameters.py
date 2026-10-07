@@ -4,9 +4,9 @@ from typing import Literal
 from argparse import Namespace
 from configparser import ConfigParser
 from RNAmotiFold.input.action_overwrites import (
-    OutputFileCheck,
-    WorkerCheck,
-    AlgorithmMatching,
+    _OutputFileCheck,
+    _WorkerCheck,
+    _AlgorithmMatching,
 )
 import logging
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ScriptParameters:
+class _ScriptParameters:
     """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser.
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
     """
@@ -131,22 +131,22 @@ class ScriptParameters:
         confs.set(
             section_name,
             "algorithm",
-            AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
+            _AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
         )
         confs.set(
             section_name,
             "output",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
+            _OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
         )
         confs.set(
             section_name,
             "logfile",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
+            _OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
         )
         confs.set(
             section_name,
             "workers",
-            str(WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
+            str(_WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
         )
         if confs.get(section_name, "output"):
             outpath = Path(confs.get(section_name, "output"))
@@ -161,7 +161,7 @@ class ScriptParameters:
             id=confs.get(section_name, "id"),
             input=confs.get(section_name, "input"),
             output=outpath,
-            algorithm=AlgorithmMatching.algorithm_matching_function(
+            algorithm=_AlgorithmMatching.algorithm_matching_function(
                 confs.get(section_name, "algorithm")
             ),
             subopt=confs.getboolean(section_name, "subopt"),

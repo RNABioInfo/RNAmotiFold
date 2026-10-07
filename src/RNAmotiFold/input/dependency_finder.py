@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class dependency_finder:
+class _dependency_finder:
 
     def __init__(self, prog: str) -> None:
         self.prog: str = prog
@@ -54,9 +54,9 @@ class dependency_finder:
         return False
 
 
-def find(dependency: str):
+def _find(dependency: str):
     """Attempts to find a RNAmotiFold dependency with which and command -v /your dependency here/"""
-    finder = dependency_finder(dependency)
+    finder = _dependency_finder(dependency)
     try:
         path = finder.find_dep_path()
         if finder.check_dependency(path):
