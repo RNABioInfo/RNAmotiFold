@@ -1,6 +1,7 @@
 from RNAmotiFold.input import action_overwrites
 from RNAmotiFold.results.results import BaseResult
 from RNAmotiFold.results.outputs import (
+    AlgorithmOutput,
     MFEOutput,
     PFCOutput,
     AlignmentOutput,
@@ -131,11 +132,11 @@ def _main(
             id=rt_args.id,
         )
         cmd_inputs: list[AlgorithmInput] = create_inputs(calls=full_calls, inputs=inputs)
-        results = subprocess_manager.auto_run(
+        results = [subprocess_manager.auto_run(
             inputs=cmd_inputs, calls_per_input=motif_subcall_maker.call_number, no_print=False
-        )
+        )]
     else:
-        results: list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput] = []
+        results: list[AlgorithmOutput] = []
         while True:
             print("Awaiting input...")
             user_input = input()
@@ -152,7 +153,7 @@ def _main(
                     print(e)
                     continue
                 alg_input: list[AlgorithmInput] = create_inputs(full_calls, rt_input)
-                results.extend(
+                results.append(
                     subprocess_manager.auto_run(
                         inputs=alg_input,
                         calls_per_input=motif_subcall_maker.call_number,

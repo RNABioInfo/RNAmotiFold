@@ -11,8 +11,7 @@ import RNAmotiFold.bgap_rna.subprocess_handler
 import RNAmotiFold.input
 import RNAmotiFold.input.cli
 import RNAmotiFold.results
-from RNAmotiFold.results.outputs import ErrorOutput
-import RNAmotiFold.results.outputs
+from RNAmotiFold.results.outputs import AlgorithmOutput
 import RNAmotiFold.results.results
 from dataclasses import dataclass
 from typing import Any
@@ -116,7 +115,6 @@ class Predictions:
         else:
             return "mfe"
 
-
 def rnamotifold(
     input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
     single_motif_mode: bool = False,
@@ -124,7 +122,7 @@ def rnamotifold(
     motif_string: str = "",
     kvalue: int | None = 5,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -139,11 +137,10 @@ def rnamotifold(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
-):
-    return _predict(
+) -> AlgorithmOutput:
+    return  _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmotiFold",
         temperature=temperature,
@@ -171,7 +168,6 @@ def rnamotifold(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
 
 
@@ -183,7 +179,7 @@ def rnamotifold_subopt(
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -198,13 +194,12 @@ def rnamotifold_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
         raise ValueError("Please only set either an absolute or a percent energy range!")
-    return _predict(
+    return  _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmotiFold",
         temperature=temperature,
@@ -232,8 +227,8 @@ def rnamotifold_subopt(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
+
 
 
 def rnamotifold_pfc(
@@ -243,7 +238,7 @@ def rnamotifold_pfc(
     motif_string: str = "",
     pfc_probability_filter: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -257,11 +252,10 @@ def rnamotifold_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=False,
         algorithm="RNAmotiFold",
         temperature=temperature,
@@ -289,7 +283,6 @@ def rnamotifold_pfc(
         motif_fraction=None,
         pfc=True,
         low_prob_filter=pfc_probability_filter,
-        to_df=to_df,
     )
 
 
@@ -300,7 +293,7 @@ def rnamosh(
     motif_string: str = "",
     kvalue: int | None = 5,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -315,11 +308,10 @@ def rnamosh(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmoSh",
         temperature=temperature,
@@ -347,7 +339,6 @@ def rnamosh(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
 
 
@@ -359,7 +350,7 @@ def rnamosh_subopt(
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -374,13 +365,12 @@ def rnamosh_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
         raise ValueError("Please only set either an absolute or a percent energy range!")
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmoSh",
         temperature=temperature,
@@ -408,7 +398,6 @@ def rnamosh_subopt(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
 
 
@@ -419,7 +408,7 @@ def rnamosh_pfc(
     motif_string: str = "",
     pfc_probability_filter: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -433,11 +422,10 @@ def rnamosh_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=False,
         algorithm="RNAmoSh",
         temperature=temperature,
@@ -465,7 +453,6 @@ def rnamosh_pfc(
         motif_fraction=None,
         pfc=True,
         low_prob_filter=pfc_probability_filter,
-        to_df=to_df,
     )
 
 
@@ -477,7 +464,7 @@ def rnamotices(
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -492,13 +479,12 @@ def rnamotices(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
         raise ValueError("Please only set either an absolute or a percent energy range!")
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmotiCes",
         temperature=temperature,
@@ -526,7 +512,6 @@ def rnamotices(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
 
 
@@ -538,7 +523,7 @@ def rnamotices_subopt(
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
@@ -553,13 +538,12 @@ def rnamotices_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
         raise ValueError("Please only set either an absolute or a percent energy range!")
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=merge_results,
         algorithm="RNAmotiCes",
         temperature=temperature,
@@ -587,7 +571,6 @@ def rnamotices_subopt(
         motif_fraction=None,
         pfc=False,
         low_prob_filter=None,
-        to_df=to_df,
     )
 
 
@@ -598,7 +581,7 @@ def rnamotices_pfc(
     motif_string: str = "",
     pfc_probability_filter: float | None = None,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -612,11 +595,10 @@ def rnamotices_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-    to_df: bool = True,
 ):
     return _predict(
         input=input,
-        ID=ID,
+        id=id,
         merge_results=False,
         algorithm="RNAmotiCes",
         temperature=temperature,
@@ -644,7 +626,6 @@ def rnamotices_pfc(
         motif_fraction=None,
         pfc=True,
         low_prob_filter=pfc_probability_filter,
-        to_df=to_df,
     )
 
 
@@ -657,7 +638,7 @@ def rnamotialign(
     motif_weight: float | None = 1.0,
     motif_fraction: float | None = 0.7,
     *,
-    ID: str = "N/A",
+    id: str = "N/A",
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 1,
@@ -677,7 +658,7 @@ def rnamotialign(
 
 def _predict(
     input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
-    ID: str = "N/A",
+    id: str = "N/A",
     merge_results: bool = False,
     algorithm: Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"] | None = None,
     temperature: float = 37.0,
@@ -696,7 +677,6 @@ def _predict(
     single_motif_mode: bool = False,
     parallel_processes: int | None = cpu_count(),
     separator: str | None = ",",
-    to_df: bool = False,
     ##RNAMOSH PARAMS###
     shape_level: Literal[1, 2, 3, 4, 5] | None = 5,
     ###MFE PARAMS###
@@ -712,7 +692,7 @@ def _predict(
     ###PFC PARAMS###
     pfc: bool = False,
     low_prob_filter: float | None = None,
-):
+) -> AlgorithmOutput:
     logging.basicConfig(handlers=[logging.NullHandler()])
     if parallel_processes is None:
         parallel_processes = 1
@@ -761,10 +741,7 @@ def _predict(
         Predict.parallel_processes, Predict.output, Predict.prediction_type
     )
     full_calls = RNAmotiFold.input.cli.combine_calls(call_maker.call, motif_call_maker.motif_calls)
-    inputs = input_maker.script_read_input(Predict.process_type, input, ID)  # type: ignore Raises a warning because process type is a string, but the init makes sure it can only be single or ali
+    inputs = input_maker.script_read_input(Predict.process_type, input, id)  # type: ignore Raises a warning because process type is a string, but the init makes sure it can only be single or ali
     commands = RNAmotiFold.input.cli.create_inputs(full_calls, inputs)
     results = subprocess_manager.auto_run(commands, motif_call_maker.call_number, no_print=True)
-    if to_df:
-        df = RNAmotiFold.results.outputs.MFEOutput.merge_mfe(results).to_df()
-        return df
     return results

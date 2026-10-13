@@ -4,7 +4,7 @@ import multiprocessing.pool
 import subprocess
 from typing import Any, Literal
 from pathlib import Path
-from RNAmotiFold.results.outputs import MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput
+from RNAmotiFold.results.outputs import MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput,AlgorithmOutput
 from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
 from RNAmotiFold.input.parameters import ScriptParameters
 from contextlib import redirect_stdout
@@ -113,11 +113,11 @@ class SubprocessHandler:
                     ):
                         successes = [x for x in output_dict[result.id]]
                         if all([isinstance(x, MFEOutput) for x in successes]):
-                            merged = [MFEOutput.merge_mfe(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
+                            merged = [MFEOutput.merge(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
                         elif all([isinstance(x, PFCOutput) for x in successes]):
-                            merged = PFCOutput.merge_pfc(successes)  # type: ignore All 3 of these are checked beforehand and therefore will never fail
+                            merged = PFCOutput.merge(successes)  # type: ignore All 3 of these are checked beforehand and therefore will never fail
                         elif all([isinstance(x, AlignmentOutput) for x in output_dict[result.id]]):
-                            merged = [AlignmentOutput.merge_ali(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
+                            merged = [AlignmentOutput.merge(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
                         else:
                             raise ValueError(
                                 "Multiple algorithm output types detected during the same run, something went wrong"
@@ -156,16 +156,16 @@ class SubprocessHandler:
         inputs: list[AlgorithmInput],
         calls_per_input: int,
         no_print: bool,
-    ) -> list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput]:
+    ) -> AlgorithmOutput:
         if len(inputs) >= 2 and self.max_processes > 1:
             logger.debug("Recognized multiple inputs, creating worker pool and running in parallel")
-            return self._multi_run(inputs, calls_per_input, no_print)
+            return AlgorithmOutput.from_list(self._multi_run(inputs, calls_per_input, no_print))
         else:
             logger.debug("Recognized only one input, running in single process mode")
             answer = self._single_run(inputs[0])
             if not no_print:
                 answer.write_results(False)
-            return [answer]
+            return AlgorithmOutput.from_list([answer])
 
     def _single_run(
         self,
