@@ -4,7 +4,7 @@ import multiprocessing.pool
 import subprocess
 from typing import Any, Literal
 from pathlib import Path
-from RNAmotiFold.results.outputs import MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput,AlgorithmOutput
+from RNAmotiFold.results.outputs import GenericOutput, MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput,AlgorithmOutput
 from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
 from RNAmotiFold.input.parameters import ScriptParameters
 from contextlib import redirect_stdout
@@ -78,7 +78,7 @@ class SubprocessHandler:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         none_counter = 0
-        output_dict: defaultdict[str, list[MFEOutput | PFCOutput | AlignmentOutput]] = defaultdict(
+        output_dict: defaultdict[str, list[MFEOutput]| list[PFCOutput] | list[AlignmentOutput]] = defaultdict(
             list
         )  # It will always only be one of the types
         error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(list)
@@ -106,22 +106,16 @@ class SubprocessHandler:
                 continue
             match result:
                 case MFEOutput() | PFCOutput() | AlignmentOutput():
-                    output_dict[result.id].append(result)
+                    output_dict[result.id].append(result) #type:ignore Problem here is the typing with Output dict, technically allowing all 3 output types to be added
                     if (
                         sum([len(output_dict[result.id]), len(error_dict[result.id])])
                         == calls_per_input
                     ):
                         successes = [x for x in output_dict[result.id]]
-                        if all([isinstance(x, MFEOutput) for x in successes]):
-                            merged = [MFEOutput.merge(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
-                        elif all([isinstance(x, PFCOutput) for x in successes]):
-                            merged = PFCOutput.merge(successes)  # type: ignore All 3 of these are checked beforehand and therefore will never fail
-                        elif all([isinstance(x, AlignmentOutput) for x in output_dict[result.id]]):
-                            merged = [AlignmentOutput.merge(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
-                        else:
-                            raise ValueError(
-                                "Multiple algorithm output types detected during the same run, something went wrong"
-                            )
+                        output = type(successes[0])
+                        if not all(type(x) is output for x in successes):
+                            raise ValueError("Different algorithms in the same AlgorithmOutput detected, can't merge")
+                        merged = output.merge(successes) #type:ignore Again typing issue from the dict containing all 3 types
                         if not no_print:
                             if isinstance(output_file, Path):
                                 write_destination = open(output_file, "a+")
@@ -132,7 +126,7 @@ class SubprocessHandler:
                                     writing_started = element.write_results(writing_started)
                                 sys.stdout.flush()
                 case ErrorOutput():
-                    result.write_results(False)
+                    result.write_results()
                     error_dict[result.id].append(result)
 
     def __init__(
@@ -164,9 +158,15 @@ class SubprocessHandler:
             logger.debug("Recognized only one input, running in single process mode")
             answer = self._single_run(inputs[0])
             if not no_print:
-                answer.write_results(False)
+                if self.output_path is not None:
+                    write_destination = open(self.output_path, "a+")
+                else:
+                    write_destination = sys.stdout
+                with redirect_stdout(write_destination):
+                    answer.write_results()
+                    sys.stdout.flush()
             return AlgorithmOutput.from_list([answer])
-
+        
     def _single_run(
         self,
         input_obj: AlgorithmInput,

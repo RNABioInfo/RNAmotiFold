@@ -46,7 +46,7 @@ class GenericOutput(ABC,Generic[T]):
 
     @classmethod
     @abstractmethod
-    def merge(cls:type[O], items: Sequence[O]) -> list[O]:
+    def merge(cls:type[O], items: list[O]) -> list[O]:
         """Merge outputs and return a list of outputs."""
         ...
 
@@ -90,7 +90,7 @@ class GenericOutput(ABC,Generic[T]):
                 self._stderr = []
 
     # If not initiated function writes a header and then all it's results as csv
-    def write_results(self, initiated: bool) -> Literal[True]:
+    def write_results(self, initiated: bool = False) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
         for err in self.stderr:
             if len(err.strip()) > 0:
@@ -121,7 +121,7 @@ class MFEOutput(GenericOutput[ResultMFE]):
         stderr: list[str],
     ):
         if isinstance(result, list):
-            super().__init__(name=name, results=result, stderr=stderr)
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split: list[str] = result.strip().split("\n")
             reslist_mfe: list[ResultMFE] = []
@@ -132,11 +132,11 @@ class MFEOutput(GenericOutput[ResultMFE]):
                 reslist_mfe.append(res_mfe)
             reslist_mfe.sort()
             super().__init__(
-                name=name, results=reslist_mfe, stderr=stderr
+                name=name, results=sorted(reslist_mfe), stderr=stderr
             )
 
     @classmethod
-    def merge(cls:type[O], items: Sequence[O]) -> list[O]:
+    def merge(cls:type[O], items: list[O]) -> list[O]:
         """Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input"""
         logger.debug(f"Merging results for {items[0].id}")
         result_set: set[ResultMFE] = set()
@@ -159,7 +159,7 @@ class PFCOutput(GenericOutput[ResultPFC]):
         stderr: list[str],
     ):
         if isinstance(result, list):
-            super().__init__(name=name, results=result, stderr=stderr)
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split = result.strip().split("\n")
             reslist_pfc: list[ResultPFC] = []
@@ -175,11 +175,11 @@ class PFCOutput(GenericOutput[ResultPFC]):
                 reverse=True
             )  # pfc has to be flipped because bigger pfc  --> more probable
             super().__init__(
-                name=name, results=reslist_pfc, stderr=stderr
+                name=name, results=sorted(reslist_pfc), stderr=stderr
             )
 
     @classmethod
-    def merge(cls:type[O], items: Sequence[O]) -> list[O]:
+    def merge(cls:type[O], items: list[O]) -> list[O]:
         """PFC postprocessing for Single Motif mode pfc predictions filtering cases where only one motif was found"""
         returnlist: list[O] = []
         checklist: list[str] = []
@@ -198,7 +198,7 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
         stderr: list[str],
     ):
         if isinstance(result, list):
-            super().__init__(name=name, results=result, stderr=stderr)
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split = result.strip().split("\n")
             reslist_ali: list[ResultAlignment] = []
@@ -209,11 +209,11 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
                 reslist_ali.append(res_ali)
             reslist_ali.sort()
             super().__init__(
-                name=name, results=reslist_ali, stderr=stderr
+                name=name, results=sorted(reslist_ali), stderr=stderr
             )
 
     @classmethod
-    def merge(cls:type[O], items: Sequence[O]) -> list[O]:
+    def merge(cls:type[O], items: list[O]) -> list[O]:
         result_set: set[ResultAlignment] = set()
         for obj in items:
             for res in obj.results:
@@ -246,11 +246,11 @@ class ErrorOutput(GenericOutput[ResultError]):
             )
 
     @classmethod
-    def merge(cls, items: Sequence[O]) -> list[O]:
+    def merge(cls, items: list[O]) -> list[O]:
         return list(items)
 
 
-    def write_results(self, initiated: bool) -> Literal[True]:
+    def write_results(self, initiated: bool=False) -> Literal[True]:
         if not initiated:
             sys.stderr.write(
                 f"Encountered issue during processing of {self.id}:"
