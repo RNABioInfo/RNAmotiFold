@@ -2,14 +2,14 @@ from pathlib import Path as _Path
 import importlib.util as _importlib
 
 
-_RNAMOTIFOLD_ROOT_DIR = _Path(__file__).resolve().absolute().parent
+RNAMOTIFOLD_ROOT_DIR = _Path(__file__).resolve().absolute().parent
 
 
 def _check_submodule(submodule: str) -> _Path:
-    SUBMOD_DIR = _Path.joinpath(_RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
+    SUBMOD_DIR = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
         raise ModuleNotFoundError(
-            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {_RNAMOTIFOLD_ROOT_DIR}"
+            f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAMOTIFOLD_ROOT_DIR}"
         )
     else:
         return SUBMOD_DIR
@@ -17,7 +17,7 @@ def _check_submodule(submodule: str) -> _Path:
 
 try:
     _script_dir: _Path = (
-        _RNAMOTIFOLD_ROOT_DIR
+        RNAMOTIFOLD_ROOT_DIR
         / "RNALoops"
         / "Misc"
         / "Applications"
@@ -36,20 +36,14 @@ except ImportError as _e:
     raise _e
 
 
-_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(
-    _RNAMOTIFOLD_ROOT_DIR, "configs"
-)
-_RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(
-    _RNAMOTIFOLD_CONFIG_DIR, "defaults.ini"
-)
-_RNAMOTIFOLD_PATHS_CONFIG: _Path = _Path.joinpath(
-    _RNAMOTIFOLD_CONFIG_DIR, "paths.ini"
-)
-_RNAMOTIFOLD_BIN: _Path = _Path.joinpath(_RNAMOTIFOLD_ROOT_DIR, "bin")
-_RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
-_RNALOOPS_PATH: _Path = _check_submodule("RNALoops")
+_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
+RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "defaults.ini")
+RNAMOTIFOLD_PATHS_CONFIG: _Path = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "paths.ini")
+RNAMOTIFOLD_BIN: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
+RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
+RNALOOPS_PATH: _Path = _check_submodule("RNALoops")
 _RNAMOTIFOLD_MOTIFS_PATH: _Path = _Path.joinpath(
-    _RNALOOPS_PATH,
+    RNALOOPS_PATH,
     "Misc",
     "Applications",
     "RNAmotiFold",
@@ -57,7 +51,7 @@ _RNAMOTIFOLD_MOTIFS_PATH: _Path = _Path.joinpath(
     "versions",
     "combined",
 )
-_AVAILABLE_BINARIES: list[str] = [
+AVAILABLE_BINARIES: list[str] = [
     "RNAmotiFold",
     "RNAmoSh",
     "RNAmotiCes",

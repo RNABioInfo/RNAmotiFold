@@ -2,14 +2,14 @@ from pathlib import Path
 import tempfile
 import glob
 from typing import Literal
-from RNAmotiFold import _RNAMOTIFOLD_ROOT_DIR
-from RNAmotiFold.input.parameters import _ScriptParameters
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold.input.parameters import ScriptParameters
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class _MotifHandler:
+class MotifHandler:
     """Motif Handler Class, this is responsible for creating the motif part of the algorithm calls.
     It should in the end provide a List of every necessary combination of algorithm calls to cover the requested motifs
     Each part should be handled individually first ?
@@ -56,7 +56,7 @@ class _MotifHandler:
         self._call_number = new_number
 
     @classmethod
-    def from_script_parameters(cls, params: _ScriptParameters) -> "_MotifHandler":
+    def from_script_parameters(cls, params: ScriptParameters) -> "MotifHandler":
         return cls(
             params.motif_list,
             params.fast_mode,
@@ -73,9 +73,7 @@ class _MotifHandler:
     def motif_calls(self) -> list[str]:
         # First case: Motif string is empty and all three custom motif paths are not set, single motif mode is also False --> Default case, no extra stuff necessary
         self._tmp_folder = tempfile.TemporaryDirectory(
-            prefix="tmp_",
             delete=False,
-            dir=str(Path(__file__).parents[1]),
         )
         if (
             self.motif_string == ""
@@ -97,21 +95,21 @@ class _MotifHandler:
             )
             return []
         separate_motif_files = self.get_motif_files()
-        hairpins = _MotifHandler._make_file_list(
+        hairpins = MotifHandler._make_file_list(
             self.replace_hairpins,
             self.custom_hairpins,
             "hairpins",
             separate_motif_files,
             self.motif_string,
         )
-        internals = _MotifHandler._make_file_list(
+        internals = MotifHandler._make_file_list(
             self.replace_internals,
             self.custom_internals,
             "internals",
             separate_motif_files,
             self.motif_string,
         )
-        bulges = _MotifHandler._make_file_list(
+        bulges = MotifHandler._make_file_list(
             self.replace_bulges,
             self.custom_bulges,
             "bulges",
@@ -120,18 +118,18 @@ class _MotifHandler:
         )
         if self.single_motif_mode:
             temp_folders = (
-                _MotifHandler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
-                _MotifHandler._split_sequences(self.motif_string, internals, self._tmp_folder),
-                _MotifHandler._split_sequences(self.motif_string, bulges, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, hairpins, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, internals, self._tmp_folder),
+                MotifHandler._split_sequences(self.motif_string, bulges, self._tmp_folder),
             )
             # Jetzt: alle drei Folder globben, dann hab ich die Paths zu jedem einzelnen Motif separat. Danach einfach kombinieren jedes file mit 2x empty csv und die kombinationen returnen
-            hairpin_calls = _MotifHandler._split_calls(
+            hairpin_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[0] / "*.tmp")), "hairpin"
             )
-            internal_calls = _MotifHandler._split_calls(
+            internal_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[1] / "*.tmp")), "internal"
             )
-            bulge_calls = _MotifHandler._split_calls(
+            bulge_calls = MotifHandler._split_calls(
                 glob.glob(str(temp_folders[2] / "*.tmp")), "bulge"
             )
             self.call_number = len(hairpin_calls + internal_calls + bulge_calls)
@@ -151,13 +149,14 @@ class _MotifHandler:
 
     def get_motif_files(self) -> list[Path]:
         motif_dir_path = (
-            _RNAMOTIFOLD_ROOT_DIR
+            RNAMOTIFOLD_ROOT_DIR
             / "RNALoops"
             / "Misc"
             / "Applications"
             / "RNAmotiFold"
             / "motifs"
             / "versions"
+            / "separated"
             / f"{self.version}_separated"
         )
         files = Path(motif_dir_path).rglob("*.csv")
@@ -169,7 +168,7 @@ class _MotifHandler:
         loop_type: Literal["hairpin", "internal", "bulge"],
     ):
         empty_csv = (
-            _RNAMOTIFOLD_ROOT_DIR
+            RNAMOTIFOLD_ROOT_DIR
             / "RNALoops"
             / "Misc"
             / "Applications"
@@ -195,7 +194,7 @@ class _MotifHandler:
         """Takes a list of motif files and a motif string, reads all the files, filters out only those in the motif string and puts them back together. If the motif string is empty it takes all sequences
         Returns the path to the new temp file with the sequences in it.
         """
-        all_sequences = _MotifHandler._sort_sequences(file_list, motif_string)
+        all_sequences = MotifHandler._sort_sequences(file_list, motif_string)
         contents: list[str] = []
         for key in all_sequences:
             contents.extend(all_sequences[key])
@@ -243,7 +242,7 @@ class _MotifHandler:
         Remember to clean up the tempdir after to remvoe all the temp files!
         """
         subdir = tempfile.TemporaryDirectory(dir=tempdir.name, delete=False, prefix="tmp_")
-        groups: dict[str, list[str]] = _MotifHandler._sort_sequences(file_list, motif_string)
+        groups: dict[str, list[str]] = MotifHandler._sort_sequences(file_list, motif_string)
         for key in groups.keys():
             motifs = "".join(groups[key])
             motif_temp = tempfile.NamedTemporaryFile(
@@ -273,7 +272,7 @@ class _MotifHandler:
             motif_paths = [
                 x
                 for x in files
-                if motif_type in x.parent.name and _MotifHandler._check_abb(x, motif_string)
+                if motif_type in x.parent.name and MotifHandler._check_abb(x, motif_string)
             ]
             if custom_motifs is not None:
                 motif_paths.append(custom_motifs)

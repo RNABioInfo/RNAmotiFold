@@ -4,34 +4,43 @@ import multiprocessing.pool
 import subprocess
 from typing import Any, Literal
 from pathlib import Path
-from RNAmotiFold.results.mfe import ResultMFE
-from RNAmotiFold.results.algorithm_output import AlgorithmOutput, AlgorithmError
-from RNAmotiFold.bgap_rna.input_handler import _AlgorithmInput
-from RNAmotiFold.input.parameters import _ScriptParameters
+from RNAmotiFold.results.outputs import MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput
+from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
+from RNAmotiFold.input.parameters import ScriptParameters
 from contextlib import redirect_stdout
 import sys
+from collections import defaultdict
 import os
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class _SubprocessHandler:
+class SubprocessHandler:
     """Class to manage subprocesses for running RNAmotiFold algorithms."""
 
     @staticmethod
     def _worker(
-        input_queue: "multiprocessing.Queue[_AlgorithmInput|None]",
-        output_queue: "multiprocessing.Queue[AlgorithmOutput|AlgorithmError]",
+        input_queue: "multiprocessing.Queue[AlgorithmInput | None]",
+        output_queue: "multiprocessing.Queue[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput | None]",
         process_type: Literal["mfe", "pfc", "ali"],
     ):
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
         pid = os.getpid()
         logger.debug(f"Started worker process at {pid}, with process type {process_type}")
+        match process_type:
+            case "mfe":
+                type_alias = MFEOutput
+            case "pfc":
+                type_alias = PFCOutput
+            case "ali":
+                type_alias = AlignmentOutput
+
         while True:
-            input_obj: _AlgorithmInput | None = input_queue.get()
+            input_obj: AlgorithmInput | None = input_queue.get()
             if input_obj is None:
                 logger.debug(f"Worker {pid} exiting, input queue is empty")
+                output_queue.put(None)
                 break
             logger.debug(
                 f"Worker {pid} started work on {input_obj.id} with call {input_obj.runtime_call}"
@@ -39,82 +48,92 @@ class _SubprocessHandler:
             subprocess_output = subprocess.run(
                 input_obj.runtime_call, text=True, capture_output=True, shell=True
             )
+            logger.debug(f"Worker {pid} processed {input_obj.id}, returned: {subprocess_output}")
             if subprocess_output.returncode == 0:
-                result = AlgorithmOutput(
-                    input_obj.id, subprocess_output.stdout, [subprocess_output.stderr], process_type
+                result = type_alias(
+                    input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
                 )
                 logger.debug(
                     f"Worker {pid} successfully completed call {input_obj.call} on {input_obj.id}"
                 )
             else:
-                result = AlgorithmError(input_obj.id, subprocess_output.stderr)
+                result = ErrorOutput(
+                    input_obj.id, subprocess_output.stderr, [str(subprocess_output.returncode)]
+                )
                 logger.debug(
-                    f"Worker {pid} encountered an issue working in {input_obj.id} with call {input_obj.call}"
+                    f"Worker {pid} encountered exit status {subprocess_output.returncode} working on {input_obj.id}. Error: {subprocess_output.stderr}"
                 )
             output_queue.put(result)
 
     @staticmethod
     def _listener(
-        input_queue: "multiprocessing.Queue[AlgorithmOutput|AlgorithmError|None]",
+        input_queue: "multiprocessing.Queue[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput | None]",
         output_file: Path | None,
         pipe: multiprocessing.connection.Connection,
         calls_per_input: int,
-        merge_mfe: bool,
         no_print: bool,
+        max_nones: int,
     ):
         """Simplest listener funtion that should also work universally, takes the result objects put into its queue by the workers, writes them down or prints them.
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
-        return_list: list[AlgorithmOutput | AlgorithmError] = []
-        output_dict: dict[str, list[AlgorithmOutput]] = {}
+        none_counter = 0
+        output_dict: defaultdict[str, list[MFEOutput | PFCOutput | AlignmentOutput]] = defaultdict(
+            list
+        )  # It will always only be one of the types
+        error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(list)
         writing_started = False
         while True:
             try:
-                result: AlgorithmOutput | AlgorithmError | None = input_queue.get()
+                result: None | MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput = (
+                    input_queue.get()
+                )
             except EOFError:
                 continue
             if result is None:
-                pipe.send(return_list)
-                break
-            else:
-                if isinstance(result, AlgorithmOutput):
-                    return_list.append(result)
-                    output_dict.setdefault(result.id, []).append(result)
-                    if len(output_dict[result.id]) == calls_per_input:
-                        match output_dict[result.id][0].process_type:
-                            case "mfe":
-                                full_output = AlgorithmOutput._merge_mfe_outputs(
-                                    output_dict[result.id]
-                                )
-                                if merge_mfe:
-                                    full_output = _SubprocessHandler.postprocessing_mfe(full_output)
-                            case "pfc":
-                                full_output = output_dict[result.id]
-                                if len(full_output) > 1:
-                                    full_output = _SubprocessHandler.postprocessing_pfc(full_output)
-                            case "ali":
-                                full_output = output_dict[result.id]
-                        if isinstance(output_file, Path):
-                            with open(output_file, "a+") as write_file:
-                                with redirect_stdout(write_file):
-                                    if isinstance(full_output, list):
-                                        for element in full_output:
-                                            writing_started = element.write_results(writing_started)
-                                    else:
-                                        writing_started = full_output.write_results(writing_started)
+                none_counter += 1
+                if none_counter == max_nones:
+                    # Everything is done, pack up all the results and send them back
+                    resultlist: list[MFEOutput | PFCOutput | AlignmentOutput] = [
+                        item for values in output_dict.values() for item in values
+                    ]
+                    errorlist: list[ErrorOutput] = [
+                        item for values in error_dict.values() for item in values
+                    ]
+                    pipe.send(resultlist + errorlist)
+                    logger.debug("All algorithm returns have been processed, listener is exiting")
+                    break
+                continue
+            match result:
+                case MFEOutput() | PFCOutput() | AlignmentOutput():
+                    output_dict[result.id].append(result)
+                    if (
+                        sum([len(output_dict[result.id]), len(error_dict[result.id])])
+                        == calls_per_input
+                    ):
+                        successes = [x for x in output_dict[result.id]]
+                        if all([isinstance(x, MFEOutput) for x in successes]):
+                            merged = [MFEOutput.merge_mfe(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
+                        elif all([isinstance(x, PFCOutput) for x in successes]):
+                            merged = PFCOutput.merge_pfc(successes)  # type: ignore All 3 of these are checked beforehand and therefore will never fail
+                        elif all([isinstance(x, AlignmentOutput) for x in output_dict[result.id]]):
+                            merged = [AlignmentOutput.merge_ali(successes)]  # type: ignore All 3 of these are checked beforehand and therefore will never fail
                         else:
-                            if no_print:
-                                continue
-                            if isinstance(full_output, list):
-                                for element in full_output:
-                                    writing_started = element.write_results(writing_started)
+                            raise ValueError(
+                                "Multiple algorithm output types detected during the same run, something went wrong"
+                            )
+                        if not no_print:
+                            if isinstance(output_file, Path):
+                                write_destination = open(output_file, "a+")
                             else:
-                                writing_started = full_output.write_results(writing_started)
-                            sys.stdout.flush()
-                else:
-                    logger.critical(
-                        f"Error encountered during prediction of {result.id}: {result.error}"
-                    )
+                                write_destination = sys.stdout
+                            with redirect_stdout(write_destination):
+                                for element in merged:
+                                    writing_started = element.write_results(writing_started)
+                                sys.stdout.flush()
+                case ErrorOutput():
+                    result.write_results(False)
+                    error_dict[result.id].append(result)
 
     def __init__(
         self,
@@ -124,43 +143,66 @@ class _SubprocessHandler:
     ):
         # Set up the very basics of a new multiprocessing step, How Many processes can we start, what are our inputs and where are we supposed to write the output.
         # If we come from the full RNAmotiFold pipeline the input is pre-processed and output location is confirmed to work -> Alternate contsructor for checking these ?
-        self.max_processes = max_processes
-        self.output_path = output_path
-        self.process_type = prediction_type
+        self.max_processes: int = max_processes
+        self.output_path: Path | None = output_path
+        self.process_type: Literal["mfe"] | Literal["pfc"] | Literal["ali"] = prediction_type
 
     @classmethod
-    def from_script_parameters(cls, params: _ScriptParameters):
+    def from_script_parameters(cls, params: ScriptParameters):
         return cls(params.workers, params.output, params.alg_type())
 
-    def single_run(
+    def auto_run(
         self,
-        input_obj: _AlgorithmInput,
-        process_type: Literal["mfe", "ali", "pfc"],
-        merge_mfe_outputs: bool,
-    ) -> AlgorithmOutput | AlgorithmError:
+        inputs: list[AlgorithmInput],
+        calls_per_input: int,
+        no_print: bool,
+    ) -> list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput]:
+        if len(inputs) >= 2 and self.max_processes > 1:
+            logger.debug("Recognized multiple inputs, creating worker pool and running in parallel")
+            return self._multi_run(inputs, calls_per_input, no_print)
+        else:
+            logger.debug("Recognized only one input, running in single process mode")
+            answer = self._single_run(inputs[0])
+            if not no_print:
+                answer.write_results(False)
+            return [answer]
+
+    def _single_run(
+        self,
+        input_obj: AlgorithmInput,
+    ) -> MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput:
+        """Function for running a single"""
         subprocess_output = subprocess.run(
             input_obj.runtime_call, text=True, capture_output=True, shell=True
         )
         if subprocess_output.returncode == 0:
-            result = AlgorithmOutput(
-                input_obj.id, subprocess_output.stdout, [subprocess_output.stderr], process_type
-            )
-            if process_type == "mfe" and merge_mfe_outputs:
-                result = self.postprocessing_mfe(result)
-            return result
+            match self.process_type:
+                case "mfe":
+                    return MFEOutput(
+                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                    )
+                case "pfc":
+                    return PFCOutput(
+                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                    )
+                case "ali":
+                    return AlignmentOutput(
+                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                    )
         else:
-            return AlgorithmError(input_obj.id, subprocess_output.stderr)
+            return ErrorOutput(
+                input_obj.id, subprocess_output.stderr, [str(subprocess_output.returncode)]
+            )
 
-    def run(
+    def _multi_run(
         self,
-        inputs: list[_AlgorithmInput],
-        merge_mfe_outputs: bool,
+        inputs: list[AlgorithmInput],
         calls_per_input: int,
         no_print: bool,
-    ) -> list[AlgorithmOutput | AlgorithmError]:
+    ) -> list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
-        input_q: multiprocessing.Queue[_AlgorithmInput | None] = manager.Queue()  # type: ignore Because Queue has type Any
+        input_q: "multiprocessing.Queue[AlgorithmInput | None]" = manager.Queue()  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
         if len(inputs) < self.max_processes:
             logger.debug(
@@ -180,8 +222,8 @@ class _SubprocessHandler:
                 self.output_path,
                 PipeIn,
                 calls_per_input,
-                merge_mfe_outputs,
                 no_print,
+                necessary_processes,
             ),
         )
         listening.start()
@@ -193,7 +235,7 @@ class _SubprocessHandler:
             necessary_processes
         ):  # Populate the pool with worker functions, each doing nothing but getting items from the input queue and processing them
             work = pool.apply_async(
-                _SubprocessHandler._worker, (input_q, listener_q, self.process_type)
+                SubprocessHandler._worker, (input_q, listener_q, self.process_type)
             )
             workers.append(work)
             input_q.put(None)
@@ -202,51 +244,8 @@ class _SubprocessHandler:
         pool.close()
         pool.join()
         # Tell the listener that no more objects will be put into the queue with the None sentinel and let him finish working
-        listener_q.put(None)
         listening.join()
-        listener_output: list[AlgorithmOutput | AlgorithmError] = (
+        listener_output: list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput] = (
             PipeOut.recv()
         )  # Receive the list of outputs from the listener
         return listener_output
-
-    @staticmethod
-    def postprocessing_pfc(
-        merged_output: list[AlgorithmOutput],
-    ) -> list[AlgorithmOutput]:
-        returnlist: list[AlgorithmOutput] = []
-        checklist: list[str] = []
-        for output in merged_output:
-            if str(output) not in checklist and len(output.results) > 1:
-                checklist.append(str(output))
-                returnlist.append(output)
-        return returnlist
-
-    @staticmethod
-    def postprocessing_mfe(merged_output: AlgorithmOutput) -> AlgorithmOutput:
-        """
-        Postprocessing function for merging outputs of the seperated motif predictions
-        """
-        mfe_dict: dict[float, list[ResultMFE]] = {}
-        for res in merged_output.results:
-            if (
-                isinstance(res, ResultMFE) and res.classifier != "_"
-            ):  # this is a little unnecessary but it gets rid of warnings, the res classifier filter removes the "no motif" structure
-                if (
-                    res.free_energy not in mfe_dict.keys()
-                ):  # -> It makes no sense to have it in the merging process since if it can fit a motif it will be the mfe for that motif anyways
-                    mfe_dict[res.free_energy] = [res]
-                else:
-                    mfe_dict[res.free_energy].append(res)
-        for key in mfe_dict.keys():
-            if len(mfe_dict[key]) > 1:
-                merge_candidates = ResultMFE._get_compatible_structures(mfe_dict[key])
-                for compatible_structures in merge_candidates:
-                    new_result = ResultMFE._merge_structures(
-                        [mfe_dict[key][i] for i in compatible_structures]
-                    )
-                    if new_result is not None:
-                        merged_output.results.append(new_result)
-            else:
-                continue
-        merged_output.results.sort(key=lambda x: x.free_energy)  # type: ignore
-        return merged_output

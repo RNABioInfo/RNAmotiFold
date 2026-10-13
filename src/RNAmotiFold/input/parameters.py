@@ -4,9 +4,9 @@ from typing import Literal
 from argparse import Namespace
 from configparser import ConfigParser
 from RNAmotiFold.input.action_overwrites import (
-    _OutputFileCheck,
-    _WorkerCheck,
-    _AlgorithmMatching,
+    OutputFileCheck,
+    WorkerCheck,
+    AlgorithmMatching,
 )
 import logging
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class _ScriptParameters:
+class ScriptParameters:
     """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser.
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
     """
@@ -55,6 +55,7 @@ class _ScriptParameters:
     motif_fraction: float
     gapc_path: Path
     perl_path: Path
+    make_path: Path
 
     def __repr__(self):
         classname = type(self).__name__
@@ -124,6 +125,7 @@ class _ScriptParameters:
             motif_fraction=args.motif_fraction,
             gapc_path=args.gapc_path,
             perl_path=args.perl_path,
+            make_path=args.make_path,
         )
 
     @classmethod
@@ -131,22 +133,22 @@ class _ScriptParameters:
         confs.set(
             section_name,
             "algorithm",
-            _AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
+            AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
         )
         confs.set(
             section_name,
             "output",
-            _OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
+            OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
         )
         confs.set(
             section_name,
             "logfile",
-            _OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
+            OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
         )
         confs.set(
             section_name,
             "workers",
-            str(_WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
+            str(WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
         )
         if confs.get(section_name, "output"):
             outpath = Path(confs.get(section_name, "output"))
@@ -161,7 +163,7 @@ class _ScriptParameters:
             id=confs.get(section_name, "id"),
             input=confs.get(section_name, "input"),
             output=outpath,
-            algorithm=_AlgorithmMatching.algorithm_matching_function(
+            algorithm=AlgorithmMatching.algorithm_matching_function(
                 confs.get(section_name, "algorithm")
             ),
             subopt=confs.getboolean(section_name, "subopt"),
@@ -194,4 +196,5 @@ class _ScriptParameters:
             motif_fraction=confs.getfloat(section_name, "motif_fraction"),
             gapc_path=Path(confs.get("INSTALLATION", "gapc_path")),
             perl_path=Path(confs.get("INSTALLATION", "perl_path")),
+            make_path=Path(confs.get("INSTALLATION", "make_path")),
         )

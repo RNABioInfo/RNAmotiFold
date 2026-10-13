@@ -49,12 +49,12 @@ class _dependency_finder:
             logger.error(f"Error while checking for {prog_path} with -v: {e}")
             raise e
         else:
-            if answer.returncode == 0 and f"{prog_path.name}" in answer.stdout.decode():
+            if answer.returncode == 0 and f"{prog_path.name}" in answer.stdout.decode().lower():
                 return True
         return False
 
 
-def _find(dependency: str):
+def find(dependency: str):
     """Attempts to find a RNAmotiFold dependency with which and command -v /your dependency here/"""
     finder = _dependency_finder(dependency)
     try:

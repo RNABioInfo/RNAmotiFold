@@ -1,55 +1,51 @@
 import unittest
 
-from RNAmotiFold.bgap_rna.call_handler import _CallHandler
-
+from RNAmotiFold.bgap_rna.call_handler import CallHandler
 
 class TestBgapObject(unittest.TestCase):
     def setUp(self):
-        #Arrange an empty bgap_rna obj for all tests on it
-        self.obj = _CallHandler()
-
+        # Arrange an empty bgap_rna obj for all tests on it
+        self.obj = CallHandler()
 
     def test_algorithm_binary_rnamotifold_default(self):
-        #Arrange
-        #Do nothing to the obj
-        #Act
+        # Arrange
+        # Do nothing to the obj
+        # Act
         binary = self.obj.algorithm_binary
-        #Assert
+        # Assert
         self.assertEqual(binary,"RNAmotiFold")
 
     def test_algorithm_binary_rnamotifold_pfc(self):
-        #Arrange
+        # Arrange
         self.obj.pfc=True
-        #Act
+        # Act
         binary =  self.obj.algorithm_binary
-        #Assert
+        # Assert
         self.assertEqual(binary,"RNAmotiFold_pfc")
 
     def test_algorithm_binary_rnamotifold_subopt(self):
-        #Arrange
+        # Arrange
         self.obj.subopt = True
-        #Act
+        # Act
         binary =  self.obj.algorithm_binary
-        #Assert
+        # Assert
         self.assertEqual(binary,"RNAmotiFold_subopt")
 
     def test_algorithm_binary_rnamotialign_default(self):
-        #Arrange
+        # Arrange
         self.obj.algorithm = "RNAmotiAlign"
-        #Act
+        # Act
         binary = self.obj.algorithm_binary
-        #Assert
+        # Assert
         self.assertEqual(binary,"RNAmotiAlign")
 
-    #@unittest.expectedFailure()
-    #def test_algorithm_binary_rnamotialign_pfc(self):
+    # @unittest.expectedFailure()
+    # def test_algorithm_binary_rnamotialign_pfc(self):
     #    #Arrange
     #    self.obj.algorithm = "RNAmotiAlign"
     #    #Act and Assert
     #    with self.assertRaises(NotImplementedError):
     #        self.obj.pfc = True
-
-
 
 
 if __name__ == "__main__":

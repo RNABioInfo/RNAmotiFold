@@ -2,32 +2,32 @@ import argparse
 import configparser
 import logging
 from pathlib import Path
-from RNAmotiFold import _RNAMOTIFOLD_DEFAULTS_CONFIG, _RNAMOTIFOLD_PATHS_CONFIG
-from RNAmotiFold.input.parameters import _ScriptParameters
+from RNAmotiFold import RNAMOTIFOLD_DEFAULTS_CONFIG, RNAMOTIFOLD_PATHS_CONFIG
+from RNAmotiFold.input.parameters import ScriptParameters
 from RNAmotiFold.input.action_overwrites import (
-    _MotifFileCheck,
-    _LogCheck,
-    _FloatCheck,
-    _WorkerCheck,
-    _OutputFileCheck,
-    _ConfigCheck,
-    _MotifListCheck,
-    _AlgorithmMatching,
-    _VersionParser,
-    _PerlCheck,
-    _gapcMCheck,
+    MotifFileCheck,
+    LogCheck,
+    FloatCheck,
+    WorkerCheck,
+    OutputFileCheck,
+    ConfigCheck,
+    MotifListCheck,
+    AlgorithmMatching,
+    VersionParser,
+    PerlCheck,
+    gapcMCheck,
 )
 
 loggers = logging.getLogger(__name__)
 
 
-def _get_cmdarguments() -> _ScriptParameters:
+def get_cmdarguments() -> ScriptParameters:
     """Sets up argument parser using defaults/defaults.ini for default values. Checks set arguments using action_overwrites and will raise Errors if something is not right. Returns a tuple of ScriptParameters and a list of unknown arguments"""
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read_file(open(_RNAMOTIFOLD_DEFAULTS_CONFIG))
+    config.read_file(open(RNAMOTIFOLD_DEFAULTS_CONFIG))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
     path_config = configparser.ConfigParser(allow_no_value=True)
-    path_config.read_file(open(_RNAMOTIFOLD_PATHS_CONFIG))
+    path_config.read_file(open(RNAMOTIFOLD_PATHS_CONFIG))
     for option in [
         x for x in config[config.default_section] if config[config.default_section][x] == ""
     ]:
@@ -69,16 +69,16 @@ def _get_cmdarguments() -> _ScriptParameters:
         help="Set file to write results to. Results will be appended to file if it already exists! If set to None results will be printed to stdout.",
         type=str,
         default=config.get(config.default_section, "output"),
-        action=_OutputFileCheck,
+        action=OutputFileCheck,
         nargs="?",
         dest="output",
     )
     parser.add_argument(
         "--conf",
-        help=f"Specify a config file path, if no path is given this defaults to the prewritten config file at {_ScriptParameters.user_config_path}.  If --conf is set other commandline arguments will be ignored.",
+        help=f"Specify a config file path, if no path is given this defaults to the prewritten config file at {ScriptParameters.user_config_path}.  If --conf is set other commandline arguments will be ignored.",
         type=str,
-        action=_ConfigCheck,
-        const=_ScriptParameters.user_config_path,
+        action=ConfigCheck,
+        const=ScriptParameters.user_config_path,
         nargs="?",
         dest="config",
     )
@@ -105,7 +105,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--algorithm",
         help=f"Specify which algorithm should be used, your choices are: RNAmotiFold, RNAmoSh, RNAmotiCes and RNAmotiAlign.",
         type=str,
-        action=_AlgorithmMatching,
+        action=AlgorithmMatching,
         default=config.get(config.default_section, "algorithm"),
         nargs="?",
         dest="algorithm",
@@ -115,7 +115,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--version",
         help=f"Specify which RNA 3D Motif Atlas version you want to use.",
         dest="version",
-        action=_VersionParser,
+        action=VersionParser,
         type=str,
         default=config.get(config.default_section, "version"),
     )
@@ -228,7 +228,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--custom_hairpins",
         dest="custom_hairpins",
         help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
-        action=_MotifFileCheck,
+        action=MotifFileCheck,
         default=config.get(config.default_section, "custom_hairpins"),
     )
     parser.add_argument(
@@ -236,7 +236,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--custom_internals",
         dest="custom_internals",
         help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
-        action=_MotifFileCheck,
+        action=MotifFileCheck,
         default=config.get(config.default_section, "custom_internals"),
     )
     parser.add_argument(
@@ -244,7 +244,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--custom_bulges",
         dest="custom_bulges",
         help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
-        action=_MotifFileCheck,
+        action=MotifFileCheck,
         default=config.get(config.default_section, "custom_bulges"),
     )
     parser.add_argument(
@@ -277,14 +277,14 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--workers",
         help=f"Specify how many predictions should be done in parallel for file input.",
         type=int,
-        action=_WorkerCheck,
+        action=WorkerCheck,
         default=config.getint(config.default_section, "workers"),
         dest="workers",
     )
     parser.add_argument(
         "--loglevel",
         help=f"Set log level.",
-        action=_LogCheck,
+        action=LogCheck,
         type=str,
         default=config.get(config.default_section, "loglevel"),
         dest="loglevel",
@@ -293,7 +293,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         "--logfile",
         help=f"Set filepath as destination for log entries. If set to None error messages are printed to stderr.",
         type=str,
-        action=_OutputFileCheck,
+        action=OutputFileCheck,
         default=config.get(config.default_section, "logfile"),
         dest="logfile",
     )
@@ -317,7 +317,7 @@ def _get_cmdarguments() -> _ScriptParameters:
         help=f"Specify which motifs should be recognized during prediction. Works with custom motifs and all modes.",
         default=config.get(config.default_section, "motif_list"),
         type=str,
-        action=_MotifListCheck,
+        action=MotifListCheck,
         dest="motif_list",
     )
     parser.add_argument(
@@ -332,27 +332,36 @@ def _get_cmdarguments() -> _ScriptParameters:
         help=f"Specify in how many rows a motif has to be recognized in the same loop to be accepted. Default is 0.7",
         default=config.getfloat(config.default_section, "motif_fraction"),
         type=float,
-        action=_FloatCheck,
+        action=FloatCheck,
         dest="motif_fraction",
     )
     # Installation parameters
     parser.add_argument(
         "--gapc_path",
         nargs="?",
-        action=_gapcMCheck,
+        action=gapcMCheck,
         dest="gapc_path",
         default=path_config.get(config.default_section, "gapc_path"),  # _detect_gapc(),
         type=Path,
-        help=f"GAPC Path for compilation, used when (re)compiling algorithms. If not set the script will try to find a gapc",
+        help=f"GAPC Path for compilation, used for compiling algorithms. If not set the script will try to find a gapc",
     )
     parser.add_argument(
         "--perl_path",
         nargs="?",
         dest="perl_path",
-        action=_PerlCheck,
+        action=PerlCheck,
         default=path_config.get(config.default_section, "perl_path"),  # shutil.which("perl"),
         type=Path,
-        help=f"Perl interpreter path, used for (re)compilation of algorithms. If no default is set the script will try to find a perl interpreter with attempt to find one with 'shutil.which' and command -v perl",
+        help=f"Perl interpreter path, used for compilation algorithms. If not set the script will try to find a perl interpreter with 'shutil.which' and command -v perl",
+    )
+    parser.add_argument(
+        "--make_path",
+        nargs="?",
+        dest="make_path",
+        action=PerlCheck,
+        default=path_config.get(config.default_section, "make_path"),  # shutil.which("perl"),
+        type=Path,
+        help=f"Path for make utility, used for compiling algorithms. If not set the script will try to find make with 'shutil.which' and command -v make",
     )
     loggers.info("Parsing given arguments args")
     args = parser.parse_args()
@@ -362,6 +371,6 @@ def _get_cmdarguments() -> _ScriptParameters:
         raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")
     if args.config is not None:
         config.read_file(open(args.config))
-        return _ScriptParameters.from_configparser(config)
+        return ScriptParameters.from_configparser(config)
     else:
-        return _ScriptParameters.from_argparser(args)
+        return ScriptParameters.from_argparser(args)
