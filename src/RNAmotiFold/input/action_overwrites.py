@@ -134,9 +134,9 @@ class WorkerCheck(argparse.Action):
         if value is not None:
             if int(value) > cpus:
                 loggers.info(
-                    "Given worker number exceeds detected cpu count, setting workers to cpu_count - 1"
+                    "Given worker number exceeds detected cpu count, setting workers to os.cpu_count()/2"
                 )
-                return int(cpus - 1)
+                return round(int(cpus) / 2)
             else:
                 return int(value)
         else:
