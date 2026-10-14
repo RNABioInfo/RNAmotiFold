@@ -172,7 +172,7 @@ class InputHandler:
             raise e
         else:  # Processing of raw sequence inputs
             if process_type == "ali":
-                teststring: str = "NAUCGTnaucgt+_-#"
+                teststring: str = "NAUCGTnaucgt_#"
                 if not InputHandler.test_equal_lengths(user_input):
                     raise ValueError(
                         "Not all strings in your alignment have the same lengths, can't process"

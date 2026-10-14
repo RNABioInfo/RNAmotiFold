@@ -4,7 +4,13 @@ import multiprocessing.pool
 import subprocess
 from typing import Any, Literal
 from pathlib import Path
-from RNAmotiFold.results.outputs import GenericOutput, MFEOutput, PFCOutput, AlignmentOutput, ErrorOutput,AlgorithmOutput
+from RNAmotiFold.results.outputs import (
+    MFEOutput,
+    PFCOutput,
+    AlignmentOutput,
+    ErrorOutput,
+    AlgorithmOutput,
+)
 from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
 from RNAmotiFold.input.parameters import ScriptParameters
 from contextlib import redirect_stdout
@@ -78,8 +84,8 @@ class SubprocessHandler:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         none_counter = 0
-        output_dict: defaultdict[str, list[MFEOutput]| list[PFCOutput] | list[AlignmentOutput]] = defaultdict(
-            list
+        output_dict: defaultdict[str, list[MFEOutput] | list[PFCOutput] | list[AlignmentOutput]] = (
+            defaultdict(list)
         )  # It will always only be one of the types
         error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(list)
         writing_started = False
@@ -106,7 +112,7 @@ class SubprocessHandler:
                 continue
             match result:
                 case MFEOutput() | PFCOutput() | AlignmentOutput():
-                    output_dict[result.id].append(result) #type:ignore Problem here is the typing with Output dict, technically allowing all 3 output types to be added
+                    output_dict[result.id].append(result)  # type: ignore Problem here is the typing with Output dict, technically allowing all 3 output types to be added
                     if (
                         sum([len(output_dict[result.id]), len(error_dict[result.id])])
                         == calls_per_input
@@ -114,8 +120,10 @@ class SubprocessHandler:
                         successes = [x for x in output_dict[result.id]]
                         output = type(successes[0])
                         if not all(type(x) is output for x in successes):
-                            raise ValueError("Different algorithms in the same AlgorithmOutput detected, can't merge")
-                        merged = output.merge(successes) #type:ignore Again typing issue from the dict containing all 3 types
+                            raise ValueError(
+                                "Different algorithms in the same AlgorithmOutput detected, can't merge"
+                            )
+                        merged = output.merge(successes)  # type: ignore Again typing issue from the dict containing all 3 types
                         if not no_print:
                             if isinstance(output_file, Path):
                                 write_destination = open(output_file, "a+")
@@ -165,8 +173,8 @@ class SubprocessHandler:
                 with redirect_stdout(write_destination):
                     answer.write_results()
                     sys.stdout.flush()
-            return AlgorithmOutput.from_list([answer])
-        
+            return AlgorithmOutput.from_single(answer)
+
     def _single_run(
         self,
         input_obj: AlgorithmInput,
@@ -199,7 +207,11 @@ class SubprocessHandler:
         inputs: list[AlgorithmInput],
         calls_per_input: int,
         no_print: bool,
-    ) -> list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput]:
+    ) -> (
+        list[MFEOutput | ErrorOutput]
+        | list[PFCOutput | ErrorOutput]
+        | list[AlignmentOutput | ErrorOutput]
+    ):
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
         input_q: "multiprocessing.Queue[AlgorithmInput | None]" = manager.Queue()  # type: ignore Because Queue has type Any
@@ -245,7 +257,9 @@ class SubprocessHandler:
         pool.join()
         # Tell the listener that no more objects will be put into the queue with the None sentinel and let him finish working
         listening.join()
-        listener_output: list[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput] = (
-            PipeOut.recv()
-        )  # Receive the list of outputs from the listener
+        listener_output: (
+            list[MFEOutput | ErrorOutput]
+            | list[PFCOutput | ErrorOutput]
+            | list[AlignmentOutput | ErrorOutput]
+        ) = PipeOut.recv()  # Receive the list of outputs from the listener
         return listener_output

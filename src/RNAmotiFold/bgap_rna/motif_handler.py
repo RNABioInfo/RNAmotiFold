@@ -59,7 +59,7 @@ class MotifHandler:
     def from_script_parameters(cls, params: ScriptParameters) -> "MotifHandler":
         return cls(
             params.motif_list,
-            params.fast_mode,
+            params.single_motif_mode,
             params.custom_hairpins,
             params.custom_internals,
             params.custom_bulges,

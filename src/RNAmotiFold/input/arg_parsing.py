@@ -55,8 +55,6 @@ def get_cmdarguments() -> ScriptParameters:
         default=config.get(config.default_section, "id"),
     )
     parser.add_argument(
-        "-i",
-        "--input",
         help="Set input for algorithm. Running RNAmotiFold with a predefined input will not start an interactive session. Input can be a filepath, an RNA sequence or a DNA sequence. DNA sequences are silently converted to RNA.",
         type=str,
         default=config.get(config.default_section, "input"),
@@ -85,18 +83,10 @@ def get_cmdarguments() -> ScriptParameters:
     parser.add_argument(
         "-f",
         "--single-motif",
-        default=config.getboolean(config.default_section, "fast_mode"),
+        default=config.getboolean(config.default_section, "single_motif_mode"),
         action="store_true",
-        dest="fast_mode",
+        dest="single_motif_mode",
         help=f"Enables single-motif mode rediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards.",
-    )
-    parser.add_argument(
-        "-m",
-        "--fast_mode_merge",
-        action="store_true",
-        default=config.getboolean(config.default_section, "fast_mode_merge"),
-        dest="merge",
-        help="Enables merging of structures during fast mode, allowing for combined motif outputs even with fast mode. Currently only implemented with RNAmotiFold!",
     )
     # Command line arguments that control which algorithm is called with which options.
     # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
@@ -307,14 +297,14 @@ def get_cmdarguments() -> ScriptParameters:
     # Arguments for updating motifs
     parser.add_argument(
         "--update",
-        help=f"Tells script to look if there is a new version of the RNA 3D Motif Atlas available. This may take quite a while.",
+        help=f"Tells script to look if there is a new version of the RNA 3D Motif Atlas available and download it if it is. This may take quite a while.",
         default=config.getboolean(config.default_section, "update"),
         action="store_true",
         dest="update",
     )
     parser.add_argument(
         "--motifs",
-        help=f"Specify which motifs should be recognized during prediction. Works with custom motifs and all modes.",
+        help=f"Specify which motifs should be recognized during prediction. Works with custom motifs and all modes. For example specifying '--motifs GS' causes the algorithms to only include GNRA-Tetraloops and Sarcin-Ricin Motifs.",
         default=config.get(config.default_section, "motif_list"),
         type=str,
         action=MotifListCheck,

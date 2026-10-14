@@ -2,9 +2,6 @@ from RNAmotiFold.input import action_overwrites
 from RNAmotiFold.results.results import BaseResult
 from RNAmotiFold.results.outputs import (
     AlgorithmOutput,
-    MFEOutput,
-    PFCOutput,
-    AlignmentOutput,
     ErrorOutput,
 )
 import RNAmotiFold.bgap_rna.alg_setup as alg_setup
@@ -169,7 +166,6 @@ def _main(
 
 def _rnamotifold_cli():  # type: ignore CLI Function for pyproject
     """Main function to run RNAmotiFold from command line"""
-    print(sys.argv[0])
     exit_code = _main("rnamotifold")
     sys.exit(exit_code)
 

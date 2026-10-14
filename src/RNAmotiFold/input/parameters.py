@@ -48,8 +48,7 @@ class ScriptParameters:
     separator: str
     update: bool
     version: str
-    fast_mode: bool
-    fast_mode_merge: bool
+    single_motif_mode: bool
     motif_list: str
     motif_weight: float
     motif_fraction: float
@@ -118,8 +117,7 @@ class ScriptParameters:
             separator=args.separator,
             update=args.update,
             version=args.version,
-            fast_mode=args.fast_mode,
-            fast_mode_merge=args.merge,
+            single_motif_mode=args.single_motif_mode,
             motif_list=args.motif_list,
             motif_weight=args.motif_weight,
             motif_fraction=args.motif_fraction,
@@ -189,8 +187,7 @@ class ScriptParameters:
             separator=confs.get(section_name, "separator"),
             update=confs.getboolean(section_name, "update"),
             version=confs.get(section_name, "version"),
-            fast_mode=confs.getboolean(section_name, "fast_mode"),
-            fast_mode_merge=confs.getboolean(section_name, "merge"),
+            single_motif_mode=confs.getboolean(section_name, "single_motif_mode"),
             motif_list=confs.get(section_name, "motif_list"),
             motif_weight=confs.getfloat(section_name, "motif_weight"),
             motif_fraction=confs.getfloat(section_name, "motif_fraction"),
