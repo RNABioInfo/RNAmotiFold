@@ -12,7 +12,7 @@ Tested on the following dependencies:
  + Modified Bellman's GAP compiler gapcM == 2026.09.26
  + perl interpreter == perl v5.38.2
  + GNU make ==  3.81
- + Python interpreter == Python 3.12
+ + Python interpreter == Python 3.12.3
  + ubuntu == 22.04
 
 ---
