@@ -6,7 +6,10 @@ from RNAmotiFold.results.outputs import (
 )
 import RNAmotiFold.bgap_rna.alg_setup as alg_setup
 import RNAmotiFold.input.arg_parsing as arg_parsing
-from RNAmotiFold.bgap_rna.input_handler import InputHandler, AlgorithmInput
+from RNAmotiFold.bgap_rna.input_handler import (
+    InputHandler,
+    AlgorithmInput,
+)
 from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
 from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
@@ -56,7 +59,9 @@ def _temp_cleanup():
                 )
 
 
-def create_inputs(calls: list[str], inputs: list[AlgorithmInput]) -> list[AlgorithmInput]:
+def create_inputs(
+    calls: list[str], inputs: list[AlgorithmInput]
+) -> list[AlgorithmInput]:
     full_inputs: list[AlgorithmInput] = []
     for input in inputs:
         for call in calls:
@@ -84,10 +89,16 @@ def _configure_logs(loglevel: str, logfile: Path | None) -> None:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
+
 def _main(
-    algorithm: Literal["rnamotifold", "rnamotices", "rnamotialign", "rnamosh"] | None = None,
+    algorithm: (
+        Literal["rnamotifold", "rnamotices", "rnamotialign", "rnamosh"]
+        | None
+    ) = None,
 ) -> int:
-    rt_args: arg_parsing.ScriptParameters = arg_parsing.get_cmdarguments()
+    rt_args: arg_parsing.ScriptParameters = (
+        arg_parsing.get_cmdarguments()
+    )
     if algorithm is not None:
         rt_args.algorithm = action_overwrites.AlgorithmMatching.algorithm_matching_function(
             algorithm
@@ -98,18 +109,26 @@ def _main(
     logger.debug(rt_args)
 
     # Create all the support class instances to separately handle inputs, motif calls, algorithm calls and subprocesses
-    input_maker = InputHandler(process_type=rt_args.process_type, user_input=rt_args.input)
+    input_maker = InputHandler(
+        process_type=rt_args.process_type, user_input=rt_args.input
+    )
     motif_subcall_maker = MotifHandler.from_script_parameters(rt_args)
     call_maker = CallHandler.from_script_parameters(rt_args)
-    subprocess_manager = SubprocessHandler.from_script_parameters(rt_args)
+    subprocess_manager = SubprocessHandler.from_script_parameters(
+        rt_args
+    )
 
     # Combine the (potentially) separate motif calls and the general commandline call
-    full_calls: list[str] = combine_calls(call_maker.call, motif_subcall_maker.motif_calls)
+    full_calls: list[str] = combine_calls(
+        call_maker.call, motif_subcall_maker.motif_calls
+    )
     not_installed = _check_all_algorithms()
 
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
     if len(not_installed) > 0:
-        logger.critical(f"Compiling algorithms {[", ".join(not_installed)]}...")
+        logger.critical(
+            f"Compiling algorithms {[", ".join(not_installed)]}..."
+        )
         alg_setup.main(
             not_installed,
             rt_args.gapc_path,
@@ -128,10 +147,16 @@ def _main(
             user_input=rt_args.input,
             id=rt_args.id,
         )
-        cmd_inputs: list[AlgorithmInput] = create_inputs(calls=full_calls, inputs=inputs)
-        results = [subprocess_manager.auto_run(
-            inputs=cmd_inputs, calls_per_input=motif_subcall_maker.call_number, no_print=False
-        )]
+        cmd_inputs: list[AlgorithmInput] = create_inputs(
+            calls=full_calls, inputs=inputs
+        )
+        results = [
+            subprocess_manager.auto_run(
+                inputs=cmd_inputs,
+                calls_per_input=motif_subcall_maker.call_number,
+                no_print=False,
+            )
+        ]
     else:
         results: list[AlgorithmOutput] = []
         while True:
@@ -142,14 +167,18 @@ def _main(
                 break
             else:
                 try:
-                    rt_input = input_maker.read_input(rt_args.process_type, user_input, rt_args.id)
+                    rt_input = input_maker.read_input(
+                        rt_args.process_type, user_input, rt_args.id
+                    )
                 except ValueError as e:
                     print(e)
                     continue
                 except OSError as e:
                     print(e)
                     continue
-                alg_input: list[AlgorithmInput] = create_inputs(full_calls, rt_input)
+                alg_input: list[AlgorithmInput] = create_inputs(
+                    full_calls, rt_input
+                )
                 results.append(
                     subprocess_manager.auto_run(
                         inputs=alg_input,

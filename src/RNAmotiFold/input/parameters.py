@@ -24,7 +24,9 @@ class ScriptParameters:
     id: str
     input: str | None
     output: Path | None
-    algorithm: Literal["RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"]
+    algorithm: Literal[
+        "RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"
+    ]
     subopt: bool
     motif_source: int
     motif_orientation: Literal[1, 2, 3]
@@ -61,7 +63,9 @@ class ScriptParameters:
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
         for i in range(0, len(v)):
-            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+            together.append(
+                "{key}={value!r}".format(key=k[i], value=v[i])
+            )
         return f"{classname}({', '.join(together)})"
 
     @property
@@ -127,26 +131,38 @@ class ScriptParameters:
         )
 
     @classmethod
-    def from_configparser(cls, confs: ConfigParser, section_name: str = "VARIABLES"):
+    def from_configparser(
+        cls, confs: ConfigParser, section_name: str = "VARIABLES"
+    ):
         confs.set(
             section_name,
             "algorithm",
-            AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
+            AlgorithmMatching.algorithm_matching_function(
+                confs.get(section_name, "algorithm")
+            ),
         )
         confs.set(
             section_name,
             "output",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
+            OutputFileCheck.output_file_check_function(
+                confs.get(section_name, "output")
+            ),
         )
         confs.set(
             section_name,
             "logfile",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
+            OutputFileCheck.output_file_check_function(
+                confs.get(section_name, "logfile")
+            ),
         )
         confs.set(
             section_name,
             "workers",
-            str(WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
+            str(
+                WorkerCheck.worker_check_function(
+                    confs.get(section_name, "workers")
+                )
+            ),
         )
         if confs.get(section_name, "output"):
             outpath = Path(confs.get(section_name, "output"))
@@ -172,25 +188,45 @@ class ScriptParameters:
             energy=confs.getfloat(section_name, "energy"),
             temperature=confs.getfloat(section_name, "temperature"),
             basepairs=confs.getint(section_name, "basepairs"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
-            energy_percent=confs.getfloat(section_name, "energy_percent"),
+            energy_percent=confs.getfloat(
+                section_name, "energy_percent"
+            ),
             pfc=confs.getboolean(section_name, "pfc"),
-            low_prob_filter=confs.getfloat(section_name, "low_prob_filter"),
-            custom_hairpins=Path(confs.get(section_name, "custom_hairpins")),
-            custom_internals=Path(confs.get(section_name, "custom_internals")),
-            custom_bulges=Path(confs.get(section_name, "custom_bulges")),
-            replace_hairpins=confs.getboolean(section_name, "replace_hairpins"),
-            replace_internals=confs.getboolean(section_name, "replace_internals"),
-            replace_bulges=confs.getboolean(section_name, "replace_bulges"),
+            low_prob_filter=confs.getfloat(
+                section_name, "low_prob_filter"
+            ),
+            custom_hairpins=Path(
+                confs.get(section_name, "custom_hairpins")
+            ),
+            custom_internals=Path(
+                confs.get(section_name, "custom_internals")
+            ),
+            custom_bulges=Path(
+                confs.get(section_name, "custom_bulges")
+            ),
+            replace_hairpins=confs.getboolean(
+                section_name, "replace_hairpins"
+            ),
+            replace_internals=confs.getboolean(
+                section_name, "replace_internals"
+            ),
+            replace_bulges=confs.getboolean(
+                section_name, "replace_bulges"
+            ),
             loglevel=confs.get(section_name, "loglevel"),
             logfile=logpath,
             workers=confs.getint(section_name, "workers"),
             separator=confs.get(section_name, "separator"),
             update=confs.getboolean(section_name, "update"),
             version=confs.get(section_name, "version"),
-            single_motif_mode=confs.getboolean(section_name, "single_motif_mode"),
+            single_motif_mode=confs.getboolean(
+                section_name, "single_motif_mode"
+            ),
             motif_list=confs.get(section_name, "motif_list"),
             motif_weight=confs.getfloat(section_name, "motif_weight"),
-            motif_fraction=confs.getfloat(section_name, "motif_fraction"),
+            motif_fraction=confs.getfloat(
+                section_name, "motif_fraction"
+            ),
             gapc_path=Path(confs.get("INSTALLATION", "gapc_path")),
             perl_path=Path(confs.get("INSTALLATION", "perl_path")),
             make_path=Path(confs.get("INSTALLATION", "make_path")),

@@ -33,7 +33,9 @@ class SubprocessHandler:
     ):
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
         pid = os.getpid()
-        logger.debug(f"Started worker process at {pid}, with process type {process_type}")
+        logger.debug(
+            f"Started worker process at {pid}, with process type {process_type}"
+        )
         match process_type:
             case "mfe":
                 type_alias = MFEOutput
@@ -45,26 +47,37 @@ class SubprocessHandler:
         while True:
             input_obj: AlgorithmInput | None = input_queue.get()
             if input_obj is None:
-                logger.debug(f"Worker {pid} exiting, input queue is empty")
+                logger.debug(
+                    f"Worker {pid} exiting, input queue is empty"
+                )
                 output_queue.put(None)
                 break
             logger.debug(
                 f"Worker {pid} started work on {input_obj.id} with call {input_obj.runtime_call}"
             )
             subprocess_output = subprocess.run(
-                input_obj.runtime_call, text=True, capture_output=True, shell=True
+                input_obj.runtime_call,
+                text=True,
+                capture_output=True,
+                shell=True,
             )
-            logger.debug(f"Worker {pid} processed {input_obj.id}, returned: {subprocess_output}")
+            logger.debug(
+                f"Worker {pid} processed {input_obj.id}, returned: {subprocess_output}"
+            )
             if subprocess_output.returncode == 0:
                 result = type_alias(
-                    input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                    input_obj.id,
+                    subprocess_output.stdout,
+                    [subprocess_output.stderr],
                 )
                 logger.debug(
                     f"Worker {pid} successfully completed call {input_obj.call} on {input_obj.id}"
                 )
             else:
                 result = ErrorOutput(
-                    input_obj.id, subprocess_output.stderr, [str(subprocess_output.returncode)]
+                    input_obj.id,
+                    subprocess_output.stderr,
+                    [str(subprocess_output.returncode)],
                 )
                 logger.debug(
                     f"Worker {pid} encountered exit status {subprocess_output.returncode} working on {input_obj.id}. Error: {subprocess_output.stderr}"
@@ -84,54 +97,84 @@ class SubprocessHandler:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         none_counter = 0
-        output_dict: defaultdict[str, list[MFEOutput] | list[PFCOutput] | list[AlignmentOutput]] = (
-            defaultdict(list)
+        output_dict: defaultdict[
+            str,
+            list[MFEOutput] | list[PFCOutput] | list[AlignmentOutput],
+        ] = defaultdict(
+            list
         )  # It will always only be one of the types
-        error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(list)
+        error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(
+            list
+        )
         writing_started = False
         while True:
             try:
-                result: None | MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput = (
-                    input_queue.get()
-                )
+                result: (
+                    None
+                    | MFEOutput
+                    | PFCOutput
+                    | AlignmentOutput
+                    | ErrorOutput
+                ) = input_queue.get()
             except EOFError:
                 continue
             if result is None:
                 none_counter += 1
                 if none_counter == max_nones:
                     # Everything is done, pack up all the results and send them back
-                    resultlist: list[MFEOutput | PFCOutput | AlignmentOutput] = [
-                        item for values in output_dict.values() for item in values
+                    resultlist: list[
+                        MFEOutput | PFCOutput | AlignmentOutput
+                    ] = [
+                        item
+                        for values in output_dict.values()
+                        for item in values
                     ]
                     errorlist: list[ErrorOutput] = [
-                        item for values in error_dict.values() for item in values
+                        item
+                        for values in error_dict.values()
+                        for item in values
                     ]
                     pipe.send(resultlist + errorlist)
-                    logger.debug("All algorithm returns have been processed, listener is exiting")
+                    logger.debug(
+                        "All algorithm returns have been processed, listener is exiting"
+                    )
                     break
                 continue
             match result:
                 case MFEOutput() | PFCOutput() | AlignmentOutput():
                     output_dict[result.id].append(result)  # type: ignore Problem here is the typing with Output dict, technically allowing all 3 output types to be added
                     if (
-                        sum([len(output_dict[result.id]), len(error_dict[result.id])])
+                        sum(
+                            [
+                                len(output_dict[result.id]),
+                                len(error_dict[result.id]),
+                            ]
+                        )
                         == calls_per_input
                     ):
                         successes = [x for x in output_dict[result.id]]
                         output = type(successes[0])
-                        if not all(type(x) is output for x in successes):
+                        if not all(
+                            type(x) is output for x in successes
+                        ):
                             raise ValueError(
                                 "Different algorithms in the same AlgorithmOutput detected, can't merge"
                             )
                         merged = output.merge(successes)  # type: ignore Again typing issue from the dict containing all 3 types
                         if not no_print:
                             if isinstance(output_file, Path):
-                                write_destination = open(output_file, "a+")
+                                write_destination = open(
+                                    output_file, "a+"
+                                )
                             else:
                                 write_destination = sys.stdout
                             with redirect_stdout(write_destination):
                                 for element in merged:
-                                    writing_started = element.write_results(writing_started)
+                                    writing_started = (
+                                        element.write_results(
+                                            writing_started
+                                        )
+                                    )
                                 sys.stdout.flush()
                 case ErrorOutput():
                     result.write_results()
@@ -147,7 +190,9 @@ class SubprocessHandler:
         # If we come from the full RNAmotiFold pipeline the input is pre-processed and output location is confirmed to work -> Alternate contsructor for checking these ?
         self.max_processes: int = max_processes
         self.output_path: Path | None = output_path
-        self.process_type: Literal["mfe"] | Literal["pfc"] | Literal["ali"] = prediction_type
+        self.process_type: (
+            Literal["mfe"] | Literal["pfc"] | Literal["ali"]
+        ) = prediction_type
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters):
@@ -160,10 +205,16 @@ class SubprocessHandler:
         no_print: bool,
     ) -> AlgorithmOutput:
         if len(inputs) >= 2 and self.max_processes > 1:
-            logger.debug("Recognized multiple inputs, creating worker pool and running in parallel")
-            return AlgorithmOutput.from_list(self._multi_run(inputs, calls_per_input, no_print))
+            logger.debug(
+                "Recognized multiple inputs, creating worker pool and running in parallel"
+            )
+            return AlgorithmOutput.from_list(
+                self._multi_run(inputs, calls_per_input, no_print)
+            )
         else:
-            logger.debug("Recognized only one input, running in single process mode")
+            logger.debug(
+                "Recognized only one input, running in single process mode"
+            )
             answer = self._single_run(inputs[0])
             if not no_print:
                 if self.output_path is not None:
@@ -181,25 +232,36 @@ class SubprocessHandler:
     ) -> MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput:
         """Function for running a single"""
         subprocess_output = subprocess.run(
-            input_obj.runtime_call, text=True, capture_output=True, shell=True
+            input_obj.runtime_call,
+            text=True,
+            capture_output=True,
+            shell=True,
         )
         if subprocess_output.returncode == 0:
             match self.process_type:
                 case "mfe":
                     return MFEOutput(
-                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                        input_obj.id,
+                        subprocess_output.stdout,
+                        [subprocess_output.stderr],
                     )
                 case "pfc":
                     return PFCOutput(
-                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                        input_obj.id,
+                        subprocess_output.stdout,
+                        [subprocess_output.stderr],
                     )
                 case "ali":
                     return AlignmentOutput(
-                        input_obj.id, subprocess_output.stdout, [subprocess_output.stderr]
+                        input_obj.id,
+                        subprocess_output.stdout,
+                        [subprocess_output.stderr],
                     )
         else:
             return ErrorOutput(
-                input_obj.id, subprocess_output.stderr, [str(subprocess_output.returncode)]
+                input_obj.id,
+                subprocess_output.stderr,
+                [str(subprocess_output.returncode)],
             )
 
     def _multi_run(
@@ -247,7 +309,8 @@ class SubprocessHandler:
             necessary_processes
         ):  # Populate the pool with worker functions, each doing nothing but getting items from the input queue and processing them
             work = pool.apply_async(
-                SubprocessHandler._worker, (input_q, listener_q, self.process_type)
+                SubprocessHandler._worker,
+                (input_q, listener_q, self.process_type),
             )
             workers.append(work)
             input_q.put(None)
@@ -261,5 +324,7 @@ class SubprocessHandler:
             list[MFEOutput | ErrorOutput]
             | list[PFCOutput | ErrorOutput]
             | list[AlignmentOutput | ErrorOutput]
-        ) = PipeOut.recv()  # Receive the list of outputs from the listener
+        ) = (
+            PipeOut.recv()
+        )  # Receive the list of outputs from the listener
         return listener_output

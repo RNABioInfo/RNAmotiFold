@@ -21,11 +21,21 @@ class _dependency_finder:
     @staticmethod
     def check_command(prog: str):
         try:
-            answer = run(f"command -v {prog}", shell=True, check=True, capture_output=True)
+            answer = run(
+                f"command -v {prog}",
+                shell=True,
+                check=True,
+                capture_output=True,
+            )
         except CalledProcessError as e:
-            logger.error(f"Error while checking for {prog} with command -v: {e}")
+            logger.error(
+                f"Error while checking for {prog} with command -v: {e}"
+            )
         else:
-            if answer.returncode == 0 and f"{prog}" in answer.stdout.decode():
+            if (
+                answer.returncode == 0
+                and f"{prog}" in answer.stdout.decode()
+            ):
                 return Path(answer.stdout.decode()).resolve()
         return None
 
@@ -44,12 +54,20 @@ class _dependency_finder:
     @staticmethod
     def check_dependency(prog_path: Path):
         try:
-            answer = run([f"{prog_path}", "-v"], capture_output=True, check=True)
+            answer = run(
+                [f"{prog_path}", "-v"], capture_output=True, check=True
+            )
         except CalledProcessError as e:
-            logger.error(f"Error while checking for {prog_path} with -v: {e}")
+            logger.error(
+                f"Error while checking for {prog_path} with -v: {e}"
+            )
             raise e
         else:
-            if answer.returncode == 0 and f"{prog_path.name}" in answer.stdout.decode().lower():
+            if (
+                answer.returncode == 0
+                and f"{prog_path.name}"
+                in answer.stdout.decode().lower()
+            ):
                 return True
         return False
 

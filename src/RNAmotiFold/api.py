@@ -18,6 +18,7 @@ from typing import Any
 import logging
 import pandas
 
+
 class Bunch(object):
     def __init__(self, d=None):
         if d is not None:
@@ -56,11 +57,17 @@ class Predictions:
             "pfc",
             "low_prob_filter",
         )
-        df = {k: v for k, v in inputs.items() if k in allowed and v is not None}
+        df = {
+            k: v
+            for k, v in inputs.items()
+            if k in allowed and v is not None
+        }
         return cls(**df)
 
     # Necessary param
-    algorithm: Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"] = "RNAmotiFold"
+    algorithm: Literal[
+        "RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"
+    ] = "RNAmotiFold"
     ###GENERAL PARAMS####
     temperature: float = 37.0
     motif_source: Literal[1, 2, 3] = 1
@@ -115,8 +122,15 @@ class Predictions:
         else:
             return "mfe"
 
+
 def rnamotifold(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -138,7 +152,7 @@ def rnamotifold(
     output: Path | None = None,
     separator: str | None = ",",
 ) -> AlgorithmOutput:
-    return  _predict(
+    return _predict(
         input=input,
         id=id,
         merge_results=merge_results,
@@ -172,7 +186,13 @@ def rnamotifold(
 
 
 def rnamotifold_subopt(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -195,9 +215,14 @@ def rnamotifold_subopt(
     output: Path | None = None,
     separator: str | None = ",",
 ):
-    if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
-        raise ValueError("Please only set either an absolute or a percent energy range!")
-    return  _predict(
+    if (
+        subopt_energy_range_absolute is not None
+        and subopt_energy_range_percent is not None
+    ):
+        raise ValueError(
+            "Please only set either an absolute or a percent energy range!"
+        )
+    return _predict(
         input=input,
         id=id,
         merge_results=merge_results,
@@ -230,9 +255,14 @@ def rnamotifold_subopt(
     )
 
 
-
 def rnamotifold_pfc(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -287,7 +317,13 @@ def rnamotifold_pfc(
 
 
 def rnamosh(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -343,7 +379,13 @@ def rnamosh(
 
 
 def rnamosh_subopt(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -366,8 +408,13 @@ def rnamosh_subopt(
     output: Path | None = None,
     separator: str | None = ",",
 ):
-    if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
-        raise ValueError("Please only set either an absolute or a percent energy range!")
+    if (
+        subopt_energy_range_absolute is not None
+        and subopt_energy_range_percent is not None
+    ):
+        raise ValueError(
+            "Please only set either an absolute or a percent energy range!"
+        )
     return _predict(
         input=input,
         id=id,
@@ -402,7 +449,13 @@ def rnamosh_subopt(
 
 
 def rnamosh_pfc(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -457,7 +510,13 @@ def rnamosh_pfc(
 
 
 def rnamotices(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -480,8 +539,13 @@ def rnamotices(
     output: Path | None = None,
     separator: str | None = ",",
 ):
-    if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
-        raise ValueError("Please only set either an absolute or a percent energy range!")
+    if (
+        subopt_energy_range_absolute is not None
+        and subopt_energy_range_percent is not None
+    ):
+        raise ValueError(
+            "Please only set either an absolute or a percent energy range!"
+        )
     return _predict(
         input=input,
         id=id,
@@ -516,7 +580,13 @@ def rnamotices(
 
 
 def rnamotices_subopt(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -539,8 +609,13 @@ def rnamotices_subopt(
     output: Path | None = None,
     separator: str | None = ",",
 ):
-    if subopt_energy_range_absolute is not None and subopt_energy_range_percent is not None:
-        raise ValueError("Please only set either an absolute or a percent energy range!")
+    if (
+        subopt_energy_range_absolute is not None
+        and subopt_energy_range_percent is not None
+    ):
+        raise ValueError(
+            "Please only set either an absolute or a percent energy range!"
+        )
     return _predict(
         input=input,
         id=id,
@@ -575,7 +650,13 @@ def rnamotices_subopt(
 
 
 def rnamotices_pfc(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -630,7 +711,13 @@ def rnamotices_pfc(
 
 
 def rnamotialign(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -657,10 +744,19 @@ def rnamotialign(
 
 
 def _predict(
-    input: str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str],
+    input: (
+        str
+        | SeqRecord.SeqRecord
+        | Path
+        | list[SeqRecord.SeqRecord]
+        | list[str]
+    ),
     id: str = "N/A",
     merge_results: bool = False,
-    algorithm: Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"] | None = None,
+    algorithm: (
+        Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"]
+        | None
+    ) = None,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -707,7 +803,9 @@ def _predict(
             "Could not find binary for chosen algorithm please run RNAmotiFold from your commandline once to install algorithm binaries"
         )
     RNAmotiFold.results.results.BaseResult.separator = Predict.separator
-    input_maker = RNAmotiFold.bgap_rna.input_handler.InputHandler(Predict.process_type, None)
+    input_maker = RNAmotiFold.bgap_rna.input_handler.InputHandler(
+        Predict.process_type, None
+    )
     call_maker = RNAmotiFold.bgap_rna.call_handler.CallHandler(
         Predict.algorithm,
         Predict.motif_source,
@@ -737,11 +835,19 @@ def _predict(
         Predict.replace_bulges,
         Predict.rna_3d_motif_atlas_version,
     )
-    subprocess_manager = RNAmotiFold.bgap_rna.subprocess_handler.SubprocessHandler(
-        Predict.parallel_processes, Predict.output, Predict.prediction_type
+    subprocess_manager = (
+        RNAmotiFold.bgap_rna.subprocess_handler.SubprocessHandler(
+            Predict.parallel_processes,
+            Predict.output,
+            Predict.prediction_type,
+        )
     )
-    full_calls = RNAmotiFold.input.cli.combine_calls(call_maker.call, motif_call_maker.motif_calls)
+    full_calls = RNAmotiFold.input.cli.combine_calls(
+        call_maker.call, motif_call_maker.motif_calls
+    )
     inputs = input_maker.script_read_input(Predict.process_type, input, id)  # type: ignore Raises a warning because process type is a string, but the init makes sure it can only be single or ali
     commands = RNAmotiFold.input.cli.create_inputs(full_calls, inputs)
-    results = subprocess_manager.auto_run(commands, motif_call_maker.call_number, no_print=True)
+    results = subprocess_manager.auto_run(
+        commands, motif_call_maker.call_number, no_print=True
+    )
     return results
