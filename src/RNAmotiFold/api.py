@@ -137,7 +137,6 @@ def rnamotifold(
     kvalue: int | None = 5,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -155,7 +154,6 @@ def rnamotifold(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmotiFold",
         temperature=temperature,
         motif_source=motif_source,
@@ -200,7 +198,6 @@ def rnamotifold_subopt(
     subopt_energy_range_percent: float | None = None,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -225,7 +222,6 @@ def rnamotifold_subopt(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmotiFold",
         temperature=temperature,
         motif_source=motif_source,
@@ -286,7 +282,6 @@ def rnamotifold_pfc(
     return _predict(
         input=input,
         id=id,
-        merge_results=False,
         algorithm="RNAmotiFold",
         temperature=temperature,
         motif_source=motif_source,
@@ -330,7 +325,6 @@ def rnamosh(
     kvalue: int | None = 5,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -348,7 +342,6 @@ def rnamosh(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmoSh",
         temperature=temperature,
         motif_source=motif_source,
@@ -393,7 +386,6 @@ def rnamosh_subopt(
     subopt_energy_range_percent: float | None = None,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -418,7 +410,6 @@ def rnamosh_subopt(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmoSh",
         temperature=temperature,
         motif_source=motif_source,
@@ -479,7 +470,6 @@ def rnamosh_pfc(
     return _predict(
         input=input,
         id=id,
-        merge_results=False,
         algorithm="RNAmoSh",
         temperature=temperature,
         motif_source=motif_source,
@@ -524,7 +514,6 @@ def rnamotices(
     subopt_energy_range_percent: float | None = None,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -549,7 +538,6 @@ def rnamotices(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmotiCes",
         temperature=temperature,
         motif_source=motif_source,
@@ -594,7 +582,6 @@ def rnamotices_subopt(
     subopt_energy_range_percent: float | None = None,
     *,
     id: str = "N/A",
-    merge_results: bool = False,
     temperature: float = 37.0,
     motif_source: Literal[1, 2, 3] = 1,
     motif_orientation: Literal[1, 2, 3] = 3,
@@ -619,7 +606,6 @@ def rnamotices_subopt(
     return _predict(
         input=input,
         id=id,
-        merge_results=merge_results,
         algorithm="RNAmotiCes",
         temperature=temperature,
         motif_source=motif_source,
@@ -680,7 +666,7 @@ def rnamotices_pfc(
     return _predict(
         input=input,
         id=id,
-        merge_results=False,
+
         algorithm="RNAmotiCes",
         temperature=temperature,
         motif_source=motif_source,
@@ -740,7 +726,35 @@ def rnamotialign(
     parallel_processes: int | None = cpu_count(),
     separator: str | None = ",",
 ):
-    pass
+    return _predict(
+        input=input,
+        id=id,
+        kvalue=kvalue,
+        motif_fraction=motif_fraction,
+        motif_weight=motif_weight,
+        algorithm="RNAmotiAlign",
+        temperature=temperature,
+        motif_source=motif_source,
+        motif_orientation=motif_orientation,
+        rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
+        motif_string=motif_string,
+        custom_hairpins=custom_hairpins,
+        custom_internals=custom_internals,
+        custom_bulges=custom_bulges,
+        replace_hairpins=replace_hairpins,
+        replace_internals=replace_internals,
+        replace_bulges=replace_bulges,
+        allowLonelyBasepairs=allowLonelyBasepairs,
+        single_motif_mode=single_motif_mode,
+        parallel_processes=parallel_processes,
+        output=output,
+        separator=separator,
+        shape_level=None,
+        subopt=False,
+        subopt_energy_range_absolute=None,
+        subopt_energy_range_percent=None,
+        pfc=True
+    )
 
 
 def _predict(
@@ -752,7 +766,6 @@ def _predict(
         | list[str]
     ),
     id: str = "N/A",
-    merge_results: bool = False,
     algorithm: (
         Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"]
         | None

@@ -245,6 +245,17 @@ class ResultAlignment(BaseResult):
             motBracket=split_stripped_results[2],
         )
 
+    def __hash__(self) -> int:
+        return hash((
+            self.energy,
+            self.covariance,
+            self.overall_score,
+            self.motif_score,
+            self.motBracket,
+            self.classifier,
+        ))
+
+
 
 class alignment_score(NamedTuple):
     energy: float
