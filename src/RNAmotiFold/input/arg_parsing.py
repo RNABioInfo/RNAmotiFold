@@ -4,9 +4,9 @@ import logging
 from pathlib import Path
 from RNAmotiFold import (
     RNAMOTIFOLD_DEFAULTS_CONFIG,
-    RNAMOTIFOLD_PATHS_CONFIG,
+    RNAMOTIFOLD_INSTALL_CONFIG,
 )
-from RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.input.parameters import ScriptParameters, InstallParameters
 from RNAmotiFold.input.action_overwrites import (
     MotifFileCheck,
     LogCheck,
@@ -29,24 +29,14 @@ def get_cmdarguments() -> ScriptParameters:
     config = configparser.ConfigParser(allow_no_value=True)
     config.read_file(open(RNAMOTIFOLD_DEFAULTS_CONFIG))
     ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
-    path_config = configparser.ConfigParser(allow_no_value=True)
-    path_config.read_file(open(RNAMOTIFOLD_PATHS_CONFIG))
     for option in [
-        x
-        for x in config[config.default_section]
-        if config[config.default_section][x] == ""
+        x for x in config[config.default_section] if config[config.default_section][x] == ""
     ]:
         config.set(config.default_section, option, None)
-    for option in [
-        x
-        for x in path_config[path_config.default_section]
-        if path_config[path_config.default_section][x] == ""
-    ]:
-        path_config.set(path_config.default_section, option, None)
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
-        description="A RNA secondary structure prediction programm with multiple functionalities for your convenience. Starting the algorithm without an input starts an interactive session, which can be ended by inputting Exit. No interactive session will be started if you specify a RNA/DNA sequence or filepath with -i. Defaults are set in RNAmotiFold/src/data/defaults.ini and count for both config files and commandline arguments.",
+        description="A RNA secondary structure prediction algorithm incorporating RNA 3D Motifs into RNA secondary structure prediction. Starting the RNAmotiFold without an input starts an interactive session, which can be ended by inputting Exit.",
         epilog="GONDOR CALLS FOR AID! AND ROHAN WILL ANSWER!",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -88,12 +78,10 @@ def get_cmdarguments() -> ScriptParameters:
     parser.add_argument(
         "-f",
         "--single-motif",
-        default=config.getboolean(
-            config.default_section, "single_motif_mode"
-        ),
+        default=config.getboolean(config.default_section, "single_motif_mode"),
         action="store_true",
         dest="single_motif_mode",
-        help=f"Enables single-motif mode rediction mode, instead of all motifs being predicted at once they are each predicted separately and merged afterwards.",
+        help=f"Enables single-motif mode rediction mode, instead of all motifs being predicted at once they are each predicted separately.",
     )
     # Command line arguments that control which algorithm is called with which options.
     # If you add your own partition function algorithm and want the output to have probabilities be sure to add pfc at the end of the name! This tag is used to recognize partition function algorithms by the script.
@@ -147,9 +135,7 @@ def get_cmdarguments() -> ScriptParameters:
             3,
         ],
         type=int,
-        default=config.getint(
-            config.default_section, "motif_orientation"
-        ),
+        default=config.getint(config.default_section, "motif_orientation"),
         dest="motif_orientation",
     )
     parser.add_argument(
@@ -206,9 +192,7 @@ def get_cmdarguments() -> ScriptParameters:
         help=f"Set energy range in %%. Gets overruled by -e.",
         type=float,
         dest="energy_percent",
-        default=config.getfloat(
-            config.default_section, "energy_percent"
-        ),
+        default=config.getfloat(config.default_section, "energy_percent"),
     )
     pfc_or_subopt.add_argument(
         "--pfc",
@@ -222,9 +206,7 @@ def get_cmdarguments() -> ScriptParameters:
         help=f"Set probability cutoff for partition function, filters out results with lower probability during calculation.",
         type=float,
         dest="low_prob_filter",
-        default=config.getfloat(
-            config.default_section, "low_prob_filter"
-        ),
+        default=config.getfloat(config.default_section, "low_prob_filter"),
     )
     parser.add_argument(
         "-X",
@@ -256,9 +238,7 @@ def get_cmdarguments() -> ScriptParameters:
         dest="replace_hairpins",
         help=f"If set, instead of appending custom hairpins to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
-        default=config.getboolean(
-            config.default_section, "replace_hairpins"
-        ),
+        default=config.getboolean(config.default_section, "replace_hairpins"),
     )
     parser.add_argument(
         "-E",
@@ -266,9 +246,7 @@ def get_cmdarguments() -> ScriptParameters:
         dest="replace_internals",
         help=f"If set, instead of appending custom internals to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
-        default=config.getboolean(
-            config.default_section, "replace_internals"
-        ),
+        default=config.getboolean(config.default_section, "replace_internals"),
     )
     parser.add_argument(
         "-G",
@@ -276,9 +254,7 @@ def get_cmdarguments() -> ScriptParameters:
         dest="replace_bulges",
         help=f"If set, instead of appending custom bulges to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
-        default=config.getboolean(
-            config.default_section, "replace_bulges"
-        ),
+        default=config.getboolean(config.default_section, "replace_bulges"),
     )
     ##############The line between script arguments and class args######
     parser.add_argument(
@@ -339,22 +315,47 @@ def get_cmdarguments() -> ScriptParameters:
     parser.add_argument(
         "--fraction",
         help=f"Specify in how many rows a motif has to be recognized in the same loop to be accepted. Default is 0.7",
-        default=config.getfloat(
-            config.default_section, "motif_fraction"
-        ),
+        default=config.getfloat(config.default_section, "motif_fraction"),
         type=float,
         action=FloatCheck,
         dest="motif_fraction",
     )
     # Installation parameters
+
+    loggers.info("Parsing given arguments args")
+    args = parser.parse_args()
+    loggers.debug(f"Args: {args}")
+    # Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
+    if args.algorithm != "RNAmotiFold" and args.merge:
+        raise parser.error("Fast mode merging is only implemented for RNAmotiFold, sorry!")
+    if args.config is not None:
+        config.read_file(open(args.config))
+        return ScriptParameters.from_configparser(config)
+    else:
+        return ScriptParameters.from_argparser(args)
+
+
+def get_install_arguments() -> InstallParameters:
+    install_config = configparser.ConfigParser(allow_no_value=True)
+    install_config.read_file(open(RNAMOTIFOLD_INSTALL_CONFIG))
+    for option in [
+        x
+        for x in install_config[install_config.default_section]
+        if install_config[install_config.default_section][x] == ""
+    ]:
+        install_config.set(install_config.default_section, option, None)
+    parser = argparse.ArgumentParser(
+        prog="RNAmotiFold",
+        description="Installer Script for RNAmotiFold algorithm binaries, run once before using RNAmotiFold",
+        epilog="GONDOR CALLS FOR AID! AND ROHAN WILL ANSWER!",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "--gapc_path",
         nargs="?",
         action=gapcMCheck,
         dest="gapc_path",
-        default=path_config.get(
-            config.default_section, "gapc_path"
-        ),  # _detect_gapc(),
+        default=install_config.get(install_config.default_section, "gapc_path"),  # _detect_gapc(),
         type=Path,
         help=f"GAPC Path for compilation, used for compiling algorithms. If not set the script will try to find a gapc",
     )
@@ -363,9 +364,7 @@ def get_cmdarguments() -> ScriptParameters:
         nargs="?",
         dest="perl_path",
         action=PerlCheck,
-        default=path_config.get(
-            config.default_section, "perl_path"
-        ),  # shutil.which("perl"),
+        default=install_config.get(install_config.default_section, "perl_path"),
         type=Path,
         help=f"Perl interpreter path, used for compilation algorithms. If not set the script will try to find a perl interpreter with 'shutil.which' and command -v perl",
     )
@@ -374,22 +373,17 @@ def get_cmdarguments() -> ScriptParameters:
         nargs="?",
         dest="make_path",
         action=PerlCheck,
-        default=path_config.get(
-            config.default_section, "make_path"
-        ),  # shutil.which("perl"),
+        default=install_config.get(install_config.default_section, "make_path"),
         type=Path,
         help=f"Path for make utility, used for compiling algorithms. If not set the script will try to find make with 'shutil.which' and command -v make",
     )
-    loggers.info("Parsing given arguments args")
-    args = parser.parse_args()
-    loggers.debug(f"Args: {args}")
-    # Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
-    if args.algorithm != "RNAmotiFold" and args.merge:
-        raise parser.error(
-            "Fast mode merging is only implemented for RNAmotiFold, sorry!"
-        )
-    if args.config is not None:
-        config.read_file(open(args.config))
-        return ScriptParameters.from_configparser(config)
-    else:
-        return ScriptParameters.from_argparser(args)
+    parser.add_argument(
+        "-w",
+        "--workers",
+        help=f"Specify how many predictions should be done in parallel for file input.",
+        type=int,
+        action=WorkerCheck,
+        default=install_config.getint(install_config.default_section, "workers"),
+        dest="workers",
+    )
+    return InstallParameters.from_namespace(parser.parse_args())

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "RNAmotiFold"
-version = "1.0.2"
+version = "1.0.3"
 authors = [{name="Marius Sebeke", email="marius.sebeke@ibmg.uni-stuttgart.de"}]
 maintainers = [{name="Marius Sebeke", email="marius.sebeke@ibmg.uni-stuttgart.de"}]
 keywords = [
@@ -33,6 +33,7 @@ RNAmotiFold = "RNAmotiFold.input.cli:_rnamotifold_cli"
 RNAmotiCes = "RNAmotiFold.input.cli:_rnamotices_cli"
 RNAmotiAlign = "RNAmotiFold.input.cli:_rnamotialign_cli"
 RNAmoSh = "RNAmotiFold.input.cli:_rnamosh_cli"
+RNAmotiFold_installer = "RNAmotiFold.input.cli:_rnamotifold_install"
 
 [tool.setuptools.packages.find]
 where = ["src"]

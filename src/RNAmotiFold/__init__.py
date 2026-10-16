@@ -38,7 +38,7 @@ except ImportError as _e:
 
 _RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
 RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "defaults.ini")
-RNAMOTIFOLD_PATHS_CONFIG: _Path = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "paths.ini")
+RNAMOTIFOLD_INSTALL_CONFIG: _Path = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "install.ini")
 RNAMOTIFOLD_BIN: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
 RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
 RNALOOPS_PATH: _Path = _check_submodule("RNALoops")

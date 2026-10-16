@@ -125,21 +125,10 @@ def _main(
     not_installed = _check_all_algorithms()
 
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
-    if len(not_installed) > 0:
-        logger.critical(
-            f"Compiling algorithms {[", ".join(not_installed)]}..."
+    if call_maker.algorithm_binary in not_installed:
+        raise FileNotFoundError(
+            f"Algorithm {call_maker.algorithm_binary} is currently not installed, please re-run RNAmotiFold_installer"
         )
-        alg_setup.main(
-            not_installed,
-            rt_args.gapc_path,
-            rt_args.perl_path,
-            rt_args.make_path,
-            rt_args.workers,
-        )
-        if not check_install(call_maker.algorithm_binary):
-            raise FileNotFoundError(
-                f"Something went wrong setting up {call_maker.algorithm_binary}, check if dependencies are installed and re-run installer.py"
-            )
 
     if rt_args.input is not None:
         inputs: list[AlgorithmInput] = input_maker.read_input(
@@ -192,6 +181,13 @@ def _main(
         return 1
     return 0
 
+def _rnamotifold_install():
+    args = arg_parsing.get_install_arguments()
+    not_installed = _check_all_algorithms()
+    exit_code = alg_setup.main(
+        not_installed, args.gapc_path, args.perl_path, args.make_path, args.workers
+    )
+    sys.exit(exit_code)
 
 def _rnamotifold_cli():  # type: ignore CLI Function for pyproject
     """Main function to run RNAmotiFold from command line"""

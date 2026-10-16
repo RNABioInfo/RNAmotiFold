@@ -285,10 +285,8 @@ def main(
 ):
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
     config = configparser.ConfigParser(allow_no_value=True)
-    with open(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG, "r+") as of:
-        config.read_file(
-            of, source=str(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG)
-        )
+    with open(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG, "r+") as of:
+        config.read_file(of, source=str(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG))
     # Ensure we have some GAPC path set somewhere
     if gapc_path is None:
         gapc_path = get_dependency(
@@ -315,7 +313,7 @@ def main(
         config.set(config.default_section, "gapc_path", str(gapc_path))
         config.set(config.default_section, "perl_path", str(perl_path))
         config.set(config.default_section, "make_path", str(make_path))
-        with open(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG, "w+") as of:
+        with open(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG, "w+") as of:
             config.write(of)
         logger.info(
             "Algorithms are all set up, you can now use RNAmotiFold"

@@ -14,6 +14,23 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class InstallParameters:
+    gapc_path: Path
+    perl_path: Path
+    make_path: Path
+    workers: int
+
+    @classmethod
+    def from_namespace(cls, args: Namespace):
+        return cls(
+            gapc_path=args.gapc_path,
+            perl_path=args.perl_path,
+            make_path=args.make_path,
+            workers=args.workers,
+        )
+
+
+@dataclass
 class ScriptParameters:
     """Script parameter class to hold parameters for the RNAmotiFold. Can be created from argparse.Namespace or configparser.ConfigParser.
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
@@ -54,18 +71,13 @@ class ScriptParameters:
     motif_list: str
     motif_weight: float
     motif_fraction: float
-    gapc_path: Path
-    perl_path: Path
-    make_path: Path
 
     def __repr__(self):
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
         for i in range(0, len(v)):
-            together.append(
-                "{key}={value!r}".format(key=k[i], value=v[i])
-            )
+            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
         return f"{classname}({', '.join(together)})"
 
     @property
@@ -125,44 +137,29 @@ class ScriptParameters:
             motif_list=args.motif_list,
             motif_weight=args.motif_weight,
             motif_fraction=args.motif_fraction,
-            gapc_path=args.gapc_path,
-            perl_path=args.perl_path,
-            make_path=args.make_path,
         )
 
     @classmethod
-    def from_configparser(
-        cls, confs: ConfigParser, section_name: str = "VARIABLES"
-    ):
+    def from_configparser(cls, confs: ConfigParser, section_name: str = "VARIABLES"):
         confs.set(
             section_name,
             "algorithm",
-            AlgorithmMatching.algorithm_matching_function(
-                confs.get(section_name, "algorithm")
-            ),
+            AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
         )
         confs.set(
             section_name,
             "output",
-            OutputFileCheck.output_file_check_function(
-                confs.get(section_name, "output")
-            ),
+            OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
         )
         confs.set(
             section_name,
             "logfile",
-            OutputFileCheck.output_file_check_function(
-                confs.get(section_name, "logfile")
-            ),
+            OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
         )
         confs.set(
             section_name,
             "workers",
-            str(
-                WorkerCheck.worker_check_function(
-                    confs.get(section_name, "workers")
-                )
-            ),
+            str(WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
         )
         if confs.get(section_name, "output"):
             outpath = Path(confs.get(section_name, "output"))
@@ -188,46 +185,23 @@ class ScriptParameters:
             energy=confs.getfloat(section_name, "energy"),
             temperature=confs.getfloat(section_name, "temperature"),
             basepairs=confs.getint(section_name, "basepairs"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
-            energy_percent=confs.getfloat(
-                section_name, "energy_percent"
-            ),
+            energy_percent=confs.getfloat(section_name, "energy_percent"),
             pfc=confs.getboolean(section_name, "pfc"),
-            low_prob_filter=confs.getfloat(
-                section_name, "low_prob_filter"
-            ),
-            custom_hairpins=Path(
-                confs.get(section_name, "custom_hairpins")
-            ),
-            custom_internals=Path(
-                confs.get(section_name, "custom_internals")
-            ),
-            custom_bulges=Path(
-                confs.get(section_name, "custom_bulges")
-            ),
-            replace_hairpins=confs.getboolean(
-                section_name, "replace_hairpins"
-            ),
-            replace_internals=confs.getboolean(
-                section_name, "replace_internals"
-            ),
-            replace_bulges=confs.getboolean(
-                section_name, "replace_bulges"
-            ),
+            low_prob_filter=confs.getfloat(section_name, "low_prob_filter"),
+            custom_hairpins=Path(confs.get(section_name, "custom_hairpins")),
+            custom_internals=Path(confs.get(section_name, "custom_internals")),
+            custom_bulges=Path(confs.get(section_name, "custom_bulges")),
+            replace_hairpins=confs.getboolean(section_name, "replace_hairpins"),
+            replace_internals=confs.getboolean(section_name, "replace_internals"),
+            replace_bulges=confs.getboolean(section_name, "replace_bulges"),
             loglevel=confs.get(section_name, "loglevel"),
             logfile=logpath,
             workers=confs.getint(section_name, "workers"),
             separator=confs.get(section_name, "separator"),
             update=confs.getboolean(section_name, "update"),
             version=confs.get(section_name, "version"),
-            single_motif_mode=confs.getboolean(
-                section_name, "single_motif_mode"
-            ),
+            single_motif_mode=confs.getboolean(section_name, "single_motif_mode"),
             motif_list=confs.get(section_name, "motif_list"),
             motif_weight=confs.getfloat(section_name, "motif_weight"),
-            motif_fraction=confs.getfloat(
-                section_name, "motif_fraction"
-            ),
-            gapc_path=Path(confs.get("INSTALLATION", "gapc_path")),
-            perl_path=Path(confs.get("INSTALLATION", "perl_path")),
-            make_path=Path(confs.get("INSTALLATION", "make_path")),
+            motif_fraction=confs.getfloat(section_name, "motif_fraction"),
         )
