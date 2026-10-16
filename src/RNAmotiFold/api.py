@@ -753,7 +753,7 @@ def rnamotialign(
         subopt=False,
         subopt_energy_range_absolute=None,
         subopt_energy_range_percent=None,
-        pfc=True
+        pfc=False,
     )
 
 
