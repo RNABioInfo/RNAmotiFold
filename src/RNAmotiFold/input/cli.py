@@ -184,9 +184,26 @@ def _main(
 def _rnamotifold_install():
     args = arg_parsing.get_install_arguments()
     not_installed = _check_all_algorithms()
-    exit_code = alg_setup.main(
-        not_installed, args.gapc_path, args.perl_path, args.make_path, args.workers
-    )
+    if len(not_installed) == 0:
+        if args.force:
+            exit_code = alg_setup.main(
+                RNAmotiFold.AVAILABLE_BINARIES,
+                args.gapc_path,
+                args.perl_path,
+                args.make_path,
+                args.workers,
+            )
+        else:
+            print("Algorithms are already installed")
+            exit_code = 0
+    else:
+        exit_code = alg_setup.main(
+            RNAmotiFold.AVAILABLE_BINARIES,
+            args.gapc_path,
+            args.perl_path,
+            args.make_path,
+            args.workers,
+        )
     sys.exit(exit_code)
 
 def _rnamotifold_cli():  # type: ignore CLI Function for pyproject

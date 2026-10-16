@@ -223,11 +223,6 @@ def setup_algorithms(
         )
         compilation_list.append(new_obj)
 
-    if poolboys > len(
-        compilation_list
-    ):  # If we need less workers than available we set the number of workers to the number of algorithms to compile
-        poolboys = len(compilation_list)
-
     The_Pool = multiprocessing.Pool(
         processes=poolboys
     )  # Create the pool of workers
@@ -306,9 +301,7 @@ def main(
     logger.info(
         f"Using gapc at {gapc_path}, perl at {perl_path}, and make at {make_path}"
     )
-    done = setup_algorithms(
-        gapc_path, perl_path, make_path, algorithms, workers
-    )
+    done = setup_algorithms(gapc_path, perl_path, make_path, algorithms, poolboys=workers)
     if done:
         config.set(config.default_section, "gapc_path", str(gapc_path))
         config.set(config.default_section, "perl_path", str(perl_path))

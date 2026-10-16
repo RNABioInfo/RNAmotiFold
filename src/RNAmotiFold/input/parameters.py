@@ -19,6 +19,7 @@ class InstallParameters:
     perl_path: Path
     make_path: Path
     workers: int
+    force: bool
 
     @classmethod
     def from_namespace(cls, args: Namespace):
@@ -27,6 +28,7 @@ class InstallParameters:
             perl_path=args.perl_path,
             make_path=args.make_path,
             workers=args.workers,
+            force=args.force,
         )
 
 

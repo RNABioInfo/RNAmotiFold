@@ -386,4 +386,11 @@ def get_install_arguments() -> InstallParameters:
         default=install_config.getint(install_config.default_section, "workers"),
         dest="workers",
     )
+    parser.add_argument(
+        "--force",
+        help="Force recompilation of algorithms",
+        action="store_true",
+        default=False,
+        dest="force",
+    )
     return InstallParameters.from_namespace(parser.parse_args())
