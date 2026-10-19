@@ -1,12 +1,11 @@
 import argparse
-from typing import Any, Literal
-from sys import stderr
-from collections.abc import Sequence
-from pathlib import Path
-from os import cpu_count, access, W_OK
 import logging
 import subprocess
-from multiprocessing import cpu_count
+from collections.abc import Sequence
+from os import W_OK, access, cpu_count
+from pathlib import Path
+from sys import stderr
+from typing import Any, Literal
 
 import RNAmotiFold
 
@@ -27,15 +26,13 @@ class VersionParser(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
-        setattr(
-            namespace, self.dest, VersionParser._parse_version(value)
-        )
+        setattr(namespace, self.dest, VersionParser._parse_version(value))
 
     @staticmethod
-    def _parse_version(value: str | None | Sequence[Any]) -> str:
+    def _parse_version(value: str | Sequence[Any] | None) -> str:
         if value is not None:
             vers = str(value).replace(".", "_")
             if vers in RNAmotiFold.AVAILABLE_VERSIONS:
@@ -61,8 +58,8 @@ class MotifFileCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
@@ -71,7 +68,7 @@ class MotifFileCheck(argparse.Action):
         )
 
     @staticmethod
-    def _motif_file_check_function(value: None | str) -> Path:
+    def _motif_file_check_function(value: str | None) -> Path:
         if value is not None and value != "":
             if Path(value).resolve().is_file():
                 return Path(value)
@@ -89,8 +86,8 @@ class LogCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
@@ -103,7 +100,7 @@ class LogCheck(argparse.Action):
         """Checks if the given value is a valid log level, raises ValueError if not"""
 
         if not isinstance(getattr(logging, value.upper(), None), int):
-            raise ValueError(f"Invalid log level: {value}")
+            raise TypeError(f"Invalid log level: {value}")
         else:
             return value.upper()
 
@@ -118,8 +115,8 @@ class FloatCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
@@ -130,7 +127,7 @@ class FloatCheck(argparse.Action):
     @staticmethod
     def _float_check_function(value: str) -> float:
         """Checks if the given value is a float between 0 and 1, raises ValueError if not"""
-        if 1.0 - float(value) > 0 or float(value) == 1:
+        if 1 - float(value) >= 0:
             return float(value)
         else:
             raise ValueError(
@@ -139,35 +136,51 @@ class FloatCheck(argparse.Action):
 
 
 class WorkerCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, WorkerCheck.worker_check_function(value))  # type: ignore
+        setattr(
+            namespace, self.dest, WorkerCheck.worker_check_function(value)
+        )  # type: ignore
 
     @staticmethod
-    def worker_check_function(value: None | str) -> None | int:
+    def worker_check_function(
+        value: str | Sequence[Any] | None,
+    ) -> int:
         """Checks if the given value is a valid number of CPU cores based on the number of available cpus from os.cpu_count, raises ValueError if not"""
-        cpus: int = cpu_count()
-        if value is not None:
-            if int(value) > cpus:
-                loggers.info(
-                    "Given worker number exceeds detected cpu count, setting workers to os.cpu_count()/2"
+        cpus: int | None = cpu_count()
+        match value:
+            case str():
+                if cpus is not None and int(value) > cpus:
+                    loggers.info(
+                        f"Given worker number exceeds detected cpu count, setting workers to {cpus / 2!s}"
+                    )
+                    return round(int(cpus) / 2)
+                else:
+                    return int(value)
+            case Sequence() | None:
+                loggers.critical(
+                    "Couldnt process input number of parallel processes"
                 )
-                return round(int(cpus) / 2)
-            else:
-                return int(value)
-        else:
-            loggers.critical(
-                "Could not count cpus, playing it safe and setting CPU_count to 1"
-            )
-            return 1
+                if cpus is not None:
+                    loggers.critical(
+                        f"Setting number of cpus to {cpus / 2!s}"
+                    )
+                    return round(int(cpus) / 2)
+                else:
+                    loggers.critical(
+                        "Couldnt access number of CPUs either, playing it save and setting workers to 1"
+                    )
+                    return 1
 
 
 class MotifListCheck(argparse.Action):
@@ -180,8 +193,8 @@ class MotifListCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
@@ -191,7 +204,7 @@ class MotifListCheck(argparse.Action):
 
     @staticmethod
     def _motif_list_check_function(
-        value: None | str | Sequence[Any],
+        value: str | Sequence[Any] | None,
     ) -> str:
         """Checks if the given value is a valid motif list, if input is None or empty, returns an empty string"""
         if value is None:
@@ -201,7 +214,9 @@ class MotifListCheck(argparse.Action):
 
 
 class ConfigCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -209,11 +224,11 @@ class ConfigCheck(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: None | str = None,
+        option_string: str | None = None,
     ) -> None:
         """Checks if the given value is a valid config file, if input is None or empty, returns an empty string. Raises FileNotFoundError if the file does not exist"""
         if value == "":
-            loggers.info(f"Using default config values")
+            loggers.info("Using default config values")
             setattr(namespace, self.dest, value)
         elif Path(str(value)).resolve().is_file():
             setattr(namespace, self.dest, Path(str(value)))
@@ -224,7 +239,9 @@ class ConfigCheck(argparse.Action):
 
 
 class OutputFileCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -232,9 +249,13 @@ class OutputFileCheck(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: None | str = None,
+        option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, OutputFileCheck.output_file_check_function(value))  # type: ignore
+        setattr(
+            namespace,
+            self.dest,
+            OutputFileCheck.output_file_check_function(value),
+        )  # type: ignore
 
     @staticmethod
     def is_path_creatable(pathname: str) -> bool:
@@ -257,30 +278,39 @@ class OutputFileCheck(argparse.Action):
         try:
             # To prevent "os" module calls from raising undesirable exceptions on
             # invalid pathnames, is_pathname_valid() is explicitly called first.
-            return Path(
-                pathname
-            ).resolve().parent.exists() and OutputFileCheck.is_path_creatable(
-                pathname
+            return (
+                Path(pathname).resolve().parent.exists()
+                and OutputFileCheck.is_path_creatable(pathname)
             )
         except OSError:
             loggers.error(
-                f"Given output file path is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
+                f"Given output file path: {pathname} is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
             )
             return False
 
     @staticmethod
-    def output_file_check_function(value: None | str) -> None | str:
+    def output_file_check_function(
+        value: str | Sequence[Any] | None,
+    ) -> str | None:
         """Checks if the given value is a valid output file path, raises FileNotFoundError if not"""
-        if value is None:
-            return None
-        elif OutputFileCheck.is_path_exists_or_creatable(value):
-            if Path(value).resolve().is_file():
-                stderr.write(
-                    f"Given file {value} already exists, results will be appended.\n"
+        match value:
+            case None:
+                return None
+            case str():
+                if OutputFileCheck.is_path_exists_or_creatable(value):
+                    if Path(value).resolve().is_file():
+                        stderr.write(
+                            f"Given file {value} already exists, results will be appended.\n"
+                        )
+                    return value
+                else:
+                    raise FileNotFoundError(
+                        "Given path is not a valid path."
+                    )
+            case Sequence():
+                raise TypeError(
+                    "Unsupported output file path was invalid of type, trying using a string"
                 )
-            return value
-        else:
-            raise FileNotFoundError("Given path is not a valid path.")
 
 
 class AlgorithmMatching(argparse.Action):
@@ -294,93 +324,139 @@ class AlgorithmMatching(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         value: str | Sequence[Any] | None,
-        option_string: None | str = None,
+        option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, AlgorithmMatching.algorithm_matching_function(value))  # type: ignore , ignored cause of the base value typing. Only non protected function
+        setattr(
+            namespace,
+            self.dest,
+            AlgorithmMatching.algorithm_matching_function(value),
+        )  # type: ignore , ignored cause of the base value typing. Only non protected function
 
     @staticmethod
     def algorithm_matching_function(
-        value: str,
-    ) -> Literal[
-        "RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"
-    ]:
+        value: str | Sequence[Any] | None,
+    ) -> Literal["RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"]:
         """Checks if the given value is a valid algorithm name, raises ValueError if not"""
-        match value.strip().lower():
-            case "rnamosh":
-                return "RNAmoSh"
-            case "rnamotices":
-                return "RNAmotiCes"
-            case "rnamotifold":
+        match value:
+            case None:
                 return "RNAmotiFold"
-            case "rnamotialign":
-                return "RNAmotiAlign"
-            case _:
-                raise ValueError(
-                    f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
+            case str():
+                match value.strip().lower():
+                    case "rnamosh":
+                        return "RNAmoSh"
+                    case "rnamotices":
+                        return "RNAmotiCes"
+                    case "rnamotifold":
+                        return "RNAmotiFold"
+                    case "rnamotialign":
+                        return "RNAmotiAlign"
+                    case _:
+                        raise ValueError(
+                            f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"
+                        )
+            case Sequence():
+                raise TypeError(
+                    "Couldnt process Algorithm input, try inputting a string"
                 )
+
+
+class energyCheck(argparse.Action):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        setattr(
+            namespace, self.dest, energyCheck._float_check_function(value)
+        )
+
+    @staticmethod
+    def _float_check_function(value: str | Sequence[Any] | None):
+        match value:
+            case None:
+                raise ValueError(
+                    "Can't use energy parameters without setting a value"
+                )
+            case str():
+                if float(value) > 0:
+                    return float(value)
+            case Sequence():
+                raise TypeError("Set energy value is a sequence ?")
 
 
 class gapcMCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
-        setattr(namespace, self.dest, _gapcm_check_function(value))
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        setattr(
+            namespace, self.dest, gapcMCheck._gapcm_check_function(value)
+        )
 
-
-@staticmethod
-def _gapcm_check_function(
-    value: None | str | Sequence[Any],
-) -> Path | None:
-    if isinstance(value, str) or isinstance(value, Path):
-        if Path(value).is_file():
-            try:
-                version_check = subprocess.run(
-                    [f"{value}", "--version"],
-                    capture_output=True,
-                    check=True,
-                )
-            except (
-                subprocess.CalledProcessError,
-                PermissionError,
-            ) as error:
-                raise RuntimeError(
-                    "Unable to open file, check the above error for more information."
-                ) from error
-            else:
-                if "gapcM" in version_check.stdout.decode():
-                    return Path(value)
-                else:
-                    raise RuntimeError(
-                        "The given file is not an instance of the modified Bellman's GAP compiler."
+    @staticmethod
+    def _gapcm_check_function(
+        value: str | Sequence[Any] | None,
+    ) -> Path | None:
+        if isinstance(value, (Path, str)):
+            if Path(value).is_file():
+                try:
+                    version_check = subprocess.run(
+                        [f"{value}", "--version"],
+                        capture_output=True,
+                        check=True,
                     )
+                except (
+                    subprocess.CalledProcessError,
+                    PermissionError,
+                ) as error:
+                    raise RuntimeError(
+                        "Unable to open file, check the above error for more information."
+                    ) from error
+                else:
+                    if "gapcM" in version_check.stdout.decode():
+                        return Path(value)
+                    else:
+                        raise RuntimeError(
+                            "The given file is not an instance of the modified Bellman's GAP compiler."
+                        )
+            else:
+                raise FileNotFoundError("The given file does not exist.")
         else:
-            raise FileNotFoundError("The given file does not exist.")
-    else:
-        raise ValueError("Why is my value a Sequence ?")
+            raise TypeError("Why is my value a Sequence ?")
 
 
 class PerlCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any):
+    def __init__(
+        self, option_strings: str, dest: str, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: None | str | Sequence[Any],
-        option_string: None | str = None,
-    ):
+        value: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         setattr(namespace, self.dest, PerlCheckFunction(value))
 
 
-def PerlCheckFunction(value: None | str | Sequence[Any]) -> Path | None:
+def PerlCheckFunction(value: str | Sequence[Any] | None) -> Path | None:
     if isinstance(value, str):
         answer = subprocess.run(
             [f"{value}", "-v"], capture_output=True, check=True
@@ -391,6 +467,4 @@ def PerlCheckFunction(value: None | str | Sequence[Any]) -> Path | None:
         ):
             return Path(value).resolve()
         else:
-            raise RuntimeError(
-                "The given file is not a perl interpreter."
-            )
+            raise RuntimeError("The given file is not a perl interpreter.")

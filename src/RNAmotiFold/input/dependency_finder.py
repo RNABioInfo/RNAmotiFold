@@ -1,25 +1,24 @@
+import logging
 import shutil
 from pathlib import Path
-from subprocess import run, CalledProcessError
-import logging
+from subprocess import CalledProcessError, run
 
 logger = logging.getLogger(__name__)
 
 
 class _dependency_finder:
-
     def __init__(self, prog: str) -> None:
         self.prog: str = prog
 
     @staticmethod
-    def check_which(prog: str):
+    def check_which(prog: str) -> Path | None:
         answer = shutil.which(f"{prog}")
         if answer is not None:
             return Path(answer).resolve()
         return None
 
     @staticmethod
-    def check_command(prog: str):
+    def check_command(prog: str) -> Path | None:
         try:
             answer = run(
                 f"command -v {prog}",
@@ -39,7 +38,7 @@ class _dependency_finder:
                 return Path(answer.stdout.decode()).resolve()
         return None
 
-    def find_dep_path(self):
+    def find_dep_path(self) -> Path:
         dep_path = self.check_which(self.prog)
         if dep_path is None:
             dep_path = self.check_command(self.prog)
@@ -52,7 +51,7 @@ class _dependency_finder:
         )
 
     @staticmethod
-    def check_dependency(prog_path: Path):
+    def check_dependency(prog_path: Path) -> bool:
         try:
             answer = run(
                 [f"{prog_path}", "-v"], capture_output=True, check=True
@@ -61,34 +60,33 @@ class _dependency_finder:
             logger.error(
                 f"Error while checking for {prog_path} with -v: {e}"
             )
-            raise e
+            raise
         else:
             if (
                 answer.returncode == 0
-                and f"{prog_path.name}"
-                in answer.stdout.decode().lower()
+                and f"{prog_path.name}" in answer.stdout.decode().lower()
             ):
                 return True
         return False
 
 
-def find(dependency: str):
+def find(dependency: str) -> Path:
     """Attempts to find a RNAmotiFold dependency with which and command -v /your dependency here/"""
     finder = _dependency_finder(dependency)
     try:
         path = finder.find_dep_path()
         if finder.check_dependency(path):
             return path.resolve()
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         logger.critical(
             f"Could not find {dependency} on the system, install if you havent already or set it with --{dependency}_path"
         )
-        raise e
+        raise
     except CalledProcessError as e:
         logger.critical(f"Error while checking for {dependency}: {e}")
-        raise e
+        raise
     else:
         logger.critical(
-            f"Found dependency {dependency}, but could not confirm it's actually {dependency} with {str(path)} -v, trying to use it anyways"
+            f"Found dependency {dependency}, but could not confirm it's actually {dependency} with {path!s} -v, trying to use it anyways"
         )
         return path.resolve()

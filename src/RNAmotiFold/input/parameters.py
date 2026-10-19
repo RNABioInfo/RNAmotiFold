@@ -1,14 +1,15 @@
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Literal
+import logging
 from argparse import Namespace
 from configparser import ConfigParser
+from dataclasses import dataclass
+from pathlib import Path
+from typing import ClassVar, Literal, Self
+
 from RNAmotiFold.input.action_overwrites import (
+    AlgorithmMatching,
     OutputFileCheck,
     WorkerCheck,
-    AlgorithmMatching,
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class InstallParameters:
     force: bool
 
     @classmethod
-    def from_namespace(cls, args: Namespace):
+    def from_namespace(cls, args: Namespace) -> Self:
         return cls(
             gapc_path=args.gapc_path,
             perl_path=args.perl_path,
@@ -38,8 +39,7 @@ class ScriptParameters:
     All parameters are optional and have default values set in defaults.ini. Mainly here to bring together arguments from argparse and config parse for compatibility with the rest of the script.
     """
 
-    RNAmotiFold_path = Path(__file__).resolve().parents[2]
-    user_config_path = Path | None
+    RNAmotiFold_path: ClassVar[Path] = Path(__file__).resolve().parents[2]
     id: str
     input: str | None
     output: Path | None
@@ -74,22 +74,22 @@ class ScriptParameters:
     motif_weight: float
     motif_fraction: float
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
-        for i in range(0, len(v)):
-            together.append("{key}={value!r}".format(key=k[i], value=v[i]))
+        for i in range(len(v)):
+            together.append(f"{k[i]}={v[i]!r}")
         return f"{classname}({', '.join(together)})"
 
     @property
-    def process_type(self):
+    def process_type(self) -> Literal["ali", "single"]:
         if self.algorithm == "RNAmotiAlign":
             return "ali"
         else:
             return "single"
 
-    def alg_type(self):
+    def alg_type(self) -> Literal["pfc", "ali", "mfe"]:
         if self.pfc:
             return "pfc"
         elif self.algorithm == "RNAmotiAlign":
@@ -98,7 +98,7 @@ class ScriptParameters:
             return "mfe"
 
     @classmethod
-    def from_argparser(cls, args: Namespace):
+    def from_argparser(cls, args: Namespace) -> Self:
         if args.output:
             outpath = Path(args.output)
         else:
@@ -142,26 +142,38 @@ class ScriptParameters:
         )
 
     @classmethod
-    def from_configparser(cls, confs: ConfigParser, section_name: str = "VARIABLES"):
+    def from_configparser(
+        cls, confs: ConfigParser, section_name: str = "VARIABLES"
+    ) -> Self:
         confs.set(
             section_name,
             "algorithm",
-            AlgorithmMatching.algorithm_matching_function(confs.get(section_name, "algorithm")),
+            AlgorithmMatching.algorithm_matching_function(
+                confs.get(section_name, "algorithm")
+            ),
         )
         confs.set(
             section_name,
             "output",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "output")),
+            OutputFileCheck.output_file_check_function(
+                confs.get(section_name, "output")
+            ),
         )
         confs.set(
             section_name,
             "logfile",
-            OutputFileCheck.output_file_check_function(confs.get(section_name, "logfile")),
+            OutputFileCheck.output_file_check_function(
+                confs.get(section_name, "logfile")
+            ),
         )
         confs.set(
             section_name,
             "workers",
-            str(WorkerCheck.worker_check_function(confs.get(section_name, "workers"))),
+            str(
+                WorkerCheck.worker_check_function(
+                    confs.get(section_name, "workers")
+                )
+            ),
         )
         if confs.get(section_name, "output"):
             outpath = Path(confs.get(section_name, "output"))
@@ -181,7 +193,9 @@ class ScriptParameters:
             ),
             subopt=confs.getboolean(section_name, "subopt"),
             motif_source=confs.getint(section_name, "motif_source"),
-            motif_orientation=confs.getint(section_name, "motif_orientation"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
+            motif_orientation=confs.getint(
+                section_name, "motif_orientation"
+            ),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=confs.getint(section_name, "kvalue"),
             shape_level=confs.getint(section_name, "shape_level"),
             energy=confs.getfloat(section_name, "energy"),
@@ -190,11 +204,19 @@ class ScriptParameters:
             energy_percent=confs.getfloat(section_name, "energy_percent"),
             pfc=confs.getboolean(section_name, "pfc"),
             low_prob_filter=confs.getfloat(section_name, "low_prob_filter"),
-            custom_hairpins=Path(confs.get(section_name, "custom_hairpins")),
-            custom_internals=Path(confs.get(section_name, "custom_internals")),
+            custom_hairpins=Path(
+                confs.get(section_name, "custom_hairpins")
+            ),
+            custom_internals=Path(
+                confs.get(section_name, "custom_internals")
+            ),
             custom_bulges=Path(confs.get(section_name, "custom_bulges")),
-            replace_hairpins=confs.getboolean(section_name, "replace_hairpins"),
-            replace_internals=confs.getboolean(section_name, "replace_internals"),
+            replace_hairpins=confs.getboolean(
+                section_name, "replace_hairpins"
+            ),
+            replace_internals=confs.getboolean(
+                section_name, "replace_internals"
+            ),
             replace_bulges=confs.getboolean(section_name, "replace_bulges"),
             loglevel=confs.get(section_name, "loglevel"),
             logfile=logpath,
@@ -202,8 +224,10 @@ class ScriptParameters:
             separator=confs.get(section_name, "separator"),
             update=confs.getboolean(section_name, "update"),
             version=confs.get(section_name, "version"),
-            single_motif_mode=confs.getboolean(section_name, "single_motif_mode"),
-            motif_list=confs.get(section_name, "motif_list"),
+            single_motif_mode=confs.getboolean(
+                section_name, "single_motif_mode"
+            ),
+            motif_list=confs.get(section_name, "motifs"),
             motif_weight=confs.getfloat(section_name, "motif_weight"),
             motif_fraction=confs.getfloat(section_name, "motif_fraction"),
         )

@@ -1,8 +1,9 @@
-from pathlib import Path
-from typing import Literal
-from RNAmotiFold.input.parameters import ScriptParameters
-from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 import logging
+from pathlib import Path
+from typing import Literal, NoReturn, Self
+
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold.input.parameters import ScriptParameters
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +16,19 @@ logger = logging.getLogger(__name__)
 class CallHandler:
     """Main class for creating the call to the RNAmotiFold, RNAmotiCes and RNAmotiAlign binaries. Creates the correct binary name, algorithm path and organizes commandline arguments"""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         classname = type(self).__name__
         k, v = zip(*self.__dict__.items())
         together: list[str] = []
-        for i in range(0, len(v)):
-            together.append(
-                "{key}={value!r}".format(key=k[i], value=v[i])
-            )
+        for i in range(len(v)):
+            together.append(f"{k[i]}={v[i]!r}")
         return f"{classname}({', '.join(together)})"
 
     def __str__(self) -> str:
         return self.call
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters):
+    def from_script_parameters(cls, params: ScriptParameters) -> Self:
         obj = cls(
             alg=params.algorithm,
             motif_source=params.motif_source,
@@ -47,7 +46,7 @@ class CallHandler:
             fraction=params.motif_fraction,
             version=params.version,
         )
-        logger.debug(f"Created bgap obj {str(obj)} from {vars(params)}")
+        logger.debug(f"Created bgap obj {obj!s} from {vars(params)}")
         return obj
 
     def __init__(
@@ -70,7 +69,7 @@ class CallHandler:
         weight: float = 1.0,
         fraction: float = 0.7,
         version: str = "4_10",
-    ):
+    ) -> None:
         self.subopt = subopt
         self.pfc = pfc
         self.low_probability_filter = low_prob_filter
@@ -103,23 +102,11 @@ class CallHandler:
         return progtype
 
     @property
-    def custom_call(self):
-        return self._custom_call
-
-    @custom_call.setter
-    def custom_call(self, call: str):
-        self._custom_call = call
-
-    @custom_call.deleter
-    def custom_call(self):
-        del self._custom_call
-
-    @property
-    def temperature(self):
+    def temperature(self) -> float:
         return self._temperature
 
     @temperature.setter
-    def temperature(self, temp: float):
+    def temperature(self, temp: float) -> None:
         if not -273 < temp < 100:
             raise ValueError(
                 "Temperature has to be between -273 and 100 Kelvin."
@@ -127,11 +114,11 @@ class CallHandler:
         self._temperature = temp
 
     @property
-    def energy_percent(self):
+    def energy_percent(self) -> float | None:
         return self._energy_perc
 
     @energy_percent.setter
-    def energy_percent(self, range: float | None):
+    def energy_percent(self, range: float | None) -> None:
         if range is not None:
             if range > 0:
                 self._energy_perc = range
@@ -141,11 +128,11 @@ class CallHandler:
             self._energy_perc = range
 
     @property
-    def allowLonelyBasepairs(self):
+    def allowLonelyBasepairs(self) -> int:
         return self._allowLonelyBasepairs
 
     @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: Literal[0, 1, 2]):
+    def allowLonelyBasepairs(self, val: Literal[0, 1, 2]) -> None:
         if val in [0, 1, 2]:
             self._allowLonelyBasepairs = val
         else:
@@ -155,11 +142,11 @@ class CallHandler:
 
     # Choose motif source, 1 = RNA 3D Motif Atlas, 2 = RMFam, 3 = Both
     @property
-    def motif_source(self):
+    def motif_source(self) -> int:
         return self._motif_source
 
     @motif_source.setter
-    def motif_source(self, Q: int):
+    def motif_source(self, Q: int) -> None:
         if Q in [1, 2, 3]:
             self._motif_source = Q
         else:
@@ -173,11 +160,9 @@ class CallHandler:
         return self._motif_orientation
 
     @motif_orientation.setter
-    def motif_orientation(self, b: Literal[1, 2, 3]):
+    def motif_orientation(self, b: Literal[1, 2, 3]) -> None:
         if b in [1, 2, 3]:
-            self._motif_orientation: (
-                Literal[1] | Literal[2] | Literal[3]
-            ) = b
+            self._motif_orientation: Literal[1, 2, 3] = b
         else:
             raise ValueError(
                 "Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both."
@@ -185,11 +170,11 @@ class CallHandler:
 
     # Set shape abstraction level, viable inputs are 1-5
     @property
-    def shape_level(self):
+    def shape_level(self) -> int:
         return self._shape_level
 
     @shape_level.setter
-    def shape_level(self, q: int):
+    def shape_level(self, q: int) -> None:
         if q in [1, 2, 3, 4, 5]:
             self._shape_level = q
         else:
@@ -199,7 +184,7 @@ class CallHandler:
 
     # Set energy range for suboptimal candidate calcualtions
     @property
-    def absolute_energy(self):
+    def absolute_energy(self) -> float | None:
         return self._energy
 
     @absolute_energy.setter
@@ -214,22 +199,22 @@ class CallHandler:
 
     # Set kvalue fpr kbest and kbacktracing
     @property
-    def kvalue(self):
+    def kvalue(self) -> int:
         return self._kvalue
 
     @kvalue.setter
-    def kvalue(self, k: int):
+    def kvalue(self, k: int) -> None:
         if k > 0:
             self._kvalue = k
         else:
             raise ValueError("Kvalue cannot be 0 or lower.")
 
     @property
-    def low_probability_filter(self):
+    def low_probability_filter(self) -> float:
         return self._low_probability_filter
 
     @low_probability_filter.setter
-    def low_probability_filter(self, value: float):
+    def low_probability_filter(self, value: float) -> None:
         if 0 <= value < 1:
             self._low_probability_filter = value
         else:
@@ -239,7 +224,7 @@ class CallHandler:
 
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
-    def algorithm_path(self):
+    def algorithm_path(self) -> Path:
         path = RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
         logger.debug(f"Set algorithm path as {path}")
         return path
@@ -290,13 +275,10 @@ class CallHandler:
             self._custom_bulges = None
 
     @property
-    def call(self):
-        """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
-        if hasattr(self, "custom_call"):
-            return self.custom_call
-        runtime_dictionary: dict[
-            str, str | int | float | None | Path
-        ] = {
+    def call(self) -> str:
+        """Automatic call setter. The function checks the set algorithm and builds a call string based on it."""
+
+        runtime_dictionary: dict[str, str | int | float | Path | None] = {
             "-Q": self.motif_source,
             "-b": self.motif_orientation,
             "-t": self.temperature,
@@ -319,10 +301,7 @@ class CallHandler:
         if self.allowLonelyBasepairs in [0, 1]:
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
         arguments = [
-            "{key} {value}".format(
-                key=x,
-                value=y,
-            )
+            f"{x} {y}"
             for x, y in runtime_dictionary.items()
             if y is not None
         ]
@@ -338,7 +317,5 @@ class CallHandler:
         return seq_free_call
 
     @call.setter
-    def call(self):
-        raise ValueError(
-            "Please use the custom_call property so set a custom call."
-        )
+    def call(self) -> NoReturn:
+        raise ValueError("Setting a custom call is not allowed")

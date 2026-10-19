@@ -1,15 +1,18 @@
-from typing import Literal, Any, ClassVar
-from dataclasses import dataclass
-from _collections_abc import Generator
-from pathlib import Path
-import Bio.SeqIO.FastaIO, Bio.SeqIO, Bio.SeqIO.QualityIO
-import Bio.Align
-from Bio.SeqRecord import SeqRecord
-import gzip
 import glob
-import tempfile
-from os import remove
+import gzip
 import logging
+import tempfile
+from _collections_abc import Generator
+from dataclasses import dataclass
+from os import remove
+from pathlib import Path
+from typing import Any, ClassVar, Literal, Self
+
+import Bio.Align
+import Bio.SeqIO
+import Bio.SeqIO.FastaIO
+import Bio.SeqIO.QualityIO
+from Bio.SeqRecord import SeqRecord
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ class AlgorithmInput:
     _call: str = ""
 
     @staticmethod
-    def cleanup_temps():
+    def cleanup_temps() -> None:
         """Removes temporary files created for RNAmotiAlign"""
         if len(AlgorithmInput.tmp_files) > 0:
             logger.debug(
@@ -49,20 +52,20 @@ class AlgorithmInput:
                 "No call set yet for this algorithm input object"
             )
         if self.process_type == "ali":
-            tmp = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 mode="w+b",
                 delete=False,
                 delete_on_close=False,
                 suffix=".txt",
-            )
-            logger.info(
-                f"Writing alignment folding input {self.id} to temp file {tmp.name}"
-            )
-            tmp.write(self.input_str.encode())
-            AlgorithmInput.tmp_files.append(Path(tmp.name))
-            return " ".join([self.call, "-f", f" {tmp.name}"])
+            ) as tmp:
+                logger.info(
+                    f"Writing alignment folding input {self.id} to temp file {tmp.name}"
+                )
+                tmp.write(self.input_str.encode())
+                AlgorithmInput.tmp_files.append(Path(tmp.name))
+            return f"{self.call} -f {tmp.name}"
         else:
-            return " ".join([self.call, self.input_str])
+            return f"{self.call} {self.input_str}"
 
     @property
     def call(self) -> str:
@@ -73,7 +76,7 @@ class AlgorithmInput:
         self._call = new_call
 
     @property
-    def id(self):
+    def id(self) -> str:
         if self._id is None:
             return "N/A"
         else:
@@ -94,7 +97,8 @@ class AlgorithmInput:
                 for alignment in input_generator:
                     try:
                         seqs = [
-                            x.replace("-", "_")
+                            x
+                            .replace("-", "_")
                             .replace("T", "U")
                             .replace("t", "u")
                             .upper()
@@ -142,10 +146,10 @@ class AlgorithmInput:
 class InputHandler:
     """Class to manage inputs, takes the chosen algorithm, the given inputs etc into account and creates calls from them"""
 
-    def __iter__(self):
+    def __iter__(self) -> Self:
         return self
 
-    def __next__(self):
+    def __next__(self) -> AlgorithmInput:
         if self._index < len(self.user_input):
             item = self.user_input[self._index]
             self._index += 1
@@ -159,12 +163,10 @@ class InputHandler:
         process_type: Literal["single", "ali"],
         user_input: str | None,
     ) -> None:
-        self.process_type: Literal["single"] | Literal["ali"] = (
-            process_type
-        )
+        self.process_type: Literal["single", "ali"] = process_type
         if user_input is not None:
-            self.user_input: list[AlgorithmInput] = (
-                InputHandler.read_input(process_type, user_input)
+            self.user_input: list[AlgorithmInput] = InputHandler.read_input(
+                process_type, user_input
             )
         self._index = 0
         logger.debug(f"Created input handler: {vars(self)}")
@@ -180,62 +182,47 @@ class InputHandler:
         This will always return a list of Iterators, even if there is only on MSA or seq in the file, we take care of that after."
         """
         logger.debug("Attempting to read input")
-        try:
-            pathd = Path(
-                user_input.strip()
-            )  # If this one doesn't work then it's also not a directory
-
-            if pathd.resolve().is_file():
-                logger.debug("Input recognized as file, reading now")
-                result = [
-                    InputHandler._read_input_file(pathd, process_type)
-                ]
-                logger.debug(
-                    "Input file read worked, generating algorithm inputs"
+        pathd = Path(
+            user_input.strip()
+        )  # If this one doesn't work then it's also not a directory
+        if pathd.resolve().is_file():
+            logger.debug("Input recognized as file, reading now")
+            result = [InputHandler._read_input_file(pathd, process_type)]
+            logger.debug(
+                "Input file read worked, generating algorithm inputs"
+            )
+            return flatten([
+                AlgorithmInput.from_generators(process_type, x)
+                for x in result
+            ])
+        elif pathd.resolve().is_dir():
+            logger.debug("Input recognized as folder, parsing now")
+            result = [
+                InputHandler._read_input_file(
+                    pathd / Path(file), process_type
                 )
-                return flatten(
-                    [
-                        AlgorithmInput.from_generators(process_type, x)
-                        for x in result
-                    ]
-                )
-            elif pathd.resolve().is_dir():
-                logger.debug("Input recognized as folder, parsing now")
-                result = [
-                    InputHandler._read_input_file(
-                        pathd / Path(file), process_type
-                    )
-                    for file in glob.glob("*", root_dir=pathd)
-                ]
-                logger.debug(
-                    "Folder parsing successfull, generating algorithm inputs"
-                )
-                return flatten(
-                    [
-                        AlgorithmInput.from_generators(process_type, x)
-                        for x in result
-                    ]
-                )
-        except OSError as e:
-            raise e
-        except ValueError as e:
-            raise e
-        else:  # Processing of raw sequence inputs
-            if process_type == "ali":
-                teststring: str = "NAUCGTnaucgt_#"
-                if not InputHandler.test_equal_lengths(user_input):
-                    raise ValueError(
-                        "Not all strings in your alignment have the same lengths, can't process"
-                    )
-
-            else:
-                teststring: str = "NAUCGTnaucgt"
-            if any(
-                c not in teststring for c in set(user_input.strip())
-            ):
+                for file in glob.glob("*", root_dir=pathd)
+            ]
+            logger.debug(
+                "Folder parsing successfull, generating algorithm inputs"
+            )
+            return flatten([
+                AlgorithmInput.from_generators(process_type, x)
+                for x in result
+            ])
+        # Wasn't a file or a directory, so it's probably a sequence
+        if process_type == "ali":
+            teststring: str = "NAUCGTnaucgt_#"
+            if not InputHandler.test_equal_lengths(user_input):
                 raise ValueError(
-                    "Input was neither a viable file path nor a viable RNA or DNA sequence"
+                    "Not all strings in your alignment have the same lengths, can't process"
                 )
+        else:
+            teststring: str = "NAUCGTnaucgt"
+        if any(c not in teststring for c in set(user_input.strip())):
+            raise ValueError(
+                "Input was neither a viable file path nor a viable RNA or DNA sequence"
+            )
 
         # No error was raised so we can assume that it is not a directory or file in the system but it is a viable sequence
         return [
@@ -247,7 +234,7 @@ class InputHandler:
         ]
 
     @staticmethod
-    def test_equal_lengths(test_string: str, divider: str = "#"):
+    def test_equal_lengths(test_string: str, divider: str = "#") -> bool:
         strings = test_string.split(divider)
         base_length = len(strings[0])
         return all(len(x) == base_length for x in strings)
@@ -255,16 +242,12 @@ class InputHandler:
     @staticmethod
     def script_read_input(
         process_type: Literal["single", "ali"],
-        user_input: (
-            str | SeqRecord | Path | list[SeqRecord] | list[str]
-        ),
+        user_input: (str | SeqRecord | Path | list[SeqRecord] | list[str]),
         id: str = "N/A",
-    ):
+    ) -> list[AlgorithmInput] | list[Any]:
         match user_input:
             case str():
-                return InputHandler.read_input(
-                    process_type, user_input, id
-                )
+                return InputHandler.read_input(process_type, user_input, id)
             case Path():
                 return InputHandler.read_input(
                     process_type, str(user_input), id
@@ -279,12 +262,17 @@ class InputHandler:
                 ]
             case list():
                 if all(isinstance(x, str) for x in user_input):
-                    return flatten(
-                        [InputHandler.read_input(process_type, x, id) for x in user_input]  # type: ignore
-                    )
+                    return flatten([
+                        InputHandler.read_input(process_type, x, id)  # type: ignore
+                        for x in user_input
+                    ])
                 elif all(isinstance(x, SeqRecord) for x in user_input):
                     return [
-                        AlgorithmInput(_id=x.id, input_str=str(x.seq), process_type=process_type)  # type: ignore
+                        AlgorithmInput(
+                            _id=x.id,  # type: ignore
+                            input_str=str(x.seq),  # type: ignore
+                            process_type=process_type,
+                        )
                         for x in user_input
                     ]
                 else:
@@ -310,23 +298,18 @@ class InputHandler:
             parse_func = Bio.SeqIO.parse  # type: ignore
         if not zipped:
             for option in filetype:
-                try:
-                    logger.debug(
-                        f"Recognized input {file_path} as not compressed, reading as {option} file."
-                    )
-                    return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
-                except:
-                    pass
+                logger.debug(
+                    f"Recognized input {file_path} as not compressed, reading as {option} file."
+                )
+                return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
+
         else:
             with gzip.open(file_path, "rt") as handle:
                 for option in filetype:
-                    try:
-                        logger.debug(
-                            f"Recognized input {file_path} as compressed, decrompressing and reading as {option} file"
-                        )
-                        return parse_func(handle, option)  # type: ignore
-                    except:
-                        pass
+                    logger.debug(
+                        f"Recognized input {file_path} as compressed, decrompressing and reading as {option} file"
+                    )
+                    return parse_func(handle, option)  # type: ignore
         raise NotImplementedError(
             "Could not read given input file, probably because the given file type is not implemented. Try a different one or write up an issue on GitHub!"
         )

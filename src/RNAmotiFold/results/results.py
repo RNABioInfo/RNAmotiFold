@@ -1,7 +1,7 @@
 import logging
 import re
-from typing import NamedTuple
 from dataclasses import dataclass
+from typing import NamedTuple, Self
 
 logger = logging.getLogger("results")
 
@@ -26,9 +26,9 @@ class BaseResult:
         """Returns tsv string of itself"""
         if BaseResult.separator == r"\t":
             BaseResult.separator = "\t"
-        return BaseResult.separator.join(
-            [str(self.__dict__[x]) for x in self.__dict__]
-        )
+        return BaseResult.separator.join([
+            str(self.__dict__[x]) for x in self.__dict__
+        ])
 
     @property
     def header(self) -> str:
@@ -38,11 +38,11 @@ class BaseResult:
         return BaseResult.separator.join(self.__dict__.keys())
 
     @property
-    def prediction_id(self):
+    def prediction_id(self) -> str:
         return self._prediction_id
 
     @prediction_id.setter
-    def prediction_id(self, new_id: str):
+    def prediction_id(self, new_id: str) -> None:
         self._prediction_id = str(new_id)
 
 
@@ -53,7 +53,7 @@ class ResultPFC(BaseResult):
         self,
         id: str,
         classifier: str,
-        pfc_value: str | int | float,
+        pfc_value: str | float,
         probability: float,
     ) -> None:
         super().__init__(id, classifier)
@@ -94,7 +94,7 @@ class ResultPFC(BaseResult):
     @classmethod
     def from_string(
         cls, id: str, result_string: str, pfc_sum: float
-    ) -> "ResultPFC":
+    ) -> Self:
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -155,9 +155,7 @@ class ResultMFE(BaseResult):
         return self.free_energy >= other.free_energy
 
     def __hash__(self) -> int:
-        return hash(
-            (self.free_energy, self.motBracket, self.classifier)
-        )
+        return hash((self.free_energy, self.motBracket, self.classifier))
 
     @property
     def dot_bracket(self) -> str:
@@ -170,7 +168,7 @@ class ResultMFE(BaseResult):
         self._dot_bracket = structure_string
 
     @classmethod
-    def from_string(cls, id: str, result_string: str) -> "ResultMFE":
+    def from_string(cls, id: str, result_string: str) -> Self:
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -188,9 +186,7 @@ class ResultAlignment(BaseResult):
         self, id: str, classifier: str, score: str, motBracket: str
     ) -> None:
         super().__init__(id, classifier)
-        split_score: alignment_score = alignment_score.from_string(
-            score
-        )
+        split_score: alignment_score = alignment_score.from_string(score)
         self.energy: float = split_score.energy
         self.covariance: float = split_score.covariance
         self.motif_score: float = split_score.motif
@@ -233,9 +229,7 @@ class ResultAlignment(BaseResult):
         return self.overall_score >= other.overall_score
 
     @classmethod
-    def from_string(
-        cls, id: str, results_string: str
-    ) -> "ResultAlignment":
+    def from_string(cls, id: str, results_string: str) -> Self:
         split_result = results_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -256,7 +250,6 @@ class ResultAlignment(BaseResult):
         ))
 
 
-
 class alignment_score(NamedTuple):
     energy: float
     covariance: float
@@ -264,10 +257,9 @@ class alignment_score(NamedTuple):
     overall: float
 
     @classmethod
-    def from_string(cls, score_string: str):
+    def from_string(cls, score_string: str) -> Self:
         nums = [
-            float(x)
-            for x in re.findall(r"-?\d+(?:\.\d+)?", score_string)
+            float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", score_string)
         ]
         return cls(
             overall=nums[0],
@@ -276,23 +268,21 @@ class alignment_score(NamedTuple):
             motif=nums[3],
         )
 
-    def to_string(self, sep: str):
-        return sep.join(
-            [
-                str(self.overall),
-                str(self.energy),
-                str(self.covariance),
-                str(self.motif),
-            ]
-        )
+    def to_string(self, sep: str) -> str:
+        return sep.join([
+            str(self.overall),
+            str(self.energy),
+            str(self.covariance),
+            str(self.motif),
+        ])
 
 
 @dataclass
 class ResultError(BaseResult):
-    def __init__(self, id: str, errstr: str):
+    def __init__(self, id: str, errstr: str) -> None:
         super().__init__(id=id, classifier="ERROR")
         self.error = errstr
 
     @classmethod
-    def from_string(cls, id: str, errstr: str):
+    def from_string(cls, id: str, errstr: str) -> Self:
         return cls(id=id, errstr=errstr)

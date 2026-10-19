@@ -1,26 +1,24 @@
-from typing import Literal
-from pathlib import Path
-from os import cpu_count
-from Bio import SeqRecord
-import RNAmotiFold
-import RNAmotiFold.bgap_rna
-import RNAmotiFold.bgap_rna.call_handler
-import RNAmotiFold.bgap_rna.input_handler
-import RNAmotiFold.bgap_rna.motif_handler
-import RNAmotiFold.bgap_rna.subprocess_handler
-import RNAmotiFold.input
-import RNAmotiFold.input.cli
-import RNAmotiFold.results
-from RNAmotiFold.results.outputs import AlgorithmOutput
-import RNAmotiFold.results.results
-from dataclasses import dataclass
-from typing import Any
 import logging
-import pandas
+from dataclasses import dataclass
+from os import cpu_count
+from pathlib import Path
+from typing import Any, Literal, Self
+
+from Bio import SeqRecord
+
+import RNAmotiFold.input.cli
+from RNAmotiFold.bgap_rna import (
+    call_handler,
+    input_handler,
+    motif_handler,
+    subprocess_handler,
+)
+from RNAmotiFold.results.outputs import AlgorithmOutput
+from RNAmotiFold.results.results import BaseResult
 
 
-class Bunch(object):
-    def __init__(self, d=None):
+class Bunch:
+    def __init__(self, d: Any = None):
         if d is not None:
             self.__dict__.update(d)
 
@@ -28,7 +26,7 @@ class Bunch(object):
 @dataclass
 class Predictions:
     @classmethod
-    def from_dict(cls, inputs: dict[str, Any]):
+    def from_dict(cls, inputs: dict[str, Any]) -> Self:
         allowed = (
             "algorithm",
             "temperature",
@@ -211,7 +209,7 @@ def rnamotifold_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     if (
         subopt_energy_range_absolute is not None
         and subopt_energy_range_percent is not None
@@ -278,7 +276,7 @@ def rnamotifold_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     return _predict(
         input=input,
         id=id,
@@ -338,7 +336,7 @@ def rnamosh(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     return _predict(
         input=input,
         id=id,
@@ -399,7 +397,7 @@ def rnamosh_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     if (
         subopt_energy_range_absolute is not None
         and subopt_energy_range_percent is not None
@@ -466,7 +464,7 @@ def rnamosh_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     return _predict(
         input=input,
         id=id,
@@ -527,7 +525,7 @@ def rnamotices(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     if (
         subopt_energy_range_absolute is not None
         and subopt_energy_range_percent is not None
@@ -595,7 +593,7 @@ def rnamotices_subopt(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     if (
         subopt_energy_range_absolute is not None
         and subopt_energy_range_percent is not None
@@ -662,11 +660,10 @@ def rnamotices_pfc(
     parallel_processes: int | None = cpu_count(),
     output: Path | None = None,
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     return _predict(
         input=input,
         id=id,
-
         algorithm="RNAmotiCes",
         temperature=temperature,
         motif_source=motif_source,
@@ -725,7 +722,7 @@ def rnamotialign(
     replace_bulges: bool = False,
     parallel_processes: int | None = cpu_count(),
     separator: str | None = ",",
-):
+) -> AlgorithmOutput:
     return _predict(
         input=input,
         id=id,
@@ -815,11 +812,9 @@ def _predict(
         raise FileNotFoundError(
             "Could not find binary for chosen algorithm please run RNAmotiFold from your commandline once to install algorithm binaries"
         )
-    RNAmotiFold.results.results.BaseResult.separator = Predict.separator
-    input_maker = RNAmotiFold.bgap_rna.input_handler.InputHandler(
-        Predict.process_type, None
-    )
-    call_maker = RNAmotiFold.bgap_rna.call_handler.CallHandler(
+    BaseResult.separator = Predict.separator
+    input_maker = input_handler.InputHandler(Predict.process_type, None)
+    call_maker = call_handler.CallHandler(
         Predict.algorithm,
         Predict.motif_source,
         Predict.motif_orientation,
@@ -837,7 +832,7 @@ def _predict(
         Predict.motif_fraction,
         Predict.rna_3d_motif_atlas_version,
     )
-    motif_call_maker = RNAmotiFold.bgap_rna.motif_handler.MotifHandler(
+    motif_call_maker = motif_handler.MotifHandler(
         Predict.motif_string,
         Predict.single_motif_mode,
         Predict.custom_hairpins,
@@ -848,12 +843,10 @@ def _predict(
         Predict.replace_bulges,
         Predict.rna_3d_motif_atlas_version,
     )
-    subprocess_manager = (
-        RNAmotiFold.bgap_rna.subprocess_handler.SubprocessHandler(
-            Predict.parallel_processes,
-            Predict.output,
-            Predict.prediction_type,
-        )
+    subprocess_manager = subprocess_handler.SubprocessHandler(
+        Predict.parallel_processes,
+        Predict.output,
+        Predict.prediction_type,
     )
     full_calls = RNAmotiFold.input.cli.combine_calls(
         call_maker.call, motif_call_maker.motif_calls

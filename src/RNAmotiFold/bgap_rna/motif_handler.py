@@ -1,10 +1,11 @@
-from pathlib import Path
-import tempfile
 import glob
-from typing import Literal
+import logging
+import tempfile
+from pathlib import Path
+from typing import Literal, Self
+
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.input.parameters import ScriptParameters
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class MotifHandler:
         replace_internals: bool,
         replace_bulges: bool,
         version: str | None,
-    ):
+    ) -> None:
         self.version = version
         self.single_motif_mode = single_motif_mode
         if motifs is None:
@@ -51,14 +52,12 @@ class MotifHandler:
             return self._call_number
 
     @call_number.setter
-    def call_number(self, new_number: int):
-        logger.debug(f"Set call number to {str(new_number)}")
+    def call_number(self, new_number: int) -> None:
+        logger.debug(f"Set call number to {new_number!s}")
         self._call_number = new_number
 
     @classmethod
-    def from_script_parameters(
-        cls, params: ScriptParameters
-    ) -> "MotifHandler":
+    def from_script_parameters(cls, params: ScriptParameters) -> Self:
         return cls(
             params.motif_list,
             params.single_motif_mode,
@@ -79,16 +78,11 @@ class MotifHandler:
         )
         if (
             self.motif_string == ""
-            and all(
-                [
-                    x == None
-                    for x in [
-                        self.custom_hairpins,
-                        self.custom_internals,
-                        self.custom_bulges,
-                    ]
-                ]
-            )
+            and not any([
+                self.custom_hairpins,
+                self.custom_internals,
+                self.custom_bulges,
+            ])
             and not self.single_motif_mode
         ):
             self.call_number = 1
@@ -184,7 +178,7 @@ class MotifHandler:
     def _split_calls(
         file_list: list[str],
         loop_type: Literal["hairpin", "internal", "bulge"],
-    ):
+    ) -> list[str]:
         empty_csv = (
             RNAMOTIFOLD_ROOT_DIR
             / "RNALoops"
@@ -227,14 +221,14 @@ class MotifHandler:
         contents: list[str] = []
         for key in all_sequences:
             contents.extend(all_sequences[key])
-        temp = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             delete_on_close=False,
             delete=False,
             suffix=".tmp",
             dir=tmp_dir.name,
-        )
-        temp.write("".join(contents).encode())
-        return Path(temp.name).resolve()
+        ) as temp:
+            temp.write("".join(contents).encode())
+            return Path(temp.name).resolve()
 
     @staticmethod
     def _sort_sequences(file_list: list[Path], motif_string: str):
@@ -253,7 +247,7 @@ class MotifHandler:
             )  # Set default either sets the given default or returns the value if the key already exsist
         if len(motif_string) != 0:
             deletes: list[str] = []
-            for key in groups.keys():
+            for key in groups:
                 if key not in motif_string:
                     deletes.append(key)
             for char in deletes:
@@ -276,15 +270,15 @@ class MotifHandler:
         groups: dict[str, list[str]] = MotifHandler._sort_sequences(
             file_list, motif_string
         )
-        for key in groups.keys():
-            motifs = "".join(groups[key])
-            motif_temp = tempfile.NamedTemporaryFile(
+        for key, value in groups.items():
+            motifs = "".join(value)
+            with tempfile.NamedTemporaryFile(
                 dir=subdir.name,
                 delete=False,
                 delete_on_close=False,
                 suffix=".tmp",
-            )
-            motif_temp.write(motifs.encode())
+            ) as motif_temp:
+                motif_temp.write(motifs.encode())
             logger.debug(
                 f"Writing sequences for motif {key} to temporary file {motif_temp.name} in subdir {subdir.name}"
             )
@@ -299,9 +293,7 @@ class MotifHandler:
         motif_string: str,
     ) -> list[Path]:
         """Give the function the replace bool, custom motif Path (optional) and which type of motifs its working with"""
-        if (
-            not replace_motifs
-        ):  # This catches both cases, 0 for no replacing and None (which also means no replacing)
+        if not replace_motifs:  # This catches both cases, 0 for no replacing and None (which also means no replacing)
             motif_paths = [
                 x
                 for x in files
@@ -330,15 +322,11 @@ class MotifHandler:
             return True
         with open(filepath, "r") as motif_seq_file:
             lines = motif_seq_file.readlines()
-            abbreviations = set(
-                [x.split(",")[1].strip() for x in lines]
-            )
-            return all([x in motif_string for x in abbreviations])
+            abbreviations = {x.split(",")[1].strip() for x in lines}
+            return all(x in motif_string for x in abbreviations)
 
-    def cleanup_tmp_files(self):
+    def cleanup_tmp_files(self) -> None:
         if self._tmp_folder is not None:
-            logger.debug(
-                f"Cleaning up temp files from {self._tmp_folder}"
-            )
+            logger.debug(f"Cleaning up temp files from {self._tmp_folder}")
             self._tmp_folder.cleanup()
         del self._tmp_folder

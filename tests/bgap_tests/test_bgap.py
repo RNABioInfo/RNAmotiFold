@@ -1,5 +1,4 @@
 import unittest
-
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
 
 class TestBgapObject(unittest.TestCase):

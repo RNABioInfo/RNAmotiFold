@@ -1,23 +1,22 @@
+import logging
 import multiprocessing
 import multiprocessing.connection
 import multiprocessing.pool
+import os
 import subprocess
-from typing import Any, Literal
+from collections import defaultdict
 from pathlib import Path
-from RNAmotiFold.results.outputs import (
-    MFEOutput,
-    PFCOutput,
-    AlignmentOutput,
-    ErrorOutput,
-    AlgorithmOutput,
-)
+from typing import Any, Literal, Self
+
 from RNAmotiFold.bgap_rna.input_handler import AlgorithmInput
 from RNAmotiFold.input.parameters import ScriptParameters
-from contextlib import redirect_stdout
-import sys
-from collections import defaultdict
-import os
-import logging
+from RNAmotiFold.results.outputs import (
+    AlgorithmOutput,
+    AlignmentOutput,
+    ErrorOutput,
+    MFEOutput,
+    PFCOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class SubprocessHandler:
         input_queue: "multiprocessing.Queue[AlgorithmInput | None]",
         output_queue: "multiprocessing.Queue[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput | None]",
         process_type: Literal["mfe", "pfc", "ali"],
-    ):
+    ) -> None:
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
         pid = os.getpid()
         logger.debug(
@@ -47,9 +46,7 @@ class SubprocessHandler:
         while True:
             input_obj: AlgorithmInput | None = input_queue.get()
             if input_obj is None:
-                logger.debug(
-                    f"Worker {pid} exiting, input queue is empty"
-                )
+                logger.debug(f"Worker {pid} exiting, input queue is empty")
                 output_queue.put(None)
                 break
             logger.debug(
@@ -60,6 +57,7 @@ class SubprocessHandler:
                 text=True,
                 capture_output=True,
                 shell=True,
+                check=False,
             )
             logger.debug(
                 f"Worker {pid} processed {input_obj.id}, returned: {subprocess_output}"
@@ -87,12 +85,12 @@ class SubprocessHandler:
     @staticmethod
     def _listener(
         input_queue: "multiprocessing.Queue[MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput | None]",
-        output_file: Path | None,
+        output_file_path: Path | None,
         pipe: multiprocessing.connection.Connection,
         calls_per_input: int,
         no_print: bool,
         max_nones: int,
-    ):
+    ) -> None:
         """Simplest listener funtion that should also work universally, takes the result objects put into its queue by the workers, writes them down or prints them.
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
@@ -100,21 +98,17 @@ class SubprocessHandler:
         output_dict: defaultdict[
             str,
             list[MFEOutput] | list[PFCOutput] | list[AlignmentOutput],
-        ] = defaultdict(
-            list
-        )  # It will always only be one of the types
-        error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(
-            list
-        )
+        ] = defaultdict(list)  # It will always only be one of the types
+        error_dict: defaultdict[str, list[ErrorOutput]] = defaultdict(list)
         writing_started = False
         while True:
             try:
                 result: (
-                    None
-                    | MFEOutput
+                    MFEOutput
                     | PFCOutput
                     | AlignmentOutput
                     | ErrorOutput
+                    | None
                 ) = input_queue.get()
             except EOFError:
                 continue
@@ -144,38 +138,33 @@ class SubprocessHandler:
                 case MFEOutput() | PFCOutput() | AlignmentOutput():
                     output_dict[result.id].append(result)  # type: ignore Problem here is the typing with Output dict, technically allowing all 3 output types to be added
                     if (
-                        sum(
-                            [
-                                len(output_dict[result.id]),
-                                len(error_dict[result.id]),
-                            ]
-                        )
+                        sum([
+                            len(output_dict[result.id]),
+                            len(error_dict[result.id]),
+                        ])
                         == calls_per_input
                     ):
                         successes = [x for x in output_dict[result.id]]
                         output = type(successes[0])
-                        if not all(
-                            type(x) is output for x in successes
-                        ):
+                        if not all(type(x) is output for x in successes):
                             raise ValueError(
                                 "Different algorithms in the same AlgorithmOutput detected, can't merge"
                             )
                         merged = output.merge(successes)  # type: ignore Again typing issue from the dict containing all 3 types
-                        if not no_print:
-                            if isinstance(output_file, Path):
-                                write_destination = open(
-                                    output_file, "a+"
-                                )
-                            else:
-                                write_destination = sys.stdout
-                            with redirect_stdout(write_destination):
+                        if output_file_path is not None:
+                            with open(output_file_path, "a+") as wf:
                                 for element in merged:
-                                    writing_started = (
-                                        element.write_results(
-                                            writing_started
-                                        )
+                                    writing_started = element.write_results(
+                                        writing_started, wf
                                     )
-                                sys.stdout.flush()
+                        else:
+                            if no_print:
+                                continue
+                            for element in merged:
+                                writing_started = element.write_results(
+                                    writing_started
+                                )
+
                 case ErrorOutput():
                     result.write_results()
                     error_dict[result.id].append(result)
@@ -185,17 +174,15 @@ class SubprocessHandler:
         max_processes: int,
         output_path: Path | None,
         prediction_type: Literal["mfe", "pfc", "ali"],
-    ):
+    ) -> None:
         # Set up the very basics of a new multiprocessing step, How Many processes can we start, what are our inputs and where are we supposed to write the output.
         # If we come from the full RNAmotiFold pipeline the input is pre-processed and output location is confirmed to work -> Alternate contsructor for checking these ?
         self.max_processes: int = max_processes
         self.output_path: Path | None = output_path
-        self.process_type: (
-            Literal["mfe"] | Literal["pfc"] | Literal["ali"]
-        ) = prediction_type
+        self.process_type: Literal["mfe", "pfc", "ali"] = prediction_type
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters):
+    def from_script_parameters(cls, params: ScriptParameters) -> Self:
         return cls(params.workers, params.output, params.alg_type())
 
     def auto_run(
@@ -215,20 +202,14 @@ class SubprocessHandler:
             logger.debug(
                 "Recognized only one input, running in single process mode"
             )
-            answer = self._single_run(inputs[0])
-            if not no_print:
-                if self.output_path is not None:
-                    write_destination = open(self.output_path, "a+")
-                else:
-                    write_destination = sys.stdout
-                with redirect_stdout(write_destination):
-                    answer.write_results()
-                    sys.stdout.flush()
-            return AlgorithmOutput.from_single(answer)
+            return AlgorithmOutput.from_single(
+                self._single_run(inputs[0], no_print)
+            )
 
     def _single_run(
         self,
         input_obj: AlgorithmInput,
+        no_print: bool,
     ) -> MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput:
         """Function for running a single"""
         subprocess_output = subprocess.run(
@@ -236,33 +217,44 @@ class SubprocessHandler:
             text=True,
             capture_output=True,
             shell=True,
+            check=False,
         )
         if subprocess_output.returncode == 0:
             match self.process_type:
                 case "mfe":
-                    return MFEOutput(
+                    answer = MFEOutput(
                         input_obj.id,
                         subprocess_output.stdout,
                         [subprocess_output.stderr],
                     )
                 case "pfc":
-                    return PFCOutput(
+                    answer = PFCOutput(
                         input_obj.id,
                         subprocess_output.stdout,
                         [subprocess_output.stderr],
                     )
                 case "ali":
-                    return AlignmentOutput(
+                    answer = AlignmentOutput(
                         input_obj.id,
                         subprocess_output.stdout,
                         [subprocess_output.stderr],
                     )
+
+            if self.output_path is not None:
+                with open(self.output_path) as wf:
+                    answer.write_results(False, wf)
+            else:
+                if no_print:
+                    pass
+                else:
+                    answer.write_results(False)
         else:
-            return ErrorOutput(
+            answer = ErrorOutput(
                 input_obj.id,
                 subprocess_output.stderr,
                 [str(subprocess_output.returncode)],
             )
+        return answer
 
     def _multi_run(
         self,
@@ -276,7 +268,9 @@ class SubprocessHandler:
     ):
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
-        input_q: "multiprocessing.Queue[AlgorithmInput | None]" = manager.Queue()  # type: ignore Because Queue has type Any
+        input_q: multiprocessing.Queue[AlgorithmInput | None] = (
+            manager.Queue()
+        )  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
         if len(inputs) < self.max_processes:
             logger.debug(
@@ -324,7 +318,5 @@ class SubprocessHandler:
             list[MFEOutput | ErrorOutput]
             | list[PFCOutput | ErrorOutput]
             | list[AlignmentOutput | ErrorOutput]
-        ) = (
-            PipeOut.recv()
-        )  # Receive the list of outputs from the listener
+        ) = PipeOut.recv()  # Receive the list of outputs from the listener
         return listener_output

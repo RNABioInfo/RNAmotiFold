@@ -1,27 +1,27 @@
-from RNAmotiFold.input import action_overwrites
-from RNAmotiFold.results.results import BaseResult
+import copy
+import logging
+import os
+import shutil
+import sys
+from pathlib import Path
+from typing import Literal, NoReturn
+
+import RNAmotiFold
+from RNAmotiFold import AVAILABLE_BINARIES
+from RNAmotiFold.bgap_rna import alg_setup
+from RNAmotiFold.bgap_rna.call_handler import CallHandler
+from RNAmotiFold.bgap_rna.input_handler import (
+    AlgorithmInput,
+    InputHandler,
+)
+from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
+from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
+from RNAmotiFold.input import action_overwrites, arg_parsing
 from RNAmotiFold.results.outputs import (
     AlgorithmOutput,
     ErrorOutput,
 )
-import RNAmotiFold.bgap_rna.alg_setup as alg_setup
-import RNAmotiFold.input.arg_parsing as arg_parsing
-from RNAmotiFold.bgap_rna.input_handler import (
-    InputHandler,
-    AlgorithmInput,
-)
-from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
-from RNAmotiFold.bgap_rna.call_handler import CallHandler
-from RNAmotiFold.bgap_rna.subprocess_handler import SubprocessHandler
-from RNAmotiFold import AVAILABLE_BINARIES
-import RNAmotiFold
-import logging
-from pathlib import Path
-import sys
-from typing import Literal
-import copy
-import os
-import shutil
+from RNAmotiFold.results.results import BaseResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _check_all_algorithms() -> list[str]:
     return [x for x in AVAILABLE_BINARIES if not check_install(x)]
 
 
-def combine_calls(base_call: str, motif_subcalls: list[str]):
+def combine_calls(base_call: str, motif_subcalls: list[str]) -> list[str]:
     if len(motif_subcalls) == 0:
         return [base_call]
     else:
@@ -43,12 +43,12 @@ def check_install(algorithm: str) -> bool:
     return checkpath.exists()
 
 
-def _temp_cleanup():
+def _temp_cleanup() -> None:
     filepath = Path(__file__).resolve().parents[1]
     tempfolders = [x[0] for x in os.walk(filepath) if "tmp_" in x[0]]
     if len(tempfolders) > 0:
         logger.debug(
-            f"Identified leftover tmp folder(s) from previous run: {", ".join(tempfolders)}, deleting..."
+            f"Identified leftover tmp folder(s) from previous run: {', '.join(tempfolders)}, deleting..."
         )
         for folder in tempfolders:
             try:
@@ -96,12 +96,12 @@ def _main(
         | None
     ) = None,
 ) -> int:
-    rt_args: arg_parsing.ScriptParameters = (
-        arg_parsing.get_cmdarguments()
-    )
+    rt_args: arg_parsing.ScriptParameters = arg_parsing.get_cmdarguments()
     if algorithm is not None:
-        rt_args.algorithm = action_overwrites.AlgorithmMatching.algorithm_matching_function(
-            algorithm
+        rt_args.algorithm = (
+            action_overwrites.AlgorithmMatching.algorithm_matching_function(
+                algorithm
+            )
         )  # Corrects capitalization
     _configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
     _temp_cleanup()
@@ -114,9 +114,7 @@ def _main(
     )
     motif_subcall_maker = MotifHandler.from_script_parameters(rt_args)
     call_maker = CallHandler.from_script_parameters(rt_args)
-    subprocess_manager = SubprocessHandler.from_script_parameters(
-        rt_args
-    )
+    subprocess_manager = SubprocessHandler.from_script_parameters(rt_args)
 
     # Combine the (potentially) separate motif calls and the general commandline call
     full_calls: list[str] = combine_calls(
@@ -181,7 +179,8 @@ def _main(
         return 1
     return 0
 
-def _rnamotifold_install():
+
+def _rnamotifold_install() -> NoReturn:  # type: ignore CLI Function for pyproject
     args = arg_parsing.get_install_arguments()
     not_installed = _check_all_algorithms()
     if len(not_installed) == 0:
@@ -206,25 +205,26 @@ def _rnamotifold_install():
         )
     sys.exit(exit_code)
 
-def _rnamotifold_cli():  # type: ignore CLI Function for pyproject
+
+def _rnamotifold_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
     """Main function to run RNAmotiFold from command line"""
     exit_code = _main("rnamotifold")
     sys.exit(exit_code)
 
 
-def _rnamotices_cli():  # type: ignore CLI Function for pyproject
+def _rnamotices_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
     """Main function to run RNAmotiCes from command line"""
     exit_code = _main("rnamotices")
     sys.exit(exit_code)
 
 
-def _rnamotialign_cli():  # type: ignore CLI Function for pyproject
+def _rnamotialign_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
     """Main function to run RNAmotiAlign from command line"""
     exit_code = _main("rnamotialign")
     sys.exit(exit_code)
 
 
-def _rnamosh_cli():  # type: ignore CLI Function for pyproject
+def _rnamosh_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
     """Main function to run RNAmoSh from command line"""
     exit_code = _main("rnamosh")
     sys.exit(exit_code)
