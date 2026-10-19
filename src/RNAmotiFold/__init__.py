@@ -1,6 +1,5 @@
-from pathlib import Path as _Path
 import importlib.util as _importlib
-
+from pathlib import Path as _Path
 
 RNAMOTIFOLD_ROOT_DIR = _Path(__file__).resolve().absolute().parent
 
@@ -23,22 +22,28 @@ try:
         / "Applications"
         / "RNAmotiFold"
         / "motifs"
-        / "get_RNA3D_motifs.py"
+        / "get_rna3D_motifs.py"
     )
-    _spec = _importlib.spec_from_file_location("uniteractive_update", _script_dir)
+    _spec = _importlib.spec_from_file_location(
+        "uniteractive_update", _script_dir
+    )
     if _spec is None or _spec.loader is None:
-        raise ImportError(
-            f"Submodule RNALoops was not correctly cloned."
-        )
+        raise ImportError("Submodule RNALoops was not correctly cloned.")
     _motifs = _importlib.module_from_spec(_spec)
     _spec.loader.exec_module(_motifs)
-except ImportError as _e:
-    raise _e
+except ImportError as e:
+    print(e)
 
 
-_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
-RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "defaults.ini")
-RNAMOTIFOLD_INSTALL_CONFIG: _Path = _Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "install.ini")
+_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(
+    RNAMOTIFOLD_ROOT_DIR, "configs"
+)
+RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(
+    _RNAMOTIFOLD_CONFIG_DIR, "defaults.ini"
+)
+RNAMOTIFOLD_INSTALL_CONFIG: _Path = _Path.joinpath(
+    _RNAMOTIFOLD_CONFIG_DIR, "install.ini"
+)
 RNAMOTIFOLD_BIN: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
 RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
 RNALOOPS_PATH: _Path = _check_submodule("RNALoops")
@@ -77,27 +82,27 @@ AVAILABLE_VERSIONS: list[str] = [
 ]
 
 from RNAmotiFold.api import (
-    rnamotifold,
-    rnamotifold_subopt,
-    rnamotifold_pfc,
-    rnamotices,
-    rnamotices_subopt,
-    rnamotices_pfc,
     rnamosh,
-    rnamosh_subopt,
     rnamosh_pfc,
+    rnamosh_subopt,
     rnamotialign,
+    rnamotices,
+    rnamotices_pfc,
+    rnamotices_subopt,
+    rnamotifold,
+    rnamotifold_pfc,
+    rnamotifold_subopt,
 )
 
 __all__ = (
-    "rnamotifold",
-    "rnamotifold_subopt",
-    "rnamotifold_pfc",
-    "rnamotices",
-    "rnamotices_subopt",
-    "rnamotices_pfc",
     "rnamosh",
-    "rnamosh_subopt",
     "rnamosh_pfc",
+    "rnamosh_subopt",
     "rnamotialign",
+    "rnamotices",
+    "rnamotices_pfc",
+    "rnamotices_subopt",
+    "rnamotifold",
+    "rnamotifold_pfc",
+    "rnamotifold_subopt",
 )
