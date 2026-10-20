@@ -22,7 +22,7 @@ try:
         / "Applications"
         / "RNAmotiFold"
         / "motifs"
-        / "get_rna3D_motifs.py"
+        / "get_rna3d_motifs.py"
     )
     _spec = _importlib.spec_from_file_location(
         "uniteractive_update", _script_dir

@@ -293,15 +293,15 @@ class InputHandler:
         if (
             process_type == "ali"
         ):  # Either parse it with the Align parser if we're doing alignments or with the SeqIO if we're doing MFE/PFC calculations
-            parse_func = Bio.Align.parse  # type: ignore
+            parse_func = Bio.Align.parse
         else:
-            parse_func = Bio.SeqIO.parse  # type: ignore
+            parse_func = Bio.SeqIO.parse
         if not zipped:
             for option in filetype:
                 logger.debug(
                     f"Recognized input {file_path} as not compressed, reading as {option} file."
                 )
-                return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
+                return parse_func(file_path, option)
 
         else:
             with gzip.open(file_path, "rt") as handle:
@@ -309,7 +309,7 @@ class InputHandler:
                     logger.debug(
                         f"Recognized input {file_path} as compressed, decrompressing and reading as {option} file"
                     )
-                    return parse_func(handle, option)  # type: ignore
+                    return parse_func(handle, option)
         raise NotImplementedError(
             "Could not read given input file, probably because the given file type is not implemented. Try a different one or write up an issue on GitHub!"
         )

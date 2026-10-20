@@ -3,10 +3,6 @@ import configparser
 import logging
 from pathlib import Path
 
-from RNAmotiFold import (
-    RNAMOTIFOLD_DEFAULTS_CONFIG,
-    RNAMOTIFOLD_INSTALL_CONFIG,
-)
 from RNAmotiFold.input.action_overwrites import (
     AlgorithmMatching,
     ConfigCheck,
@@ -22,6 +18,11 @@ from RNAmotiFold.input.action_overwrites import (
     gapcMCheck,
 )
 from RNAmotiFold.input.parameters import InstallParameters, ScriptParameters
+
+from RNAmotiFold import (
+    RNAMOTIFOLD_DEFAULTS_CONFIG,
+    RNAMOTIFOLD_INSTALL_CONFIG,
+)
 
 loggers = logging.getLogger(__name__)
 

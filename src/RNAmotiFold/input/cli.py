@@ -6,8 +6,6 @@ import sys
 from pathlib import Path
 from typing import Literal, NoReturn
 
-import RNAmotiFold
-from RNAmotiFold import AVAILABLE_BINARIES
 from RNAmotiFold.bgap_rna import alg_setup
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
 from RNAmotiFold.bgap_rna.input_handler import (
@@ -22,6 +20,9 @@ from RNAmotiFold.results.outputs import (
     ErrorOutput,
 )
 from RNAmotiFold.results.results import BaseResult
+
+import RNAmotiFold
+from RNAmotiFold import AVAILABLE_BINARIES
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ def _main(
     return 0
 
 
-def _rnamotifold_install() -> NoReturn:  # type: ignore CLI Function for pyproject
+def _rnamotifold_install() -> NoReturn:
     args = arg_parsing.get_install_arguments()
     not_installed = _check_all_algorithms()
     if len(not_installed) == 0:
@@ -206,25 +207,25 @@ def _rnamotifold_install() -> NoReturn:  # type: ignore CLI Function for pyproje
     sys.exit(exit_code)
 
 
-def _rnamotifold_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
+def _rnamotifold_cli() -> NoReturn:
     """Main function to run RNAmotiFold from command line"""
     exit_code = _main("rnamotifold")
     sys.exit(exit_code)
 
 
-def _rnamotices_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
+def _rnamotices_cli() -> NoReturn:
     """Main function to run RNAmotiCes from command line"""
     exit_code = _main("rnamotices")
     sys.exit(exit_code)
 
 
-def _rnamotialign_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
+def _rnamotialign_cli() -> NoReturn:
     """Main function to run RNAmotiAlign from command line"""
     exit_code = _main("rnamotialign")
     sys.exit(exit_code)
 
 
-def _rnamosh_cli() -> NoReturn:  # type: ignore CLI Function for pyproject
+def _rnamosh_cli() -> NoReturn:
     """Main function to run RNAmoSh from command line"""
     exit_code = _main("rnamosh")
     sys.exit(exit_code)

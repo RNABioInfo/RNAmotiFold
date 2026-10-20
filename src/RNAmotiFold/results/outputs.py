@@ -8,7 +8,6 @@ from typing import IO, Any, Literal, Self, TypeVar
 
 import pandas
 from pandas import DataFrame
-
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,

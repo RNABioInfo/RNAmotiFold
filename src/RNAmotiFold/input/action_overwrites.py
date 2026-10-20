@@ -26,10 +26,10 @@ class VersionParser(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, VersionParser._parse_version(value))
+        setattr(namespace, self.dest, VersionParser._parse_version(values))
 
     @staticmethod
     def _parse_version(value: str | Sequence[Any] | None) -> str:
@@ -58,13 +58,13 @@ class MotifFileCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            MotifFileCheck._motif_file_check_function(str(value)),
+            MotifFileCheck._motif_file_check_function(str(values)),
         )
 
     @staticmethod
@@ -86,13 +86,13 @@ class LogCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            LogCheck._log_check_function(str(value)),
+            LogCheck._log_check_function(str(values)),
         )
 
     @staticmethod
@@ -115,13 +115,13 @@ class FloatCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            FloatCheck._float_check_function(str(value)),
+            FloatCheck._float_check_function(str(values)),
         )
 
     @staticmethod
@@ -145,12 +145,12 @@ class WorkerCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
-            namespace, self.dest, WorkerCheck.worker_check_function(value)
-        )  # type: ignore
+            namespace, self.dest, WorkerCheck.worker_check_function(values)
+        )
 
     @staticmethod
     def worker_check_function(
@@ -193,13 +193,13 @@ class MotifListCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            MotifListCheck._motif_list_check_function(value),
+            MotifListCheck._motif_list_check_function(values),
         )
 
     @staticmethod
@@ -223,18 +223,18 @@ class ConfigCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         """Checks if the given value is a valid config file, if input is None or empty, returns an empty string. Raises FileNotFoundError if the file does not exist"""
-        if value == "":
+        if values == "":
             loggers.info("Using default config values")
-            setattr(namespace, self.dest, value)
-        elif Path(str(value)).resolve().is_file():
-            setattr(namespace, self.dest, Path(str(value)))
+            setattr(namespace, self.dest, values)
+        elif Path(str(values)).resolve().is_file():
+            setattr(namespace, self.dest, Path(str(values)))
         else:
             raise FileNotFoundError(
-                f"Could not find specified config file {value}"
+                f"Could not find specified config file {values}"
             )
 
 
@@ -248,14 +248,14 @@ class OutputFileCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            OutputFileCheck.output_file_check_function(value),
-        )  # type: ignore
+            OutputFileCheck.output_file_check_function(values),
+        )
 
     @staticmethod
     def is_path_creatable(pathname: str) -> bool:
@@ -323,14 +323,14 @@ class AlgorithmMatching(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
             namespace,
             self.dest,
-            AlgorithmMatching.algorithm_matching_function(value),
-        )  # type: ignore , ignored cause of the base value typing. Only non protected function
+            AlgorithmMatching.algorithm_matching_function(values),
+        )
 
     @staticmethod
     def algorithm_matching_function(
@@ -370,23 +370,23 @@ class energyCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
-            namespace, self.dest, energyCheck._float_check_function(value)
+            namespace, self.dest, energyCheck._float_check_function(values)
         )
 
     @staticmethod
-    def _float_check_function(value: str | Sequence[Any] | None):
-        match value:
+    def _float_check_function(values: str | Sequence[Any] | None):
+        match values:
             case None:
                 raise ValueError(
                     "Can't use energy parameters without setting a value"
                 )
             case str():
-                if float(value) > 0:
-                    return float(value)
+                if float(values) > 0:
+                    return float(values)
             case Sequence():
                 raise TypeError("Set energy value is a sequence ?")
 
@@ -401,22 +401,22 @@ class gapcMCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         setattr(
-            namespace, self.dest, gapcMCheck._gapcm_check_function(value)
+            namespace, self.dest, gapcMCheck._gapcm_check_function(values)
         )
 
     @staticmethod
     def _gapcm_check_function(
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
     ) -> Path | None:
-        if isinstance(value, (Path, str)):
-            if Path(value).is_file():
+        if isinstance(values, (Path, str)):
+            if Path(values).is_file():
                 try:
                     version_check = subprocess.run(
-                        [f"{value}", "--version"],
+                        [f"{values}", "--version"],
                         capture_output=True,
                         check=True,
                     )
@@ -429,7 +429,7 @@ class gapcMCheck(argparse.Action):
                     ) from error
                 else:
                     if "gapcM" in version_check.stdout.decode():
-                        return Path(value)
+                        return Path(values)
                     else:
                         raise RuntimeError(
                             "The given file is not an instance of the modified Bellman's GAP compiler."
@@ -450,21 +450,21 @@ class PerlCheck(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        value: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, PerlCheckFunction(value))
+        setattr(namespace, self.dest, PerlCheckFunction(values))
 
 
-def PerlCheckFunction(value: str | Sequence[Any] | None) -> Path | None:
-    if isinstance(value, str):
+def PerlCheckFunction(values: str | Sequence[Any] | None) -> Path | None:
+    if isinstance(values, str):
         answer = subprocess.run(
-            [f"{value}", "-v"], capture_output=True, check=True
+            [f"{values}", "-v"], capture_output=True, check=True
         )
         if (
             answer.returncode == 0
             and "This is perl" in answer.stdout.decode()
         ):
-            return Path(value).resolve()
+            return Path(values).resolve()
         else:
             raise RuntimeError("The given file is not a perl interpreter.")
