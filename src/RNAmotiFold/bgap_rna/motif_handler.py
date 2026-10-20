@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 from typing import Literal, Self
 
-from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.input.parameters import ScriptParameters
+
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,9 @@ import logging
 from pathlib import Path
 from typing import Literal, NoReturn, Self
 
-from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.input.parameters import ScriptParameters
+
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,10 @@ class CallHandler:
 
     def __str__(self) -> str:
         return self.call
+
+    @staticmethod
+    def float_check(UpperBound: float, LowerBound: float, Value: float):
+        return LowerBound <= Value <= UpperBound
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> Self:
@@ -65,7 +70,6 @@ class CallHandler:
         subopt: bool = False,
         pfc: bool = False,
         low_prob_filter: float = 0.000001,
-        fast_mode: bool = False,
         weight: float = 1.0,
         fraction: float = 0.7,
         version: str = "4_10",
@@ -107,7 +111,7 @@ class CallHandler:
 
     @temperature.setter
     def temperature(self, temp: float) -> None:
-        if not -273 < temp < 100:
+        if not CallHandler.float_check(100, -273, temp):
             raise ValueError(
                 "Temperature has to be between -273 and 100 Kelvin."
             )
@@ -120,10 +124,12 @@ class CallHandler:
     @energy_percent.setter
     def energy_percent(self, range: float | None) -> None:
         if range is not None:
-            if range > 0:
+            if CallHandler.float_check(0, 1, range):
                 self._energy_perc = range
             else:
-                raise ValueError("Energy range cannot be below 0.")
+                raise ValueError(
+                    "Energy range cannot be below 0 or above 1."
+                )
         elif range is None:
             self._energy_perc = range
 
@@ -192,7 +198,7 @@ class CallHandler:
         if e is None:
             self._energy = None
         else:
-            if float(e) >= 0:
+            if e >= 0:
                 self._energy = e
             else:
                 raise ValueError("Energy range cannot be lower than 0.")
@@ -215,7 +221,7 @@ class CallHandler:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float) -> None:
-        if 0 <= value < 1:
+        if CallHandler.float_check(0, 1, value):
             self._low_probability_filter = value
         else:
             raise ValueError(
