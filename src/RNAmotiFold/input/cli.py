@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Literal, NoReturn
 
+from RNAmotiFold import AVAILABLE_BINARIES, RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.bgap_rna import alg_setup
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
 from RNAmotiFold.bgap_rna.input_handler import (
@@ -20,9 +21,6 @@ from RNAmotiFold.results.outputs import (
     ErrorOutput,
 )
 from RNAmotiFold.results.results import BaseResult
-
-import RNAmotiFold
-from RNAmotiFold import AVAILABLE_BINARIES
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,7 @@ def combine_calls(base_call: str, motif_subcalls: list[str]) -> list[str]:
 
 
 def check_install(algorithm: str) -> bool:
-    checkpath = RNAmotiFold.RNAMOTIFOLD_ROOT_DIR / "bin" / algorithm
+    checkpath = RNAMOTIFOLD_ROOT_DIR / "bin" / algorithm
     return checkpath.exists()
 
 
@@ -187,8 +185,8 @@ def _rnamotifold_install() -> NoReturn:
     if len(not_installed) == 0:
         if args.force:
             exit_code = alg_setup.main(
-                RNAmotiFold.AVAILABLE_BINARIES,
-                args.gapc_path,
+                AVAILABLE_BINARIES,
+                args.gapcM_path,
                 args.perl_path,
                 args.make_path,
                 args.workers,
@@ -198,8 +196,8 @@ def _rnamotifold_install() -> NoReturn:
             exit_code = 0
     else:
         exit_code = alg_setup.main(
-            RNAmotiFold.AVAILABLE_BINARIES,
-            args.gapc_path,
+            AVAILABLE_BINARIES,
+            args.gapcM_path,
             args.perl_path,
             args.make_path,
             args.workers,

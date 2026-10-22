@@ -1,10 +1,11 @@
 import logging
 from pathlib import Path
-from typing import Literal, NoReturn, Self
+from typing import Literal, Self
 
-from RNAmotiFold.input.parameters import ScriptParameters
+from numpy import float128
 
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold.input.parameters import ScriptParameters
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,10 @@ class CallHandler:
         return self.call
 
     @staticmethod
-    def float_check(UpperBound: float, LowerBound: float, Value: float):
-        return LowerBound <= Value <= UpperBound
+    def interval_check[T: (float, float128)](
+        LowerBound: T, UpperBound: T, Value: T
+    ) -> bool:
+        return bool(LowerBound <= Value <= UpperBound)
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> Self:
@@ -111,7 +114,7 @@ class CallHandler:
 
     @temperature.setter
     def temperature(self, temp: float) -> None:
-        if not CallHandler.float_check(100, -273, temp):
+        if not CallHandler.interval_check(-273.0, 100.0, temp):
             raise ValueError(
                 "Temperature has to be between -273 and 100 Kelvin."
             )
@@ -124,7 +127,9 @@ class CallHandler:
     @energy_percent.setter
     def energy_percent(self, range: float | None) -> None:
         if range is not None:
-            if CallHandler.float_check(0, 1, range):
+            if CallHandler.interval_check(
+                float128(0), float128(1), float128(range)
+            ):
                 self._energy_perc = range
             else:
                 raise ValueError(
@@ -221,7 +226,9 @@ class CallHandler:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float) -> None:
-        if CallHandler.float_check(0, 1, value):
+        if CallHandler.interval_check(
+            float128(0), float128(1), float128(value)
+        ):
             self._low_probability_filter = value
         else:
             raise ValueError(
@@ -321,7 +328,3 @@ class CallHandler:
         )  # Creates call string without a sequence
         logger.debug(f"Set call as {seq_free_call}")
         return seq_free_call
-
-    @call.setter
-    def call(self) -> NoReturn:
-        raise ValueError("Setting a custom call is not allowed")

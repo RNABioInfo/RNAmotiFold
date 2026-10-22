@@ -4,10 +4,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from io import StringIO
-from typing import IO, Any, Literal, Self, TypeVar
+from typing import IO, Any, Literal, Self
 
 import pandas
 from pandas import DataFrame
+
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,
@@ -20,8 +21,6 @@ logger = logging.getLogger(__name__)
 
 # Typing for AlgorithmOutputs:
 
-T = TypeVar("T", ResultMFE, ResultPFC, ResultAlignment, ResultError)
-
 
 # List flattening
 def _flatten(xss: list[list[Any]]) -> list[Any]:
@@ -32,7 +31,9 @@ def _flatten(xss: list[list[Any]]) -> list[Any]:
     return [x for xs in xss for x in xs]
 
 
-class GenericOutput[T](ABC):
+class GenericOutput[
+    T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)
+](ABC):
     """Generic AlgorithmOutput class to inherit from with MFE/PFC/Alignment Subclasses"""
 
     def __iter__(self) -> Iterator[T]:

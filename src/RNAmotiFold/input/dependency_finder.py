@@ -47,7 +47,7 @@ class _dependency_finder:
         if dep_path is not None:
             return dep_path
         raise FileNotFoundError(
-            f"Could not find {self.prog} on the system, install if you havent already or set the path to your local installation with --{self.prog}_path"
+            f"Could not find {self.prog} on the system, install if you havent already or set the path to your local installation with --{self.prog}"
         )
 
     @staticmethod
@@ -79,7 +79,7 @@ def find(dependency: str) -> Path:
             return path.resolve()
     except FileNotFoundError:
         logger.critical(
-            f"Could not find {dependency} on the system, install if you havent already or set it with --{dependency}_path"
+            f"Could not find {dependency} on the system, install if you havent already or set it with --{dependency}"
         )
         raise
     except CalledProcessError as e:

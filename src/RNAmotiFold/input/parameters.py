@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class InstallParameters:
-    gapc_path: Path
+    gapcM_path: Path
     perl_path: Path
     make_path: Path
     workers: int
@@ -25,7 +25,7 @@ class InstallParameters:
     @classmethod
     def from_namespace(cls, args: Namespace) -> Self:
         return cls(
-            gapc_path=args.gapc_path,
+            gapcM_path=args.gapcM_path,
             perl_path=args.perl_path,
             make_path=args.make_path,
             workers=args.workers,

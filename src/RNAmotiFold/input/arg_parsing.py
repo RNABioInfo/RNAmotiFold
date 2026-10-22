@@ -3,6 +3,10 @@ import configparser
 import logging
 from pathlib import Path
 
+from RNAmotiFold import (
+    RNAMOTIFOLD_DEFAULTS_CONFIG,
+    RNAMOTIFOLD_INSTALL_CONFIG,
+)
 from RNAmotiFold.input.action_overwrites import (
     AlgorithmMatching,
     ConfigCheck,
@@ -18,11 +22,6 @@ from RNAmotiFold.input.action_overwrites import (
     gapcMCheck,
 )
 from RNAmotiFold.input.parameters import InstallParameters, ScriptParameters
-
-from RNAmotiFold import (
-    RNAMOTIFOLD_DEFAULTS_CONFIG,
-    RNAMOTIFOLD_INSTALL_CONFIG,
-)
 
 loggers = logging.getLogger(__name__)
 
@@ -361,24 +360,24 @@ def get_install_arguments() -> InstallParameters:
     ]:
         install_config.set(install_config.default_section, option, None)
     parser = argparse.ArgumentParser(
-        prog="RNAmotiFold",
+        prog="RNAmotiFold_installer",
         description="Installer Script for RNAmotiFold algorithm binaries, run once before using RNAmotiFold",
         epilog="GONDOR CALLS FOR AID! AND ROHAN WILL ANSWER!",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--gapc_path",
+        "--gapcM",
         nargs="?",
         action=gapcMCheck,
-        dest="gapc_path",
+        dest="gapcM_path",
         default=install_config.get(
-            install_config.default_section, "gapc_path"
-        ),  # _detect_gapc(),
+            install_config.default_section, "gapcM_path"
+        ),
         type=Path,
-        help="GAPC Path for compilation, used for compiling algorithms. If not set the script will try to find a gapc",
+        help="Modified Bellmans GAP compiler path, used for compiling algorithms. If not set the script will try to find a gapcM with 'shutil.which' and command -v gapcM",
     )
     parser.add_argument(
-        "--perl_path",
+        "--perl",
         nargs="?",
         dest="perl_path",
         action=PerlCheck,
@@ -389,7 +388,7 @@ def get_install_arguments() -> InstallParameters:
         help="Perl interpreter path, used for compilation algorithms. If not set the script will try to find a perl interpreter with 'shutil.which' and command -v perl",
     )
     parser.add_argument(
-        "--make_path",
+        "--make",
         nargs="?",
         dest="make_path",
         action=PerlCheck,
