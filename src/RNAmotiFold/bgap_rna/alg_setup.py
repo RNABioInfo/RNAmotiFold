@@ -7,8 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Literal
 
-import RNAmotiFold
 import RNAmotiFold.input.dependency_finder
+
+import RNAmotiFold
 
 logger = logging.getLogger(__name__)
 

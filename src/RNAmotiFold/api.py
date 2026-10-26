@@ -94,7 +94,7 @@ class Predictions:
     # Subopt only
     subopt: bool = False
     subopt_energy_range_absolute: float = 0.0
-    subopt_energy_range_percent: float = 10.0
+    subopt_energy_range_percent: float = 0.1
 
     # RNAmotiAlign Only
     motif_weight: float = 1.0
@@ -827,7 +827,6 @@ def _predict(
         Predict.subopt,
         Predict.pfc,
         Predict.low_prob_filter,
-        Predict.single_motif_mode,
         Predict.motif_weight,
         Predict.motif_fraction,
         Predict.rna_3d_motif_atlas_version,
@@ -851,7 +850,7 @@ def _predict(
     full_calls = RNAmotiFold.input.cli.combine_calls(
         call_maker.call, motif_call_maker.motif_calls
     )
-    inputs = input_maker.script_read_input(Predict.process_type, input, id)  # type: ignore Raises a warning because process type is a string, but the init makes sure it can only be single or ali
+    inputs = input_maker.script_read_input(Predict.process_type, input, id)
     commands = RNAmotiFold.input.cli.create_inputs(full_calls, inputs)
     results = subprocess_manager.auto_run(
         commands, motif_call_maker.call_number, no_print=True

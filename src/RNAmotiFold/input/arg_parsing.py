@@ -3,10 +3,6 @@ import configparser
 import logging
 from pathlib import Path
 
-from RNAmotiFold import (
-    RNAMOTIFOLD_DEFAULTS_CONFIG,
-    RNAMOTIFOLD_INSTALL_CONFIG,
-)
 from RNAmotiFold.input.action_overwrites import (
     AlgorithmMatching,
     ConfigCheck,
@@ -22,6 +18,11 @@ from RNAmotiFold.input.action_overwrites import (
     gapcMCheck,
 )
 from RNAmotiFold.input.parameters import InstallParameters, ScriptParameters
+
+from RNAmotiFold import (
+    RNAMOTIFOLD_DEFAULTS_CONFIG,
+    RNAMOTIFOLD_INSTALL_CONFIG,
+)
 
 loggers = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-Q",
-        "--motif_source",
+        "--motif-source",
         help="Set database for RNA 3D motifs, 1 = RNA 3D Motif Atlas, 2 = Rfam, 3 = both.",
         choices=[
             1,
@@ -132,7 +133,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-b",
-        "--motif_orientation",
+        "--motif-orientation",
         help="Set allowed motif orientation: 1 = 5'-> 3',  2 = 3' -> 5' or 3 = both.",
         choices=[
             1,
@@ -153,7 +154,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-q",
-        "--shape_level",
+        "--shape-level",
         help=f"Set shape abstraction level. Default is {config.get(config.default_section, 'shape_level')}",
         choices=[
             1,
@@ -195,8 +196,8 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-c",
-        "--energy_percent",
-        help="Set energy range in %% for subopt folding. RNAmotiFold will then compute all structures in this range for every class. Gets overruled by -e if both are set.",
+        "--energy-percent",
+        help="Set energy range as fraction for subopt folding. Valid range is [0-1]. RNAmotiFold will then compute all structures in this range, for every available class. Gets overruled by -e if both are set.",
         type=float,
         dest="energy_percent",
         default=config.get(config.default_section, "energy_percent"),
@@ -209,7 +210,7 @@ def get_cmdarguments() -> ScriptParameters:
         default=config.getboolean(config.default_section, "pfc"),
     )
     parser.add_argument(
-        "--low_prob_filter",
+        "--low-prob-filter",
         help=f"Set probability cutoff for partition function, filters out results with lower probability during calculation. Default is {config.getfloat(config.default_section, 'low_prob_filter')}",
         type=float,
         dest="low_prob_filter",
@@ -217,7 +218,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-X",
-        "--custom_hairpins",
+        "--custom-hairpins",
         dest="custom_hairpins",
         help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCheck,
@@ -225,7 +226,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-Y",
-        "--custom_internals",
+        "--custom-internals",
         dest="custom_internals",
         help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCheck,
@@ -233,7 +234,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-Z",
-        "--custom_bulges",
+        "--custom-bulges",
         dest="custom_bulges",
         help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
         action=MotifFileCheck,
@@ -241,7 +242,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-L",
-        "--replace_hairpins",
+        "--replace-hairpins",
         dest="replace_hairpins",
         help="If set, instead of appending custom hairpins to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
@@ -251,7 +252,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-E",
-        "--replace_internals",
+        "--replace-internals",
         dest="replace_internals",
         help="If set, instead of appending custom internals to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
@@ -261,7 +262,7 @@ def get_cmdarguments() -> ScriptParameters:
     )
     parser.add_argument(
         "-G",
-        "--replace_bulges",
+        "--replace-bulges",
         dest="replace_bulges",
         help="If set, instead of appending custom bulges to the chosen RNA 3D Motif Atlas/Rfam sequences they will fully replace them.",
         action="store_true",
@@ -317,14 +318,14 @@ def get_cmdarguments() -> ScriptParameters:
         dest="motif_list",
     )
     parser.add_argument(
-        "--motif_weight",
+        "--motif-weight",
         help="Set weighting of motifs during alignment folding, multiplies motif score by this value. Default is 1.0",
         default=config.getfloat(config.default_section, "motif_weight"),
         type=float,
         dest="motif_weight",
     )
     parser.add_argument(
-        "--motif_fraction",
+        "--motif-fraction",
         help="Set how many rows a motif has to be recognized in the same loop to be accepted. Default is 0.7",
         default=config.getfloat(config.default_section, "motif_fraction"),
         type=float,

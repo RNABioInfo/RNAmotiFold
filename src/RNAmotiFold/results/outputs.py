@@ -8,7 +8,6 @@ from typing import IO, Any, Literal, Self
 
 import pandas
 from pandas import DataFrame
-
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,
@@ -343,7 +342,7 @@ class AlgorithmOutput:
         ]
         return cls(results=only_results, errors=only_errors)
 
-    def to_df(self) -> list[pandas.DataFrame]:
+    def to_df(self) -> list[pandas.DataFrame] | pandas.DataFrame:
         if not self.results:
             raise ValueError(
                 "Results are empty in AlgorithmOutput, cant create DataFrame"
@@ -351,7 +350,9 @@ class AlgorithmOutput:
         output = type(self.results[0])
         if all(type(x) is output for x in self.results):
             merged = output.merge(self.results)  # type: ignore This throws a type error due to the generics not lining upwith the Output types, it works and is probably a lot more work that it is worth to fix, especially since its just a typing error.
-            return [x.to_df().drop_duplicates() for x in merged]
+            if len(merged) > 1:
+                return [x.to_df().drop_duplicates() for x in merged]
+            return merged[0].to_df().drop_duplicates()
         raise ValueError(
             "Different algorithms in the same AlgorithmOutput detected, can't merge"
         )

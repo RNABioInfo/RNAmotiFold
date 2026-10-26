@@ -95,27 +95,21 @@ class AlgorithmInput:
         match process_type:
             case "ali":
                 for alignment in input_generator:
-                    try:
-                        seqs = [
-                            x
-                            .replace("-", "_")
-                            .replace("T", "U")
-                            .replace("t", "u")
-                            .upper()
-                            for x in alignment
-                        ]
-                        for seq in seqs:
-                            if any(
-                                c not in "NAUCGTnaucgt+_-#"
-                                for c in set(seq)
-                            ):
-                                raise ValueError(
-                                    "Input was neither a viable file path nor a viable RNA or DNA sequence"
-                                )
-                    except:
-                        raise TypeError(
-                            "Couldn't convert sequences from DNA to RNA"
-                        )
+                    seqs = [
+                        x
+                        .replace("-", "_")
+                        .replace("T", "U")
+                        .replace("t", "u")
+                        .upper()
+                        for x in alignment
+                    ]
+                    for seq in seqs:
+                        if any(
+                            c not in "NAUCGTnaucgt+_-#" for c in set(seq)
+                        ):
+                            raise ValueError(
+                                "Input was neither a viable file path nor a viable RNA or DNA sequence"
+                            )
                     if all(len(item) == len(seqs[0]) for item in seqs):
                         concat = "#".join(seqs)
                         returnlist.append(

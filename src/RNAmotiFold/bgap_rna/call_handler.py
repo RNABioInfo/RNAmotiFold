@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Literal, Self
 
 from numpy import float128
+from RNAmotiFold.input.parameters import ScriptParameters
 
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
-from RNAmotiFold.input.parameters import ScriptParameters
 
 logger = logging.getLogger(__name__)
 

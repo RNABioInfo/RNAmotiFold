@@ -183,6 +183,7 @@ class SubprocessHandler:
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> Self:
+        print(params)
         return cls(params.workers, params.output, params.alg_type())
 
     def auto_run(
