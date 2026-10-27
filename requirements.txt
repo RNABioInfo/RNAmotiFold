@@ -2,7 +2,7 @@ anyio==4.15.1
 bio==1.8.4
 biopython==1.88
 biothings_client==0.5.1
-certifi==2026.7.22
+certifi==2026.10.18
 charset-normalizer==3.5.1
 gprofiler-official==1.0.0
 h11==0.16.0
@@ -21,4 +21,3 @@ six==1.17.0
 tqdm==4.70.1
 typing_extensions==4.16.0
 urllib3==2.8.0
-certifi>=2026.10.18
