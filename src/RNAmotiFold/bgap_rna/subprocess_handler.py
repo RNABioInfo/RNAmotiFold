@@ -14,6 +14,7 @@ from RNAmotiFold.results.outputs import (
     AlgorithmOutput,
     AlignmentOutput,
     ErrorOutput,
+    GenericOutput,
     MFEOutput,
     PFCOutput,
 )
@@ -74,6 +75,7 @@ class SubprocessHandler:
             else:
                 result = ErrorOutput(
                     input_obj.id,
+                    input_obj.runtime_call,
                     subprocess_output.stderr,
                     [str(subprocess_output.returncode)],
                 )
@@ -183,7 +185,6 @@ class SubprocessHandler:
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> Self:
-        print(params)
         return cls(params.workers, params.output, params.alg_type())
 
     def auto_run(
@@ -192,7 +193,7 @@ class SubprocessHandler:
         calls_per_input: int,
         no_print: bool,
     ) -> AlgorithmOutput:
-        if len(inputs) >= 2 and self.max_processes > 1:
+        if len(inputs) > 2 or self.max_processes > 1:
             logger.debug(
                 "Recognized multiple inputs, creating worker pool and running in parallel"
             )
@@ -203,70 +204,63 @@ class SubprocessHandler:
             logger.debug(
                 "Recognized only one input, running in single process mode"
             )
-            return AlgorithmOutput.from_single(
-                self._single_run(inputs[0], no_print)
+            return AlgorithmOutput.from_list(
+                self._single_run(inputs, no_print)
             )
 
     def _single_run(
         self,
-        input_obj: AlgorithmInput,
+        input_objs: list[AlgorithmInput],
         no_print: bool,
-    ) -> MFEOutput | PFCOutput | AlignmentOutput | ErrorOutput:
+    ) -> list[GenericOutput]:
         """Function for running a single"""
-        subprocess_output = subprocess.run(
-            input_obj.runtime_call,
-            text=True,
-            capture_output=True,
-            shell=True,
-            check=False,
-        )
-        if subprocess_output.returncode == 0:
-            match self.process_type:
-                case "mfe":
-                    answer = MFEOutput(
-                        input_obj.id,
-                        subprocess_output.stdout,
-                        [subprocess_output.stderr],
-                    )
-                case "pfc":
-                    answer = PFCOutput(
-                        input_obj.id,
-                        subprocess_output.stdout,
-                        [subprocess_output.stderr],
-                    )
-                case "ali":
-                    answer = AlignmentOutput(
-                        input_obj.id,
-                        subprocess_output.stdout,
-                        [subprocess_output.stderr],
-                    )
-
-            if self.output_path is not None:
-                with open(self.output_path) as wf:
-                    answer.write_results(False, wf)
-            else:
-                if no_print:
-                    pass
-                else:
-                    answer.write_results(False)
-        else:
-            answer = ErrorOutput(
-                input_obj.id,
-                subprocess_output.stderr,
-                [str(subprocess_output.returncode)],
+        match self.process_type:
+            case "mfe":
+                type_alias = MFEOutput
+            case "pfc":
+                type_alias = PFCOutput
+            case "ali":
+                type_alias = AlignmentOutput
+        returnlist: list[GenericOutput] = []
+        for input_obj in input_objs:
+            subprocess_output = subprocess.run(
+                input_obj.runtime_call,
+                text=True,
+                capture_output=True,
+                shell=True,
+                check=False,
             )
-        return answer
+            if subprocess_output.returncode == 0:
+                answer = type_alias(
+                    input_obj.id,
+                    subprocess_output.stdout,
+                    [subprocess_output.stderr],
+                )
+                if self.output_path is not None:
+                    with open(self.output_path, "w+") as wf:
+                        answer.write_results(False, wf)
+                else:
+                    if no_print:
+                        pass
+                    else:
+                        answer.write_results(False)
+            else:
+                answer = ErrorOutput(
+                    input_obj.id,
+                    input_obj.runtime_call,
+                    subprocess_output.stderr,
+                    [str(subprocess_output.returncode)],
+                )
+
+            returnlist.append(answer)
+        return returnlist
 
     def _multi_run(
         self,
         inputs: list[AlgorithmInput],
         calls_per_input: int,
         no_print: bool,
-    ) -> (
-        list[MFEOutput | ErrorOutput]
-        | list[PFCOutput | ErrorOutput]
-        | list[AlignmentOutput | ErrorOutput]
-    ):
+    ) -> list[GenericOutput]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
         input_q: multiprocessing.Queue[AlgorithmInput | None] = (
@@ -315,9 +309,7 @@ class SubprocessHandler:
         pool.join()
         # Tell the listener that no more objects will be put into the queue with the None sentinel and let him finish working
         listening.join()
-        listener_output: (
-            list[MFEOutput | ErrorOutput]
-            | list[PFCOutput | ErrorOutput]
-            | list[AlignmentOutput | ErrorOutput]
-        ) = PipeOut.recv()  # Receive the list of outputs from the listener
+        listener_output: list[GenericOutput] = (
+            PipeOut.recv()
+        )  # Receive the list of outputs from the listener
         return listener_output

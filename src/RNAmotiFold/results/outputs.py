@@ -99,12 +99,12 @@ class GenericOutput[
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
         for err in self.stderr:
             if len(err.strip()) > 0:
-                logger.warning(self.id + ": " + err.strip())
+                sys.stderr.write(self.id + ": " + err.strip())
         if not initiated:
             logger.debug("Starting result writing")
             print(self.results[0].header, file=destination)
         for result_obj in self.results:
-            print(result_obj.tsv)
+            print(result_obj.tsv, file=destination)
         return True
 
     def __str__(self) -> str:
@@ -275,15 +275,18 @@ class ErrorOutput(GenericOutput[ResultError]):
     def __init__(
         self,
         name: str,
+        call: str,
         result: str | list[ResultError],
         stderr: list[str],
     ) -> None:
         if isinstance(result, list):
             super().__init__(name=name, results=result, stderr=stderr)
+            self.call = call
         else:
             relist_error: list[ResultError] = []
             relist_error.append(ResultError.from_string(name, result))
             super().__init__(name=name, results=relist_error, stderr=stderr)
+            self.call = call
 
     @classmethod
     def merge(
@@ -297,7 +300,7 @@ class ErrorOutput(GenericOutput[ResultError]):
     ) -> Literal[True]:
         if not initiated:
             print(
-                f"Encountered issue during processing of {self.id}:",
+                f"Encountered issue while processing {self.id} with call {self.call}:",
                 end="",
                 file=destination,
             )
@@ -328,14 +331,12 @@ class AlgorithmOutput:
     @classmethod
     def from_list(
         cls,
-        result_list: (
-            list[MFEOutput | ErrorOutput]
-            | list[AlignmentOutput | ErrorOutput]
-            | list[PFCOutput | ErrorOutput]
-        ),
+        result_list: list[GenericOutput],
     ) -> Self:
         only_results: list[MFEOutput | AlignmentOutput | PFCOutput] = [
-            x for x in result_list if not isinstance(x, ErrorOutput)
+            x
+            for x in result_list
+            if isinstance(x, (MFEOutput, AlignmentOutput, PFCOutput))
         ]
         only_errors: list[ErrorOutput] = [
             x for x in result_list if isinstance(x, ErrorOutput)
