@@ -842,7 +842,7 @@ def _predict(
         Predict.replace_bulges,
         Predict.rna_3d_motif_atlas_version,
     )
-    subprocess_manager = subprocess_handler.SubprocessHandler(
+    subprocess_manager = subprocess_handler.make_handler(
         Predict.parallel_processes,
         Predict.output,
         Predict.prediction_type,

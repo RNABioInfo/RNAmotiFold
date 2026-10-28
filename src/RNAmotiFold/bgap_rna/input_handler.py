@@ -114,7 +114,7 @@ class AlgorithmInput:
                         concat = "#".join(seqs)
                         returnlist.append(
                             AlgorithmInput(
-                                "N/A", concat, process_type=process_type
+                                input_generator.source.name.split(".")[0], concat, process_type=process_type
                             )
                         )
                     else:
@@ -130,10 +130,6 @@ class AlgorithmInput:
                             process_type=process_type,
                         )
                     )
-            case _:
-                raise ValueError(
-                    "Unknown state detected during algorithm input generation"
-                )
         return returnlist
 
 
