@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Literal, NoReturn
 
-from RNAmotiFold import AVAILABLE_BINARIES, RNAMOTIFOLD_ROOT_DIR
 from RNAmotiFold.bgap_rna import alg_setup
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
 from RNAmotiFold.bgap_rna.input_handler import (
@@ -14,13 +13,17 @@ from RNAmotiFold.bgap_rna.input_handler import (
     InputHandler,
 )
 from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
-from RNAmotiFold.bgap_rna.subprocess_handler import create_subprocess_handler
+from RNAmotiFold.bgap_rna.subprocess_handler import (
+    create_subprocess_handler,
+)
 from RNAmotiFold.input import action_overwrites, arg_parsing
 from RNAmotiFold.results.outputs import (
     AlgorithmOutput,
     ErrorOutput,
 )
 from RNAmotiFold.results.results import BaseResult
+
+from RNAmotiFold import AVAILABLE_BINARIES, RNAMOTIFOLD_ROOT_DIR
 
 logger = logging.getLogger(__name__)
 

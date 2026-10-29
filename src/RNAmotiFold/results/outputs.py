@@ -4,11 +4,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from io import StringIO
-from typing import IO, Any, Literal, Protocol, Self
+from typing import IO, Any, Literal, Self
 
 import pandas
 from pandas import DataFrame
-
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,
@@ -102,6 +101,7 @@ class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC
     @abstractmethod
     def to_df(self) -> DataFrame:
         """Turns Algorithm output into pandas dataframes for easy analysis and integration"""
+        ...
 
     @classmethod
     @abstractmethod

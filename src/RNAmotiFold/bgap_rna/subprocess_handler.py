@@ -21,20 +21,27 @@ from RNAmotiFold.results.outputs import (
 logger = logging.getLogger(__name__)
 
 
-def create_subprocess_handler(params: ScriptParameters) -> "SubprocessHandler":
-    return make_handler(params.workers,params.output,params.alg_type())
+def create_subprocess_handler(
+    params: ScriptParameters,
+) -> "SubprocessHandler":
+    return make_handler(params.workers, params.output, params.alg_type())
 
-def make_handler(max_procs:int,output:Path|None,algorithm_type:Literal["mfe","ali","pfc"]):
+
+def make_handler(
+    max_procs: int,
+    output: Path | None,
+    algorithm_type: Literal["mfe", "ali", "pfc"],
+):
     match algorithm_type:
         case "mfe":
-            return SubprocessHandler(max_procs,output,MFEOutput)
+            return SubprocessHandler(max_procs, output, MFEOutput)
         case "pfc":
-            return SubprocessHandler(max_procs,output,PFCOutput)
+            return SubprocessHandler(max_procs, output, PFCOutput)
         case "ali":
-            return SubprocessHandler(max_procs,output,AlignmentOutput)
+            return SubprocessHandler(max_procs, output, AlignmentOutput)
 
 
-class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
+class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
     """Class to manage subprocesses for running RNAmotiFold algorithms."""
 
     def __init__(
@@ -50,7 +57,9 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
         self.result_type = result_type
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters, type: type[T]) -> Self:
+    def from_script_parameters(
+        cls, params: ScriptParameters, type: type[T]
+    ) -> Self:
         return cls(params.workers, params.output, type)
 
     def _single_run(
@@ -96,8 +105,7 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
     def _worker(
         input_queue: "multiprocessing.Queue[AlgorithmInput | None]",
         output_queue: "multiprocessing.Queue[ T | ErrorOutput | None]",
-        return_type: type[T]
-        ,
+        return_type: type[T],
     ) -> None:
         """Simplest worker function that should work universally, do all pre/post processing outside of this."""
         pid = os.getpid()
@@ -156,7 +164,9 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         none_counter = 0
-        output_dict: defaultdict[str, list[T | ErrorOutput]] = defaultdict(list)
+        output_dict: defaultdict[str, list[T | ErrorOutput]] = defaultdict(
+            list
+        )
         writing_started = False
         while True:
             try:
@@ -181,22 +191,24 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
             if isinstance(result, ErrorOutput):
                 result.write_results()
             if len(output_dict[result.id]) == calls_per_input:
-                merged = typer.merge(
-                    [
-                        x
-                        for x in output_dict[result.id]
-                        if not isinstance(x, ErrorOutput)
-                    ]
-                ) #type:ignore Can be fixed with protocol but it gets too complicated and not worth it
+                merged = typer.merge([
+                    x
+                    for x in output_dict[result.id]
+                    if not isinstance(x, ErrorOutput)
+                ])  # type:ignore Can be fixed with protocol but it gets too complicated and not worth it
                 if output_file_path is not None:
                     with open(output_file_path, "a+") as wf:
                         for element in merged:
-                            writing_started = element.write_results(writing_started, wf)
+                            writing_started = element.write_results(
+                                writing_started, wf
+                            )
                 else:
                     if no_print:
                         continue
                     for element in merged:
-                        writing_started = element.write_results(writing_started)
+                        writing_started = element.write_results(
+                            writing_started
+                        )
 
     def auto_run(
         self,
@@ -209,10 +221,13 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
                 "Recognized multiple inputs, creating worker pool and running in parallel"
             )
             return AlgorithmOutput.from_list(
-                self._multi_run(inputs, calls_per_input, no_print), self.result_type
+                self._multi_run(inputs, calls_per_input, no_print),
+                self.result_type,
             )
         else:
-            logger.debug("Recognized only one input, running in single process mode")
+            logger.debug(
+                "Recognized only one input, running in single process mode"
+            )
             return AlgorithmOutput.from_list(
                 self._single_run(inputs, no_print), self.result_type
             )
@@ -225,7 +240,9 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
     ) -> list[T | ErrorOutput]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
-        input_q: multiprocessing.Queue[AlgorithmInput | None] = manager.Queue()  # type: ignore Because Queue has type Any
+        input_q: multiprocessing.Queue[AlgorithmInput | None] = (
+            manager.Queue()
+        )  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
         if len(inputs) < self.max_processes:
             logger.debug(
@@ -247,7 +264,7 @@ class SubprocessHandler[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
                 calls_per_input,
                 no_print,
                 necessary_processes,
-                self.result_type
+                self.result_type,
             ),
         )
         listening.start()

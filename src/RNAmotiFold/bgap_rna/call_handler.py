@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Literal, Self
 
 from numpy import float128
+from RNAmotiFold.input.parameters import ScriptParameters
 
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
-from RNAmotiFold.input.parameters import ScriptParameters
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,9 @@ class CallHandler:
     @temperature.setter
     def temperature(self, temp: float) -> None:
         if not CallHandler.interval_check(-273.0, 100.0, temp):
-            raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
+            raise ValueError(
+                "Temperature has to be between -273 and 100 Kelvin."
+            )
         self._temperature = temp
 
     @property
@@ -125,10 +127,14 @@ class CallHandler:
     @energy_percent.setter
     def energy_percent(self, range: float | None) -> None:
         if range is not None:
-            if CallHandler.interval_check(float128(0), float128(1), float128(range)):
+            if CallHandler.interval_check(
+                float128(0), float128(1), float128(range)
+            ):
                 self._energy_perc = range
             else:
-                raise ValueError("Energy range cannot be below 0 or above 1.")
+                raise ValueError(
+                    "Energy range cannot be below 0 or above 1."
+                )
         elif range is None:
             self._energy_perc = range
 
@@ -220,10 +226,14 @@ class CallHandler:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float) -> None:
-        if CallHandler.interval_check(float128(0), float128(1), float128(value)):
+        if CallHandler.interval_check(
+            float128(0), float128(1), float128(value)
+        ):
             self._low_probability_filter = value
         else:
-            raise ValueError("Probability filter cannot be below 0 or above 1")
+            raise ValueError(
+                "Probability filter cannot be below 0 or above 1"
+            )
 
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
@@ -303,7 +313,11 @@ class CallHandler:
             runtime_dictionary["-D"] = self.motif_fraction
         if self.allowLonelyBasepairs in [0, 1]:
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
-        arguments = [f"{x} {y}" for x, y in runtime_dictionary.items() if y is not None]
+        arguments = [
+            f"{x} {y}"
+            for x, y in runtime_dictionary.items()
+            if y is not None
+        ]
 
         seq_free_call = " ".join(
             [

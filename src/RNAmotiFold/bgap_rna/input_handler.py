@@ -114,7 +114,9 @@ class AlgorithmInput:
                         concat = "#".join(seqs)
                         returnlist.append(
                             AlgorithmInput(
-                                input_generator.source.name.split(".")[0], concat, process_type=process_type
+                                input_generator.source.name.split(".")[0],
+                                concat,
+                                process_type=process_type,
                             )
                         )
                     else:
