@@ -1,11 +1,10 @@
 import importlib.util as _importlib
-from pathlib import Path as _Path
+from pathlib import Path
 
-RNAMOTIFOLD_ROOT_DIR = _Path(__file__).resolve().absolute().parent
+RNAMOTIFOLD_ROOT_DIR = Path(__file__).resolve().absolute().parent
 
-
-def _check_submodule(submodule: str) -> _Path:
-    SUBMOD_DIR = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
+def _check_submodule(submodule: str) -> Path:
+    SUBMOD_DIR = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
         raise ModuleNotFoundError(
             f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAMOTIFOLD_ROOT_DIR}"
@@ -15,7 +14,7 @@ def _check_submodule(submodule: str) -> _Path:
 
 
 try:
-    _script_dir: _Path = (
+    _script_dir: Path = (
         RNAMOTIFOLD_ROOT_DIR
         / "RNALoops"
         / "Misc"
@@ -24,9 +23,7 @@ try:
         / "motifs"
         / "get_rna3d_motifs.py"
     )
-    _spec = _importlib.spec_from_file_location(
-        "uniteractive_update", _script_dir
-    )
+    _spec = _importlib.spec_from_file_location("uniteractive_update", _script_dir)
     if _spec is None or _spec.loader is None:
         raise ImportError("Submodule RNALoops was not correctly cloned.")
     _motifs = _importlib.module_from_spec(_spec)
@@ -35,19 +32,13 @@ except ImportError as e:
     print(e)
 
 
-_RNAMOTIFOLD_CONFIG_DIR: _Path = _Path.joinpath(
-    RNAMOTIFOLD_ROOT_DIR, "configs"
-)
-RNAMOTIFOLD_DEFAULTS_CONFIG = _Path.joinpath(
-    _RNAMOTIFOLD_CONFIG_DIR, "defaults.ini"
-)
-RNAMOTIFOLD_INSTALL_CONFIG: _Path = _Path.joinpath(
-    _RNAMOTIFOLD_CONFIG_DIR, "install.ini"
-)
-RNAMOTIFOLD_BIN: _Path = _Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
+_RNAMOTIFOLD_CONFIG_DIR: Path = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
+RNAMOTIFOLD_DEFAULTS_CONFIG = Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "defaults.ini")
+RNAMOTIFOLD_INSTALL_CONFIG: Path = Path.joinpath(_RNAMOTIFOLD_CONFIG_DIR, "install.ini")
+RNAMOTIFOLD_BIN: Path = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "bin")
 RNAMOTIFOLD_BIN.mkdir(exist_ok=True, parents=True)
-RNALOOPS_PATH: _Path = _check_submodule("RNALoops")
-_RNAMOTIFOLD_MOTIFS_PATH: _Path = _Path.joinpath(
+RNALOOPS_PATH: Path = _check_submodule("RNALoops")
+_RNAMOTIFOLD_MOTIFS_PATH: Path = Path.joinpath(
     RNALOOPS_PATH,
     "Misc",
     "Applications",

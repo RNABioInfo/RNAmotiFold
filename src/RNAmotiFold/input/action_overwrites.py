@@ -7,6 +7,8 @@ from pathlib import Path
 from sys import stderr
 from typing import Any, Literal
 
+from RNAmotiFold.Misc.EnumTypes import *
+
 import RNAmotiFold
 
 loggers = logging.getLogger(__name__)
@@ -160,11 +162,13 @@ class WorkerCheck(argparse.Action):
         cpus: int | None = cpu_count()
         match value:
             case str():
+                if int(value) < 0:
+                    raise ValueError("Can't set parallel processes to a negative")
                 if cpus is not None and int(value) > cpus:
                     loggers.info(
-                        f"Given worker number exceeds detected cpu count, setting workers to {cpus / 2!s}"
+                        f"Given worker number exceeds detected cpu count, setting workers to {cpus!s}"
                     )
-                    return round(int(cpus) / 2)
+                    return round(int(cpus))
                 else:
                     return int(value)
             case Sequence() | None:
@@ -173,9 +177,9 @@ class WorkerCheck(argparse.Action):
                 )
                 if cpus is not None:
                     loggers.critical(
-                        f"Setting number of cpus to {cpus / 2!s}"
+                        f"Setting number of cpus to {cpus!s}"
                     )
-                    return round(int(cpus) / 2)
+                    return round(int(cpus))
                 else:
                     loggers.critical(
                         "Couldnt access number of CPUs either, playing it save and setting workers to 1"
@@ -335,21 +339,21 @@ class AlgorithmMatching(argparse.Action):
     @staticmethod
     def algorithm_matching_function(
         value: str | Sequence[Any] | None,
-    ) -> Literal["RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"]:
+    ) -> AlgorithmType:
         """Checks if the given value is a valid algorithm name, raises ValueError if not"""
         match value:
             case None:
-                return "RNAmotiFold"
+                return AlgorithmType.RNAMOTIFOLD
             case str():
                 match value.strip().lower():
                     case "rnamosh":
-                        return "RNAmoSh"
+                        return AlgorithmType.RNAMOSH
                     case "rnamotices":
-                        return "RNAmotiCes"
+                        return AlgorithmType.RNAMOTICES
                     case "rnamotifold":
-                        return "RNAmotiFold"
+                        return AlgorithmType.RNAMOTIFOLD
                     case "rnamotialign":
-                        return "RNAmotiAlign"
+                        return AlgorithmType.RNAMOTIALIGN
                     case _:
                         raise ValueError(
                             f"Invalid algorithm specified: {value}. Valid choices are RNAmoSh, RNAmotiCes, RNAmotiAlign, and RNAmotiFold"

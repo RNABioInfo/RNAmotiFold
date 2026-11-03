@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Literal, NoReturn
+from typing import NoReturn
 
 from RNAmotiFold.bgap_rna import alg_setup
 from RNAmotiFold.bgap_rna.call_handler import CallHandler
@@ -12,11 +12,13 @@ from RNAmotiFold.bgap_rna.input_handler import (
     AlgorithmInput,
     InputHandler,
 )
-from RNAmotiFold.bgap_rna.motif_handler import MotifHandler
+from RNAmotiFold.bgap_rna.motif_handler import MotifCall, MotifHandler
 from RNAmotiFold.bgap_rna.subprocess_handler import (
     create_subprocess_handler,
 )
+from RNAmotiFold.bgap_rna.tempfile_handler import TempFileHandler
 from RNAmotiFold.input import action_overwrites, arg_parsing
+from RNAmotiFold.Misc.EnumTypes import AlgorithmType
 from RNAmotiFold.results.outputs import (
     AlgorithmOutput,
     ErrorOutput,
@@ -33,11 +35,11 @@ def _check_all_algorithms() -> list[str]:
     return [x for x in AVAILABLE_BINARIES if not check_install(x)]
 
 
-def combine_calls(base_call: str, motif_subcalls: list[str]) -> list[str]:
+def combine_calls(base_call: str, motif_subcalls: list[MotifCall]) -> list[str]:
     if len(motif_subcalls) == 0:
         return [base_call]
     else:
-        return [base_call + " " + x for x in motif_subcalls]
+        return [base_call + " " + " ".join(x.call) for x in motif_subcalls] #FIXME make this a a list so I can remove shell=True asap
 
 
 def check_install(algorithm: str) -> bool:
@@ -93,18 +95,10 @@ def _configure_logs(loglevel: str, logfile: Path | None) -> None:
 
 
 def _main(
-    algorithm: (
-        Literal["rnamotifold", "rnamotices", "rnamotialign", "rnamosh"]
-        | None
-    ) = None,
+    algorithm: AlgorithmType = AlgorithmType.RNAMOTIFOLD,
 ) -> int:
     rt_args: arg_parsing.ScriptParameters = arg_parsing.get_cmdarguments()
-    if algorithm is not None:
-        rt_args.algorithm = (
-            action_overwrites.AlgorithmMatching.algorithm_matching_function(
-                algorithm
-            )
-        )  # Corrects capitalization
+
     _configure_logs(loglevel=rt_args.loglevel, logfile=rt_args.logfile)
     _temp_cleanup()
     BaseResult.separator = rt_args.separator
@@ -118,10 +112,12 @@ def _main(
     call_maker = CallHandler.from_script_parameters(rt_args)
     subprocess_manager = create_subprocess_handler(rt_args)
 
-    # Combine the (potentially) separate motif calls and the general commandline call
-    full_calls: list[str] = combine_calls(
-        call_maker.call, motif_subcall_maker.motif_calls
-    )
+    # Create the necessary calls
+    main_call = call_maker.make_main_call()
+    motif_calls = motif_subcall_maker.create_motif_calls()
+
+    # Combine motif calls and the main call
+    full_calls: list[str] = combine_calls(main_call, motif_calls)
     not_installed = _check_all_algorithms()
 
     # Check if RNAmotiFold is installed and do updates if necessary/wanted
@@ -142,7 +138,7 @@ def _main(
         results = [
             subprocess_manager.auto_run(
                 inputs=cmd_inputs,
-                calls_per_input=motif_subcall_maker.call_number,
+                calls_per_input=len(motif_calls),
                 no_print=False,
             )
         ]
@@ -165,18 +161,16 @@ def _main(
                 except OSError as e:
                     print(e)
                     continue
-                alg_input: list[AlgorithmInput] = create_inputs(
-                    full_calls, rt_input
-                )
+                alg_input: list[AlgorithmInput] = create_inputs(full_calls, rt_input)
                 results.append(
                     subprocess_manager.auto_run(
                         inputs=alg_input,
-                        calls_per_input=motif_subcall_maker.call_number,
+                        calls_per_input=len(motif_calls),
                         no_print=False,
                     )
                 )
-    AlgorithmInput.cleanup_temps()
-    motif_subcall_maker.cleanup_tmp_files()
+
+    TempFileHandler.cleanup()
     if any(isinstance(x, ErrorOutput) for x in results):
         return 1
     return 0
@@ -210,25 +204,25 @@ def _rnamotifold_install() -> NoReturn:
 
 def _rnamotifold_cli() -> NoReturn:
     """Main function to run RNAmotiFold from command line"""
-    exit_code = _main("rnamotifold")
+    exit_code = _main(AlgorithmType.RNAMOTIFOLD)
     sys.exit(exit_code)
 
 
 def _rnamotices_cli() -> NoReturn:
     """Main function to run RNAmotiCes from command line"""
-    exit_code = _main("rnamotices")
+    exit_code = _main(AlgorithmType.RNAMOTICES)
     sys.exit(exit_code)
 
 
 def _rnamotialign_cli() -> NoReturn:
     """Main function to run RNAmotiAlign from command line"""
-    exit_code = _main("rnamotialign")
+    exit_code = _main(AlgorithmType.RNAMOTIALIGN)
     sys.exit(exit_code)
 
 
 def _rnamosh_cli() -> NoReturn:
     """Main function to run RNAmoSh from command line"""
-    exit_code = _main("rnamosh")
+    exit_code = _main(AlgorithmType.RNAMOSH)
     sys.exit(exit_code)
 
 

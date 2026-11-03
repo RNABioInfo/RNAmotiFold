@@ -3,13 +3,14 @@ from argparse import Namespace
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Literal, Self
+from typing import ClassVar, Self
 
 from RNAmotiFold.input.action_overwrites import (
     AlgorithmMatching,
     OutputFileCheck,
     WorkerCheck,
 )
+from RNAmotiFold.Misc.EnumTypes import *
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +44,15 @@ class ScriptParameters:
     id: str
     input: str | None
     output: Path | None
-    algorithm: Literal[
-        "RNAmoSh", "RNAmotiCes", "RNAmotiFold", "RNAmotiAlign"
-    ]
+    algorithm: AlgorithmType
     subopt: bool
-    motif_source: int
-    motif_orientation: Literal[1, 2, 3]
+    motif_source: MotifSource
+    motif_orientation: MotifOrientation
     kvalue: int
-    shape_level: int
+    shape_level: ShapeLevel
     energy: float
     temperature: float
-    basepairs: Literal[0, 1, 2]
+    basepairs: AllowLonelyBP
     energy_percent: float
     pfc: bool
     low_prob_filter: float
@@ -83,19 +82,20 @@ class ScriptParameters:
         return f"{classname}({', '.join(together)})"
 
     @property
-    def process_type(self) -> Literal["ali", "single"]:
-        if self.algorithm == "RNAmotiAlign":
-            return "ali"
+    def process_type(self) -> ProcessType:
+        if self.algorithm == AlgorithmType.RNAMOTIALIGN:
+            return ProcessType.ALIGNMENT
         else:
-            return "single"
+            return ProcessType.SINGLE
 
-    def alg_type(self) -> Literal["pfc", "ali", "mfe"]:
-        if self.pfc:
-            return "pfc"
-        elif self.algorithm == "RNAmotiAlign":
-            return "ali"
+    @property
+    def alg_type(self) -> PredictionType:
+        if self.algorithm == AlgorithmType.RNAMOTIALIGN:
+            return PredictionType.ALI
+        elif self.pfc:
+            return PredictionType.PFC
         else:
-            return "mfe"
+            return PredictionType.MFE
 
     @classmethod
     def from_argparser(cls, args: Namespace) -> Self:
@@ -111,15 +111,15 @@ class ScriptParameters:
             id=args.id,
             input=args.input,
             output=outpath,
-            algorithm=args.algorithm,
+            algorithm=AlgorithmType(args.algorithm),
             subopt=args.subopt,
-            motif_source=args.motif_source,
-            motif_orientation=args.motif_orientation,
+            motif_source=MotifSource(int(args.motif_source)),
+            motif_orientation=MotifOrientation(int(args.motif_orientation)),
             kvalue=args.kvalue,
-            shape_level=args.shape_level,
+            shape_level=ShapeLevel(int(args.shape_level)),
             energy=args.energy,
             temperature=args.temperature,
-            basepairs=args.basepairs,
+            basepairs=AllowLonelyBP(int(args.basepairs)),
             energy_percent=args.energy_percent,
             pfc=args.pfc,
             low_prob_filter=args.low_prob_filter,
@@ -192,12 +192,12 @@ class ScriptParameters:
                 confs.get(section_name, "algorithm")
             ),
             subopt=confs.getboolean(section_name, "subopt"),
-            motif_source=confs.getint(section_name, "motif_source"),
+            motif_source=MotifSource(confs.getint(section_name, "motif_source")),
             motif_orientation=confs.getint(
                 section_name, "motif_orientation"
             ),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=confs.getint(section_name, "kvalue"),
-            shape_level=confs.getint(section_name, "shape_level"),
+            shape_level=ShapeLevel(confs.getint(section_name, "shape_level")),
             energy=confs.getfloat(section_name, "energy"),
             temperature=confs.getfloat(section_name, "temperature"),
             basepairs=confs.getint(section_name, "basepairs"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3

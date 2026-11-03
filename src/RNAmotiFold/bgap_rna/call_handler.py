@@ -1,9 +1,16 @@
 import logging
 from pathlib import Path
-from typing import Literal, Self
+from typing import Self
 
 from numpy import float128
 from RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.Misc.EnumTypes import (
+    AlgorithmType,
+    AllowLonelyBP,
+    MotifOrientation,
+    MotifSource,
+    ShapeLevel,
+)
 
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 
@@ -25,9 +32,6 @@ class CallHandler:
         for i in range(len(v)):
             together.append(f"{k[i]}={v[i]!r}")
         return f"{classname}({', '.join(together)})"
-
-    def __str__(self) -> str:
-        return self.call
 
     @staticmethod
     def interval_check[T: (float, float128)](
@@ -59,17 +63,15 @@ class CallHandler:
 
     def __init__(
         self,
-        alg: Literal[
-            "RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"
-        ] = "RNAmotiFold",
-        motif_source: int = 1,
-        motif_orientation: Literal[1, 2, 3] = 1,
+        alg: AlgorithmType = AlgorithmType.RNAMOTIFOLD,
+        motif_source: MotifSource = MotifSource.BGSU,
+        motif_orientation: MotifOrientation = MotifOrientation.FORWARD,
         kvalue: int = 5,
-        shape_level: int = 3,
+        shape_level: ShapeLevel = ShapeLevel.LEVEL3,
         energy: float | None = None,
         temperature: float = 37.0,
         energy_percent: float = 5.0,
-        allowLonelyBasepairs: Literal[0, 1, 2] = 0,
+        allowLonelyBasepairs: AllowLonelyBP = AllowLonelyBP.NO_LP,
         subopt: bool = False,
         pfc: bool = False,
         low_prob_filter: float = 0.000001,
@@ -95,29 +97,13 @@ class CallHandler:
         self.version = version
 
     @property
-    def process_type(self) -> Literal["single", "ali"]:
-        match self.algorithm:
-            case "RNAmotiAlign":
-                progtype = "ali"
-            case "RNAmotiFold" | "RNAmoSh" | "RNAmotiCes":
-                progtype = "single"
-            case _:
-                raise ValueError(
-                    "Could not identify process type as single folding or alignment folding, check your set algorithm"
-                )
-        logger.debug("Set process type as " + progtype)
-        return progtype
-
-    @property
     def temperature(self) -> float:
         return self._temperature
 
     @temperature.setter
     def temperature(self, temp: float) -> None:
         if not CallHandler.interval_check(-273.0, 100.0, temp):
-            raise ValueError(
-                "Temperature has to be between -273 and 100 Kelvin."
-            )
+            raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
         self._temperature = temp
 
     @property
@@ -127,71 +113,12 @@ class CallHandler:
     @energy_percent.setter
     def energy_percent(self, range: float | None) -> None:
         if range is not None:
-            if CallHandler.interval_check(
-                float128(0), float128(1), float128(range)
-            ):
+            if CallHandler.interval_check(float128(0), float128(1), float128(range)):
                 self._energy_perc = range
             else:
-                raise ValueError(
-                    "Energy range cannot be below 0 or above 1."
-                )
+                raise ValueError("Energy range cannot be below 0 or above 1.")
         elif range is None:
             self._energy_perc = range
-
-    @property
-    def allowLonelyBasepairs(self) -> int:
-        return self._allowLonelyBasepairs
-
-    @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: Literal[0, 1, 2]) -> None:
-        if val in [0, 1, 2]:
-            self._allowLonelyBasepairs = val
-        else:
-            raise ValueError(
-                "Allow lonely base pairs can only be set to 0 (no lonely base pairs), 1 (allow all lonely base pairs),2 (allow lonely base pairs around motifs only)"
-            )
-
-    # Choose motif source, 1 = RNA 3D Motif Atlas, 2 = RMFam, 3 = Both
-    @property
-    def motif_source(self) -> int:
-        return self._motif_source
-
-    @motif_source.setter
-    def motif_source(self, Q: int) -> None:
-        if Q in [1, 2, 3]:
-            self._motif_source = Q
-        else:
-            raise ValueError(
-                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both"
-            )
-
-    # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
-    @property
-    def motif_orientation(self) -> Literal[1, 2, 3]:
-        return self._motif_orientation
-
-    @motif_orientation.setter
-    def motif_orientation(self, b: Literal[1, 2, 3]) -> None:
-        if b in [1, 2, 3]:
-            self._motif_orientation: Literal[1, 2, 3] = b
-        else:
-            raise ValueError(
-                "Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both."
-            )
-
-    # Set shape abstraction level, viable inputs are 1-5
-    @property
-    def shape_level(self) -> int:
-        return self._shape_level
-
-    @shape_level.setter
-    def shape_level(self, q: int) -> None:
-        if q in [1, 2, 3, 4, 5]:
-            self._shape_level = q
-        else:
-            raise ValueError(
-                "Shape level can only be set to levels 5 (most abstract) - 1 (least abstract)."
-            )
 
     # Set energy range for suboptimal candidate calcualtions
     @property
@@ -226,14 +153,10 @@ class CallHandler:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float) -> None:
-        if CallHandler.interval_check(
-            float128(0), float128(1), float128(value)
-        ):
+        if CallHandler.interval_check(float128(0), float128(1), float128(value)):
             self._low_probability_filter = value
         else:
-            raise ValueError(
-                "Probability filter cannot be below 0 or above 1"
-            )
+            raise ValueError("Probability filter cannot be below 0 or above 1")
 
     # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
     @property
@@ -245,7 +168,7 @@ class CallHandler:
     # Builds the algorithm binary name from the set parameters
     @property
     def algorithm_binary(self) -> str:
-        if self.algorithm == "RNAmotiAlign":
+        if self.algorithm == AlgorithmType.RNAMOTIALIGN:
             if self.subopt or self.pfc:
                 raise NotImplementedError(
                     "RNAmotiAlign is not available with subopt or partition function implementations"
@@ -271,24 +194,7 @@ class CallHandler:
         logger.debug(f"Set algorithm binary as {alg}")
         return alg
 
-    @property
-    def custom_bulges(self) -> Path | None:
-        return self._custom_bulges
-
-    @custom_bulges.setter
-    def custom_bulges(self, path: str | Path | None) -> None:
-        if path is not None:
-            if Path(path).is_file():
-                self._custom_bulges = Path(path)
-            else:
-                raise FileNotFoundError(
-                    "Unabled to find specified custom bulges file, please check the file path"
-                )
-        else:
-            self._custom_bulges = None
-
-    @property
-    def call(self) -> str:
+    def make_main_call(self) -> str:
         """Automatic call setter. The function checks the set algorithm and builds a call string based on it."""
 
         runtime_dictionary: dict[str, str | int | float | Path | None] = {
@@ -297,6 +203,7 @@ class CallHandler:
             "-t": self.temperature,
             "-v": self.version,
         }
+        # Only one of these will be activate at a time
         if self.subopt:
             # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary
             runtime_dictionary["-c"] = self.energy_percent
@@ -306,18 +213,17 @@ class CallHandler:
         else:
             runtime_dictionary["-k"] = self.kvalue
 
-        if self.algorithm == "RNAmoSh":
+        if self.algorithm == AlgorithmType.RNAMOSH:
             runtime_dictionary["-q"] = self.shape_level
-        if self.algorithm == "RNAmotiAlign":
+        if self.algorithm == AlgorithmType.RNAMOTIALIGN:
             runtime_dictionary["-W"] = self.motif_weighting
             runtime_dictionary["-D"] = self.motif_fraction
-        if self.allowLonelyBasepairs in [0, 1]:
+        if (
+            self.allowLonelyBasepairs == AllowLonelyBP.NO_LP
+            or self.allowLonelyBasepairs == AllowLonelyBP.ALL_LP
+        ):
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
-        arguments = [
-            f"{x} {y}"
-            for x, y in runtime_dictionary.items()
-            if y is not None
-        ]
+        arguments = [f"{x} {y}" for x, y in runtime_dictionary.items() if y is not None]
 
         seq_free_call = " ".join(
             [

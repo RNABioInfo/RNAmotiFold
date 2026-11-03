@@ -4,10 +4,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from io import StringIO
-from typing import IO, Any, Literal, Self
+from typing import IO, Literal, Self
 
 import pandas
 from pandas import DataFrame
+from RNAmotiFold.bgap_rna.input_handler import flatten
+from RNAmotiFold.Misc.EnumTypes import LoopType
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,
@@ -20,14 +22,6 @@ logger = logging.getLogger(__name__)
 
 # Typing for AlgorithmOutputs:
 
-
-# List flattening
-def _flatten(xss: list[list[Any]]) -> list[Any]:
-    """
-    Used to flatten a lists of lists into a single list
-    """
-
-    return [x for xs in xss for x in xs]
 
 class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC):
     """Generic AlgorithmOutput class to inherit from with MFE/PFC/Alignment Subclasses"""
@@ -54,7 +48,7 @@ class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC
         name: str,
         results: list[T],
         stderr: list[str],
-        motif: Literal["hairpin", "internal", "bulge", "all"] = "all",
+        motif: LoopType = LoopType.ALL,
     ) -> None:
         self.id: str = name
         self.results: list[T] = results
@@ -105,8 +99,9 @@ class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC
 
     @classmethod
     @abstractmethod
-    def merge[subT:(MFEOutput,PFCOutput,AlignmentOutput)](cls:type[subT],items:list[subT]) -> list[subT]:
-        ...
+    def merge[subT: (MFEOutput, PFCOutput, AlignmentOutput)](
+        cls: type[subT], items: list[subT]
+    ) -> list[subT]: ...
 
 
 class MFEOutput(GenericOutput[ResultMFE]):
@@ -144,7 +139,7 @@ class MFEOutput(GenericOutput[ResultMFE]):
             cls(
                 items[0].id,
                 result_list,
-                stderr=_flatten([x.stderr for x in items]),
+                stderr=flatten([x.stderr for x in items]),
             )
         ]
 
@@ -242,7 +237,7 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
             cls(
                 items[0].id,
                 result_list,
-                stderr=_flatten([x.stderr for x in items]),
+                stderr=flatten([x.stderr for x in items]),
             )
         ]
 
@@ -296,26 +291,25 @@ class ErrorOutput(GenericOutput[ResultError]):
     def to_df(self) -> DataFrame:
         return pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
 
+
 @dataclass
-class AlgorithmOutput[T: (MFEOutput,PFCOutput,AlignmentOutput)]:
-    results:list[T] 
-    errors :list[ErrorOutput]
-    result_type:type[T]
+class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
+    results: list[T]
+    errors: list[ErrorOutput]
+    result_type: type[T]
 
     @classmethod
     def from_list(
-        cls,
-        result_list: list[T | ErrorOutput],
-        result_type:type[T]
+        cls, result_list: list[T | ErrorOutput], result_type: type[T]
     ) -> Self:
         only_errors = [x for x in result_list if isinstance(x, ErrorOutput)]
         only_results = [x for x in result_list if isinstance(x, result_type)]
-        return cls(only_results, only_errors,result_type)
+        return cls(only_results, only_errors, result_type)
 
     def to_df(self) -> list[pandas.DataFrame] | pandas.DataFrame:
         if len(self.results) == 0:
             raise ValueError(
                 "Results are empty in AlgorithmOutput, cant create DataFrame"
             )
-        merged = self.result_type.merge(self.results) #type:ignore Error caused by union can be fixed with protocol but not worth it
+        merged = self.result_type.merge(self.results)  # type:ignore Error caused by union can be fixed with protocol but not worth it
         return [x.to_df().drop_duplicates() for x in merged]

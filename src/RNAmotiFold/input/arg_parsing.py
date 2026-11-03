@@ -338,7 +338,7 @@ def get_cmdarguments() -> ScriptParameters:
     args = parser.parse_args()
     loggers.debug(f"Args: {args}")
     # Some lazily done arg checks to avoid specific arg combinations that dont work or arent implemented, clean this up at some point!
-    if args.algorithm != "RNAmotiFold" and args.merge:
+    if args.algorithm != "RNAmotiFold":
         raise parser.error(
             "Fast mode merging is only implemented for RNAmotiFold, sorry!"
         )

@@ -13,6 +13,7 @@ from RNAmotiFold.bgap_rna import (
     motif_handler,
     subprocess_handler,
 )
+from RNAmotiFold.Misc.EnumTypes import *
 from RNAmotiFold.results.outputs import AlgorithmOutput
 from RNAmotiFold.results.results import BaseResult
 
@@ -39,7 +40,7 @@ class Predictions:
             "custom_internals",
             "custom_bulges",
             "replace_hairpins",
-            "repalce_internals",
+            "replace_internals",
             "replace_bulges",
             "allowLonelyBasepairs",
             "single_motif_mode",
@@ -55,21 +56,15 @@ class Predictions:
             "pfc",
             "low_prob_filter",
         )
-        df = {
-            k: v
-            for k, v in inputs.items()
-            if k in allowed and v is not None
-        }
+        df = {k: v for k, v in inputs.items() if k in allowed and v is not None}
         return cls(**df)
 
     # Necessary param
-    algorithm: Literal[
-        "RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"
-    ] = "RNAmotiFold"
+    algorithm: AlgorithmType = AlgorithmType.RNAMOTIFOLD
     ###GENERAL PARAMS####
     temperature: float = 37.0
-    motif_source: Literal[1, 2, 3] = 1
-    motif_orientation: Literal[1, 2, 3] = 3
+    motif_source: MotifSource = MotifSource.BGSU
+    motif_orientation: MotifOrientation = MotifOrientation.FORWARD
     output: Path | None = None
     rna_3d_motif_atlas_version: str = "4_14"
     motif_string: str = ""
@@ -79,13 +74,13 @@ class Predictions:
     replace_hairpins: bool = False
     replace_internals: bool = False
     replace_bulges: bool = False
-    allowLonelyBasepairs: Literal[0, 1, 2] = 0
+    allowLonelyBasepairs: AllowLonelyBP = AllowLonelyBP.NO_LP
     single_motif_mode: bool = False
     parallel_processes: int = 1
     separator: str = ","
 
     ##RNAMOSH PARAMS###
-    shape_level: Literal[1, 2, 3, 4, 5] = 5
+    shape_level: ShapeLevel = ShapeLevel.LEVEL5
 
     ###MFE PARAMS###
     # Classified only
@@ -105,30 +100,17 @@ class Predictions:
     low_prob_filter: float = 0.000001
 
     @property
-    def process_type(self):
-        if self.algorithm == "RNAmotiAlign":
-            return "ali"
-        else:
-            return "single"
-
-    @property
     def prediction_type(self):
-        if self.algorithm == "RNAmotiAlign":
-            return "ali"
+        if self.algorithm == AlgorithmType.RNAMOTIALIGN:
+            return PredictionType.ALI
         elif self.pfc:
-            return "pfc"
+            return PredictionType.PFC
         else:
-            return "mfe"
+            return PredictionType.MFE
 
 
 def rnamotifold(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -152,10 +134,10 @@ def rnamotifold(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiFold",
+        algorithm=AlgorithmType.RNAMOTIFOLD,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         output=output,
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
@@ -165,11 +147,11 @@ def rnamotifold(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+       allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=kvalue,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -182,13 +164,7 @@ def rnamotifold(
 
 
 def rnamotifold_subopt(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -220,10 +196,10 @@ def rnamotifold_subopt(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiFold",
+        algorithm=AlgorithmType.RNAMOTIFOLD,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -232,12 +208,12 @@ def rnamotifold_subopt(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+       allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=None,
         subopt=True,
         subopt_energy_range_absolute=subopt_energy_range_absolute,
@@ -250,13 +226,7 @@ def rnamotifold_subopt(
 
 
 def rnamotifold_pfc(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -280,10 +250,10 @@ def rnamotifold_pfc(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiFold",
+        algorithm=AlgorithmType.RNAMOTIFOLD,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -292,12 +262,12 @@ def rnamotifold_pfc(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=None,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -310,17 +280,12 @@ def rnamotifold_pfc(
 
 
 def rnamosh(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     kvalue: int | None = 5,
+    shape_level:Literal[1,2,3,4,5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -340,10 +305,10 @@ def rnamosh(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmoSh",
+        algorithm=AlgorithmType.RNAMOSH,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         output=output,
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
@@ -353,11 +318,11 @@ def rnamosh(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=kvalue,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -370,18 +335,13 @@ def rnamosh(
 
 
 def rnamosh_subopt(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
+    shape_level:Literal[1,2,3,4,5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -408,10 +368,10 @@ def rnamosh_subopt(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmoSh",
+        algorithm=AlgorithmType.RNAMOSH,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -420,12 +380,12 @@ def rnamosh_subopt(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel(shape_level),
         kvalue=None,
         subopt=True,
         subopt_energy_range_absolute=subopt_energy_range_absolute,
@@ -438,17 +398,12 @@ def rnamosh_subopt(
 
 
 def rnamosh_pfc(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     pfc_probability_filter: float | None = None,
+    shape_level:Literal[1,2,3,4,5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -468,10 +423,10 @@ def rnamosh_pfc(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmoSh",
+        algorithm=AlgorithmType.RNAMOSH,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -480,12 +435,12 @@ def rnamosh_pfc(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel(shape_level),
         kvalue=None,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -498,13 +453,7 @@ def rnamosh_pfc(
 
 
 def rnamotices(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -536,10 +485,10 @@ def rnamotices(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiCes",
+        algorithm=AlgorithmType.RNAMOTICES,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -548,12 +497,12 @@ def rnamotices(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=None,
         subopt=True,
         subopt_energy_range_absolute=subopt_energy_range_absolute,
@@ -566,13 +515,7 @@ def rnamotices(
 
 
 def rnamotices_subopt(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -604,10 +547,10 @@ def rnamotices_subopt(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiCes",
+        algorithm=AlgorithmType.RNAMOTICES,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -616,12 +559,12 @@ def rnamotices_subopt(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=None,
         subopt=True,
         subopt_energy_range_absolute=subopt_energy_range_absolute,
@@ -634,13 +577,7 @@ def rnamotices_subopt(
 
 
 def rnamotices_pfc(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -664,10 +601,10 @@ def rnamotices_pfc(
     return _predict(
         input=input,
         id=id,
-        algorithm="RNAmotiCes",
+        algorithm=AlgorithmType.RNAMOTICES,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -676,12 +613,12 @@ def rnamotices_pfc(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         kvalue=None,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -694,13 +631,7 @@ def rnamotices_pfc(
 
 
 def rnamotialign(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -729,10 +660,10 @@ def rnamotialign(
         kvalue=kvalue,
         motif_fraction=motif_fraction,
         motif_weight=motif_weight,
-        algorithm="RNAmotiAlign",
+        algorithm=AlgorithmType.RNAMOTIALIGN,
         temperature=temperature,
-        motif_source=motif_source,
-        motif_orientation=motif_orientation,
+        motif_source=MotifSource(motif_source),
+        motif_orientation=MotifOrientation(motif_orientation),
         rna_3d_motif_atlas_version=rna_3d_motif_atlas_version,
         motif_string=motif_string,
         custom_hairpins=custom_hairpins,
@@ -741,12 +672,12 @@ def rnamotialign(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-        allowLonelyBasepairs=allowLonelyBasepairs,
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
         separator=separator,
-        shape_level=None,
+        shape_level=ShapeLevel.LEVEL5,
         subopt=False,
         subopt_energy_range_absolute=None,
         subopt_energy_range_percent=None,
@@ -755,21 +686,12 @@ def rnamotialign(
 
 
 def _predict(
-    input: (
-        str
-        | SeqRecord.SeqRecord
-        | Path
-        | list[SeqRecord.SeqRecord]
-        | list[str]
-    ),
+    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
     id: str = "N/A",
-    algorithm: (
-        Literal["RNAmotiFold", "RNAmotiCes", "RNAmotiAlign", "RNAmoSh"]
-        | None
-    ) = None,
+    algorithm: AlgorithmType = AlgorithmType.RNAMOTIFOLD,
     temperature: float = 37.0,
-    motif_source: Literal[1, 2, 3] = 1,
-    motif_orientation: Literal[1, 2, 3] = 3,
+    motif_source: MotifSource = MotifSource.BGSU,
+    motif_orientation: MotifOrientation = MotifOrientation.FORWARD,
     output: Path | None = None,
     rna_3d_motif_atlas_version: str = "4_14",
     motif_string: str = "",
@@ -779,12 +701,12 @@ def _predict(
     replace_hairpins: bool = False,
     replace_internals: bool = False,
     replace_bulges: bool = False,
-    allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
+    allowLonelyBasepairs: AllowLonelyBP = AllowLonelyBP.NO_LP,
     single_motif_mode: bool = False,
     parallel_processes: int | None = cpu_count(),
     separator: str | None = ",",
     ##RNAMOSH PARAMS###
-    shape_level: Literal[1, 2, 3, 4, 5] | None = 5,
+    shape_level: ShapeLevel = ShapeLevel.LEVEL5,
     ###MFE PARAMS###
     # Classified only
     kvalue: int | None = 5,
@@ -807,13 +729,14 @@ def _predict(
         )
     bruh = Bunch(locals())
     Predict = Predictions.from_dict(vars(bruh))
-    installed = RNAmotiFold.input.cli.check_install(Predict.algorithm)
-    if not installed:
+    not_installed = RNAmotiFold.input.cli._check_all_algorithms()
+    if len(not_installed) > 0:
         raise FileNotFoundError(
-            "Could not find binary for chosen algorithm please run RNAmotiFold from your commandline once to install algorithm binaries"
+            "Algorithms are not set up, re-run RNAmotiFold_installer"
         )
+    run_process_type = GetProcessType(Predict.algorithm)
     BaseResult.separator = Predict.separator
-    input_maker = input_handler.InputHandler(Predict.process_type, None)
+    input_maker = input_handler.InputHandler(run_process_type, None)
     call_maker = call_handler.CallHandler(
         Predict.algorithm,
         Predict.motif_source,
@@ -831,6 +754,7 @@ def _predict(
         Predict.motif_fraction,
         Predict.rna_3d_motif_atlas_version,
     )
+    main_call = call_maker.make_main_call()
     motif_call_maker = motif_handler.MotifHandler(
         Predict.motif_string,
         Predict.single_motif_mode,
@@ -842,17 +766,15 @@ def _predict(
         Predict.replace_bulges,
         Predict.rna_3d_motif_atlas_version,
     )
+    motif_calls = motif_call_maker.create_motif_calls()
+
     subprocess_manager = subprocess_handler.make_handler(
         Predict.parallel_processes,
         Predict.output,
         Predict.prediction_type,
     )
-    full_calls = RNAmotiFold.input.cli.combine_calls(
-        call_maker.call, motif_call_maker.motif_calls
-    )
-    inputs = input_maker.script_read_input(Predict.process_type, input, id)
+    full_calls = RNAmotiFold.input.cli.combine_calls(main_call, motif_calls)
+    inputs = input_maker.script_read_input(run_process_type, input, id)
     commands = RNAmotiFold.input.cli.create_inputs(full_calls, inputs)
-    results = subprocess_manager.auto_run(
-        commands, motif_call_maker.call_number, no_print=True
-    )
+    results = subprocess_manager.auto_run(commands, len(motif_calls), no_print=True)
     return results
