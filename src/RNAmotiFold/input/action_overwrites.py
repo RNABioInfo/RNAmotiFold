@@ -1,3 +1,4 @@
+from numpy import float128
 import argparse
 import logging
 import subprocess
@@ -5,9 +6,10 @@ from collections.abc import Sequence
 from os import W_OK, access, cpu_count
 from pathlib import Path
 from sys import stderr
-from typing import Any, Literal
+from typing import Any
 
 from RNAmotiFold.Misc.EnumTypes import *
+from RNAmotiFold.Misc.Helpers import interval_check
 
 import RNAmotiFold
 
@@ -19,9 +21,7 @@ these checks. The check functions are used to check if the given input is valid 
 
 
 class VersionParser(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -51,9 +51,7 @@ class VersionParser(argparse.Action):
 
 
 class MotifFileCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -63,25 +61,19 @@ class MotifFileCheck(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(
-            namespace,
-            self.dest,
-            MotifFileCheck._motif_file_check_function(str(values)),
-        )
+        setattr(namespace, self.dest, MotifFileCheck._motif_file_check_function(values))
 
     @staticmethod
-    def _motif_file_check_function(value: str | None) -> Path:
-        if value is not None and value != "":
-            if Path(value).resolve().is_file():
-                return Path(value)
-            raise FileNotFoundError("Could not find specified file.")
-        raise ValueError("No motif file specified")
+    def _motif_file_check_function(value: str | Sequence[Any] | None) -> Path:
+        if value is None or value == "":
+            return RNAmotiFold.EMPTY_CSV_PATH
+        if Path(str(value)).resolve().is_file():
+            return Path(str(value))
+        raise FileNotFoundError("Could not find specified file.")
 
 
 class LogCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -108,9 +100,7 @@ class LogCheck(argparse.Action):
 
 
 class FloatCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -129,7 +119,7 @@ class FloatCheck(argparse.Action):
     @staticmethod
     def _float_check_function(value: str) -> float:
         """Checks if the given value is a float between 0 and 1, raises ValueError if not"""
-        if 1 - float(value) >= 0:
+        if interval_check(0.0, 1.0, float(value)):
             return float(value)
         else:
             raise ValueError(
@@ -138,9 +128,7 @@ class FloatCheck(argparse.Action):
 
 
 class WorkerCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -150,9 +138,7 @@ class WorkerCheck(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(
-            namespace, self.dest, WorkerCheck.worker_check_function(values)
-        )
+        setattr(namespace, self.dest, WorkerCheck.worker_check_function(values))
 
     @staticmethod
     def worker_check_function(
@@ -172,13 +158,9 @@ class WorkerCheck(argparse.Action):
                 else:
                     return int(value)
             case Sequence() | None:
-                loggers.critical(
-                    "Couldnt process input number of parallel processes"
-                )
+                loggers.critical("Couldnt process input number of parallel processes")
                 if cpus is not None:
-                    loggers.critical(
-                        f"Setting number of cpus to {cpus!s}"
-                    )
+                    loggers.critical(f"Setting number of cpus to {cpus!s}")
                     return round(int(cpus))
                 else:
                     loggers.critical(
@@ -188,9 +170,7 @@ class WorkerCheck(argparse.Action):
 
 
 class MotifListCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -218,9 +198,7 @@ class MotifListCheck(argparse.Action):
 
 
 class ConfigCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -237,15 +215,11 @@ class ConfigCheck(argparse.Action):
         elif Path(str(values)).resolve().is_file():
             setattr(namespace, self.dest, Path(str(values)))
         else:
-            raise FileNotFoundError(
-                f"Could not find specified config file {values}"
-            )
+            raise FileNotFoundError(f"Could not find specified config file {values}")
 
 
 class OutputFileCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -282,10 +256,9 @@ class OutputFileCheck(argparse.Action):
         try:
             # To prevent "os" module calls from raising undesirable exceptions on
             # invalid pathnames, is_pathname_valid() is explicitly called first.
-            return (
-                Path(pathname).resolve().parent.exists()
-                and OutputFileCheck.is_path_creatable(pathname)
-            )
+            return Path(
+                pathname
+            ).resolve().parent.exists() and OutputFileCheck.is_path_creatable(pathname)
         except OSError:
             loggers.error(
                 f"Given output file path: {pathname} is neither a file nor a dictionary that the current user can edit, defaulting to outputting to stdout"
@@ -308,9 +281,7 @@ class OutputFileCheck(argparse.Action):
                         )
                     return value
                 else:
-                    raise FileNotFoundError(
-                        "Given path is not a valid path."
-                    )
+                    raise FileNotFoundError("Given path is not a valid path.")
             case Sequence():
                 raise TypeError(
                     "Unsupported output file path was invalid of type, trying using a string"
@@ -318,9 +289,7 @@ class OutputFileCheck(argparse.Action):
 
 
 class AlgorithmMatching(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -365,40 +334,35 @@ class AlgorithmMatching(argparse.Action):
 
 
 class energyCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None,
+        values: str | Sequence[Any] | None | float,
         option_string: str | None = None,
     ) -> None:
-        setattr(
-            namespace, self.dest, energyCheck._float_check_function(values)
-        )
+        setattr(namespace, self.dest, energyCheck._float_check_function(values))
 
     @staticmethod
-    def _float_check_function(values: str | Sequence[Any] | None):
+    def _float_check_function(values: str | Sequence[Any] | None | float):
         match values:
             case None:
-                raise ValueError(
-                    "Can't use energy parameters without setting a value"
-                )
+                raise ValueError("Can't use energy parameters without setting a value")
             case str():
-                if float(values) > 0:
+                if interval_check(0, 100, float(values)):
                     return float(values)
             case Sequence():
                 raise TypeError("Set energy value is a sequence ?")
+            case float():
+                if interval_check(0, 100, values):
+                    return values
 
 
 class gapcMCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -408,9 +372,7 @@ class gapcMCheck(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(
-            namespace, self.dest, gapcMCheck._gapcm_check_function(values)
-        )
+        setattr(namespace, self.dest, gapcMCheck._gapcm_check_function(values))
 
     @staticmethod
     def _gapcm_check_function(
@@ -445,9 +407,7 @@ class gapcMCheck(argparse.Action):
 
 
 class PerlCheck(argparse.Action):
-    def __init__(
-        self, option_strings: str, dest: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(
@@ -462,13 +422,8 @@ class PerlCheck(argparse.Action):
 
 def PerlCheckFunction(values: str | Sequence[Any] | None) -> Path | None:
     if isinstance(values, str):
-        answer = subprocess.run(
-            [f"{values}", "-v"], capture_output=True, check=True
-        )
-        if (
-            answer.returncode == 0
-            and "This is perl" in answer.stdout.decode()
-        ):
+        answer = subprocess.run([f"{values}", "-v"], capture_output=True, check=True)
+        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
             return Path(values).resolve()
         else:
             raise RuntimeError("The given file is not a perl interpreter.")

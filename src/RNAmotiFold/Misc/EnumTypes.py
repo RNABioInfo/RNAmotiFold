@@ -57,9 +57,35 @@ class MotifOrigin(StrEnum):
     CUSTOM = "custom"
 
 
-def GetProcessType(Algorithm:AlgorithmType) -> ProcessType:
+class AvailableBinaries(StrEnum):
+    RNAMOTIFOLD = "RNAmotiFold"
+    RNAMOSH = "RNAmoSh"
+    RNAMOTICES = "RNAmotiCes"
+    RNAMOTIALIGN = "RNAmotiAlign"
+    RNAMOTIFOLD_MOTIFLP = "RNAmotiFoldMotmicro"
+    RNAMOSH_MOTIFLP = "RNAmoShMotmicro"
+    RNAMOTICES_MOTIFLP = "RNAmotiCesMotmicro"
+    RNAMOTIFOLD_PFC = "RNAmotiFold_pfc"
+    RNAMOSH_PFC = "RNAmoSh_pfc"
+    RNAMOTICES_PFC = "RNAmotiCes_pfc"
+    RNAMOTIFOLD_MOTIFLP_PFC = "RNAmotiFold_motmacro_pfc"
+    RNAMOSH_MOTIFLP_PFC = "RNAmoSh_motmacro_pfc"
+    RNAMOTICES_MOTIFLP_PFC = "RNAmotiCes_motmacro_pfc"
+    RNAMOTIFOLD_SUBOPT = "RNAmotiFold_subopt"
+    RNAMOSH_SUBOPT = "RNAmoSh_subopt"
+    RNAMOTICES_SUBOPT = "RNAmotiCes_subopt"
+    RNAMOTIFOLD_MOTIFLP_SUBOPT = "RNAmotiFold_motmacro_subopt"
+    RNAMOSH_MOTIFLP_SUBOPT = "RNAmoSh_motmacro_subopt"
+    RNAMOTICES_MOTIFLP_SUBOPT = "RNAmotiCes_motmacro_subopt"
+
+
+def GetProcessType(Algorithm: AlgorithmType) -> ProcessType:
     match Algorithm:
         case AlgorithmType.RNAMOTIALIGN:
             return ProcessType.ALIGNMENT
-        case AlgorithmType.RNAMOTIFOLD | AlgorithmType.RNAMOTICES | AlgorithmType.RNAMOSH:
-            return ProcessType.SINGLE   
+        case (
+            AlgorithmType.RNAMOTIFOLD
+            | AlgorithmType.RNAMOTICES
+            | AlgorithmType.RNAMOSH
+        ):
+            return ProcessType.SINGLE

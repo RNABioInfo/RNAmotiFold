@@ -4,14 +4,14 @@ import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import NamedTuple, Self
 
-from RNAmotiFold.bgap_rna.input_handler import flatten
 from RNAmotiFold.bgap_rna.tempfile_handler import TempFileHandler
 from RNAmotiFold.input.parameters import ScriptParameters
 from RNAmotiFold.Misc.EnumTypes import LoopType, MotifOrigin
+from RNAmotiFold.Misc.Helpers import flatten
 
-from RNAmotiFold import RNALOOPS_PATH, RNAMOTIFOLD_ROOT_DIR
+from RNAmotiFold import EMPTY_CSV_PATH, RNALOOPS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class MotifSet:
     loop_type: LoopType
 
     @classmethod
-    def from_list(cls, motlist: list[Motif]):
+    def from_list(cls, motlist: list[Motif]) -> Self:
         types = {x.loop_type for x in motlist}
         if len(types) > 1:
             raise ValueError("Motifs of different loop types grouped together")
@@ -46,7 +46,9 @@ class MotifSet:
         if len(abbreviations) > 1:
             raise ValueError("Motifs of different abberviations grouped together")
         return cls(
-            motif_list=motlist, abbreviation=abbreviations.pop(), loop_type=types.pop()
+            motif_list=motlist,
+            abbreviation=abbreviations.pop(),
+            loop_type=types.pop(),
         )
 
     def write_self(self) -> None:
@@ -105,15 +107,28 @@ class MotifCall:
     def call(self):
         returnlist: list[str] = []
         if self.hairpin_path is not None:
-            returnlist.append(f"-X {self.hairpin_path!s}")
-            returnlist.append("-L 1")
+            returnlist.extend(["-X", f"{self.hairpin_path!s}", "-L", "1"])
         if self.internal_path is not None:
-            returnlist.append(f"-Y {self.internal_path!s}")
-            returnlist.append("-E 1")
+            returnlist.extend(["-Y", f"{self.internal_path!s}", "-E", "1"])
         if self.bulge_path is not None:
-            returnlist.append(f"-Z {self.bulge_path!s}")
-            returnlist.append("-G 1")
+            returnlist.extend(["-Z", f"{self.bulge_path!s}", "-G", "1"])
         return returnlist
+
+
+class ReplaceStatus(NamedTuple):
+    replace_hairpins: bool
+    replace_internals: bool
+    replace_bulges: bool
+
+    def any_replaced(self) -> bool:
+        return any(
+            x
+            for x in [
+                self.replace_hairpins,
+                self.replace_internals,
+                self.replace_bulges,
+            ]
+        )
 
 
 class MotifHandler:
@@ -121,7 +136,7 @@ class MotifHandler:
 
     def __init__(
         self,
-        motifs: str | None = None,
+        motifs: str = "",
         single_motif_mode: bool = False,
         custom_hairpin_filepath: Path | None = None,
         custom_internal_filepath: Path | None = None,
@@ -131,6 +146,9 @@ class MotifHandler:
         replace_bulges: bool = False,
         version: str = "4_14",
     ) -> None:
+        self.replace_status = ReplaceStatus(
+            replace_hairpins, replace_internals, replace_bulges
+        )
         custom_hairpins = MotifHandler.get_custom_motifs(
             custom_hairpin_filepath, LoopType.HAIRPIN, MotifOrigin.CUSTOM
         )
@@ -152,34 +170,25 @@ class MotifHandler:
                 for x in get_motif_file_paths(version)
             ]
         )
-        motifs_list: list[Motif] = (
-            default_motifs + custom_hairpins + custom_internals + custom_bulges
-        )
-        if replace_hairpins:
-            motifs_list = [
-                x
-                for x in motifs_list
-                if not (
-                    x.loop_type == LoopType.HAIRPIN and x.origin == MotifOrigin.DEFAULT
-                )
-            ]
-        if replace_internals:
-            motifs_list = [
-                x
-                for x in motifs_list
-                if not (
-                    x.loop_type == LoopType.INTERNAL and x.origin == MotifOrigin.DEFAULT
-                )
-            ]
-        if replace_bulges:
-            motifs_list = [
-                x
-                for x in motifs_list
-                if not (
-                    x.loop_type == LoopType.BULGE and x.origin == MotifOrigin.DEFAULT
-                )
-            ]
-        if not motifs: #FIXME something doesnt quite work with the motif strings rn fix tomorrow, this is a temporary solution
+        motifs_list = []
+
+        if not replace_hairpins:
+            motifs_list.extend(
+                x for x in default_motifs if x.loop_type == LoopType.HAIRPIN
+            )
+        motifs_list.extend(custom_hairpins)
+        if not replace_internals:
+            motifs_list.extend(
+                x for x in default_motifs if x.loop_type == LoopType.INTERNAL
+            )
+        motifs_list.extend(custom_internals)
+        if not replace_bulges:
+            motifs_list.extend(
+                x for x in default_motifs if x.loop_type == LoopType.BULGE
+            )
+        motifs_list.extend(custom_bulges)
+
+        if len(motifs) == 0:
             self.motifs = motifs_list
         else:
             self.motifs = [x for x in motifs_list if x.abbreviation in motifs]
@@ -212,7 +221,10 @@ class MotifHandler:
         # New implementation pre-filters motifs, so self.motifs only contains the motifs we want.
         # First case: Combinatorial where we can just put everything with the same motif type together
         if not self.single_motif_mode:
-            if all(x.origin == MotifOrigin.DEFAULT for x in self.motifs):
+            if (
+                all(x.origin == MotifOrigin.DEFAULT for x in self.motifs)
+                and not self.replace_status.any_replaced()
+            ):
                 return []  # Default behavior, no custom motifs or replacements, combinatorial
             concat_hairpins = TempFileHandler.write_temp_file(
                 "\n".join(
@@ -241,33 +253,34 @@ class MotifHandler:
             return [MotifCall(concat_hairpins, concat_internals, concat_bulges)]
         else:
             # Single Motif Behavior, first we sort Motifs by their abbreviations
-            motif_lists: list[list[Motif]] = []
+            motif_sets: list[MotifSet] = []
             for motif in {x.abbreviation for x in self.motifs}:
-                motif_lists.append(
+                instances_hairpins = [
+                    x
+                    for x in self.motifs
+                    if x.abbreviation == motif and x.loop_type == LoopType.HAIRPIN
+                ]
+                instances_internals = [
+                    x
+                    for x in self.motifs
+                    if x.abbreviation == motif and x.loop_type == LoopType.INTERNAL
+                ]
+                instances_bulges = [
+                    x
+                    for x in self.motifs
+                    if x.abbreviation == motif and x.loop_type == LoopType.BULGE
+                ]
+                motif_sets.extend(
                     [
-                        x
-                        for x in self.motifs
-                        if x.abbreviation == motif and x.loop_type == LoopType.HAIRPIN
+                        MotifSet.from_list(x)
+                        for x in [
+                            instances_hairpins,
+                            instances_internals,
+                            instances_bulges,
+                        ]
+                        if len(x) > 0
                     ]
                 )
-                motif_lists.append(
-                    [
-                        x
-                        for x in self.motifs
-                        if x.abbreviation == motif and x.loop_type == LoopType.INTERNAL
-                    ]
-                )
-                motif_lists.append(
-                    [
-                        x
-                        for x in self.motifs
-                        if x.abbreviation == motif and x.loop_type == LoopType.BULGE
-                    ]
-                )
-            # Create MotifSets and filter out empty lists
-            motif_sets: list[MotifSet] = [
-                MotifSet.from_list(x) for x in motif_lists if len(x) > 0
-            ]
             # Write Down each motif set into its own file
             for motif_set in motif_sets:
                 motif_set.write_self()
@@ -280,22 +293,12 @@ class MotifHandler:
         filepath: Path,
         loop_type: LoopType,
     ) -> MotifCall:
-        empty_csv = (
-            RNAMOTIFOLD_ROOT_DIR
-            / "RNALoops"
-            / "Misc"
-            / "Applications"
-            / "RNAmotiFold"
-            / "motifs"
-            / "versions"
-            / "empty.csv"
-        )
         match loop_type:
             case LoopType.HAIRPIN:
-                return MotifCall(filepath, empty_csv, empty_csv)
+                return MotifCall(filepath, EMPTY_CSV_PATH, EMPTY_CSV_PATH)
             case LoopType.INTERNAL:
-                return MotifCall(empty_csv, filepath, empty_csv)
+                return MotifCall(EMPTY_CSV_PATH, filepath, EMPTY_CSV_PATH)
             case LoopType.BULGE:
-                return MotifCall(empty_csv, empty_csv, filepath)
+                return MotifCall(EMPTY_CSV_PATH, EMPTY_CSV_PATH, filepath)
             case LoopType.ALL:
                 raise ValueError("Cant process motif of type ALL")

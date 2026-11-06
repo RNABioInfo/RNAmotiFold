@@ -11,6 +11,7 @@ from RNAmotiFold.Misc.EnumTypes import (
     MotifSource,
     ShapeLevel,
 )
+from RNAmotiFold.Misc.Helpers import interval_check
 
 from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 
@@ -32,12 +33,6 @@ class CallHandler:
         for i in range(len(v)):
             together.append(f"{k[i]}={v[i]!r}")
         return f"{classname}({', '.join(together)})"
-
-    @staticmethod
-    def interval_check[T: (float, float128)](
-        LowerBound: T, UpperBound: T, Value: T
-    ) -> bool:
-        return bool(LowerBound <= Value <= UpperBound)
 
     @classmethod
     def from_script_parameters(cls, params: ScriptParameters) -> Self:
@@ -102,7 +97,7 @@ class CallHandler:
 
     @temperature.setter
     def temperature(self, temp: float) -> None:
-        if not CallHandler.interval_check(-273.0, 100.0, temp):
+        if not interval_check(-273.0, 100.0, temp):
             raise ValueError("Temperature has to be between -273 and 100 Kelvin.")
         self._temperature = temp
 
@@ -113,7 +108,7 @@ class CallHandler:
     @energy_percent.setter
     def energy_percent(self, range: float | None) -> None:
         if range is not None:
-            if CallHandler.interval_check(float128(0), float128(1), float128(range)):
+            if interval_check(float128(0), float128(100), float128(range)):
                 self._energy_perc = range
             else:
                 raise ValueError("Energy range cannot be below 0 or above 1.")
@@ -153,7 +148,7 @@ class CallHandler:
 
     @low_probability_filter.setter
     def low_probability_filter(self, value: float) -> None:
-        if CallHandler.interval_check(float128(0), float128(1), float128(value)):
+        if interval_check(float128(0), float128(1), float128(value)):
             self._low_probability_filter = value
         else:
             raise ValueError("Probability filter cannot be below 0 or above 1")
@@ -194,7 +189,7 @@ class CallHandler:
         logger.debug(f"Set algorithm binary as {alg}")
         return alg
 
-    def make_main_call(self) -> str:
+    def make_main_call(self) -> list[str]:
         """Automatic call setter. The function checks the set algorithm and builds a call string based on it."""
 
         runtime_dictionary: dict[str, str | int | float | Path | None] = {
@@ -223,14 +218,9 @@ class CallHandler:
             or self.allowLonelyBasepairs == AllowLonelyBP.ALL_LP
         ):
             runtime_dictionary["-u"] = self.allowLonelyBasepairs
-        arguments = [f"{x} {y}" for x, y in runtime_dictionary.items() if y is not None]
-
-        seq_free_call = " ".join(
-            [
-                str(self.algorithm_path),
-                " ".join(arguments),
-                "",
-            ]  # "/usr/bin/time"
-        )  # Creates call string without a sequence
-        logger.debug(f"Set call as {seq_free_call}")
-        return seq_free_call
+        arguments = [str(self.algorithm_path)]
+        for k, v in runtime_dictionary.items():
+            if v is not None:
+                arguments.extend([k, str(v)])
+        logger.debug(f"Set call as {' '.join(arguments)}")
+        return arguments

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 from Bio import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 
 import RNAmotiFold.input.cli
 from RNAmotiFold.bgap_rna import (
@@ -12,6 +13,9 @@ from RNAmotiFold.bgap_rna import (
     input_handler,
     motif_handler,
     subprocess_handler,
+)
+from RNAmotiFold.bgap_rna.input_handler import (
+    ReadyAlgorithmInput,
 )
 from RNAmotiFold.Misc.EnumTypes import *
 from RNAmotiFold.results.outputs import AlgorithmOutput
@@ -110,7 +114,7 @@ class Predictions:
 
 
 def rnamotifold(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -147,7 +151,7 @@ def rnamotifold(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-       allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         separator=separator,
@@ -164,7 +168,7 @@ def rnamotifold(
 
 
 def rnamotifold_subopt(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -208,7 +212,7 @@ def rnamotifold_subopt(
         replace_hairpins=replace_hairpins,
         replace_internals=replace_internals,
         replace_bulges=replace_bulges,
-       allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
+        allowLonelyBasepairs=AllowLonelyBP(allowLonelyBasepairs),
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         output=output,
@@ -226,7 +230,7 @@ def rnamotifold_subopt(
 
 
 def rnamotifold_pfc(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -280,12 +284,12 @@ def rnamotifold_pfc(
 
 
 def rnamosh(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     kvalue: int | None = 5,
-    shape_level:Literal[1,2,3,4,5] = 5,
+    shape_level: Literal[1, 2, 3, 4, 5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -322,7 +326,7 @@ def rnamosh(
         single_motif_mode=single_motif_mode,
         parallel_processes=parallel_processes,
         separator=separator,
-        shape_level=ShapeLevel.LEVEL5,
+        shape_level=ShapeLevel(shape_level),
         kvalue=kvalue,
         subopt=False,
         subopt_energy_range_absolute=None,
@@ -335,13 +339,13 @@ def rnamosh(
 
 
 def rnamosh_subopt(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     subopt_energy_range_absolute: float | None = None,
     subopt_energy_range_percent: float | None = None,
-    shape_level:Literal[1,2,3,4,5] = 5,
+    shape_level: Literal[1, 2, 3, 4, 5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -398,12 +402,12 @@ def rnamosh_subopt(
 
 
 def rnamosh_pfc(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
     pfc_probability_filter: float | None = None,
-    shape_level:Literal[1,2,3,4,5] = 5,
+    shape_level: Literal[1, 2, 3, 4, 5] = 5,
     *,
     id: str = "N/A",
     temperature: float = 37.0,
@@ -453,7 +457,7 @@ def rnamosh_pfc(
 
 
 def rnamotices(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -515,7 +519,7 @@ def rnamotices(
 
 
 def rnamotices_subopt(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -577,7 +581,7 @@ def rnamotices_subopt(
 
 
 def rnamotices_pfc(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -631,7 +635,7 @@ def rnamotices_pfc(
 
 
 def rnamotialign(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     single_motif_mode: bool = False,
     allowLonelyBasepairs: Literal[0, 1, 2] | None = 0,
     motif_string: str = "",
@@ -686,7 +690,7 @@ def rnamotialign(
 
 
 def _predict(
-    input: (str | SeqRecord.SeqRecord | Path | list[SeqRecord.SeqRecord] | list[str]),
+    input: str | SeqRecord.SeqRecord | MultipleSeqAlignment | Path,
     id: str = "N/A",
     algorithm: AlgorithmType = AlgorithmType.RNAMOTIFOLD,
     temperature: float = 37.0,
@@ -734,9 +738,9 @@ def _predict(
         raise FileNotFoundError(
             "Algorithms are not set up, re-run RNAmotiFold_installer"
         )
-    run_process_type = GetProcessType(Predict.algorithm)
+    input_maker = input_handler.create_input_handler(GetProcessType(Predict.algorithm))
     BaseResult.separator = Predict.separator
-    input_maker = input_handler.InputHandler(run_process_type, None)
+
     call_maker = call_handler.CallHandler(
         Predict.algorithm,
         Predict.motif_source,
@@ -767,14 +771,18 @@ def _predict(
         Predict.rna_3d_motif_atlas_version,
     )
     motif_calls = motif_call_maker.create_motif_calls()
-
+    inputs = input_maker.read_input(input, id)
+    ReadyInputs = [
+        ReadyAlgorithmInput.create_ready_input(
+            pre_algorithm_input=x, base_call=main_call, motif_calls=motif_calls
+        )
+        for x in inputs
+    ]
     subprocess_manager = subprocess_handler.make_handler(
         Predict.parallel_processes,
         Predict.output,
         Predict.prediction_type,
     )
-    full_calls = RNAmotiFold.input.cli.combine_calls(main_call, motif_calls)
-    inputs = input_maker.script_read_input(run_process_type, input, id)
-    commands = RNAmotiFold.input.cli.create_inputs(full_calls, inputs)
-    results = subprocess_manager.auto_run(commands, len(motif_calls), no_print=True)
+
+    results = subprocess_manager.auto_run(ReadyInputs, no_print=True)
     return results

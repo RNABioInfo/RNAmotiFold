@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 import logging
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from io import StringIO
-from typing import IO, Literal, Self
+from pathlib import Path
+from typing import Literal, Self
 
 import pandas
 from pandas import DataFrame
-from RNAmotiFold.bgap_rna.input_handler import flatten
 from RNAmotiFold.Misc.EnumTypes import LoopType
+from RNAmotiFold.Misc.Helpers import flatten
 from RNAmotiFold.results.results import (
     BaseResult,
     ResultAlignment,
@@ -23,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Typing for AlgorithmOutputs:
 
 
-class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC):
+class GenericOutput[T: (BaseResult)](ABC):
     """Generic AlgorithmOutput class to inherit from with MFE/PFC/Alignment Subclasses"""
 
     def __iter__(self) -> Iterator[T]:
@@ -74,17 +77,25 @@ class GenericOutput[T: (ResultMFE, ResultPFC, ResultAlignment, ResultError)](ABC
 
     # If not initiated function writes a header and then all it's results as csv
     def write_results(
-        self, initiated: bool = False, destination: IO[str] = sys.stdout
+        self, initiated: bool = False, destination: Path | None = None
     ) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
-        for err in self.stderr:
-            if len(err.strip()) > 0:
-                logger.warning(self.id + ": " + err.strip())
-        if not initiated:
-            logger.debug("Starting result writing")
-            print(self.results[0].header, file=destination)
-        for result_obj in self.results:
-            print(result_obj.tsv, file=destination)
+        if destination is not None:
+            io_dest = destination.open("a+")
+        else:
+            io_dest = sys.stdout
+        try:
+            for err in self.stderr:
+                if len(err.strip()) > 0:
+                    logger.warning(self.id + ": " + err.strip())
+            if not initiated:
+                logger.debug("Starting result writing")
+                print(self.results[0].header, file=io_dest)
+            for result_obj in self.results:
+                print(result_obj.tsv, file=io_dest)
+        finally:
+            if destination is not None:
+                io_dest.close()
         return True
 
     def __str__(self) -> str:
@@ -124,9 +135,9 @@ class MFEOutput(GenericOutput[ResultMFE]):
 
     @classmethod
     def merge(
-        cls: type["MFEOutput"],
-        items: list["MFEOutput"],
-    ) -> list["MFEOutput"]:
+        cls: type[MFEOutput],
+        items: list[MFEOutput],
+    ) -> list[MFEOutput]:
         """Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input"""
         if len(items) == 0:
             return []
@@ -180,9 +191,9 @@ class PFCOutput(GenericOutput[ResultPFC]):
 
     @classmethod
     def merge(
-        cls: type["PFCOutput"],
-        items: list["PFCOutput"],
-    ) -> list["PFCOutput"]:
+        cls: type[PFCOutput],
+        items: list[PFCOutput],
+    ) -> list[PFCOutput]:
         """PFC postprocessing for Single Motif mode pfc predictions filtering cases where only one motif was found"""
         if len(items) == 0:
             return []
@@ -224,9 +235,9 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
 
     @classmethod
     def merge(
-        cls: type["AlignmentOutput"],
-        items: list["AlignmentOutput"],
-    ) -> list["AlignmentOutput"]:
+        cls: type[AlignmentOutput],
+        items: list[AlignmentOutput],
+    ) -> list[AlignmentOutput]:
         if len(items) == 0:
             return []
         result_set: set[ResultAlignment] = set()
@@ -266,27 +277,21 @@ class ErrorOutput(GenericOutput[ResultError]):
             super().__init__(name=name, results=relist_error, stderr=stderr)
             self.call = call
 
+    def __str__(self):
+        return f"{self.id} exited with exit code {self.error_code}. Error(s): {','.join([err.error for err in self.results])}"
+
+    @property
+    def error_code(self) -> str:
+        return self.stderr[0]
+
     @classmethod
     def merge(
-        cls: type["ErrorOutput"],
-        items: list["ErrorOutput"],
-    ) -> list["ErrorOutput"]:
+        cls: type[ErrorOutput],
+        items: list[ErrorOutput],
+    ) -> list[ErrorOutput]:
         if len(items) == 0:
             return []
         return list(items)
-
-    def write_results(
-        self, initiated: bool = False, destination: IO[str] = sys.stderr
-    ) -> Literal[True]:
-        if not initiated:
-            print(
-                f"Encountered issue while processing {self.id} with call {self.call}:",
-                end="",
-                file=destination,
-            )
-        for i in range(len(self.results)):
-            print(f"{self.stderr[i]}: {self.results[i]}", file=destination)
-        return True
 
     def to_df(self) -> DataFrame:
         return pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
@@ -312,4 +317,28 @@ class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
                 "Results are empty in AlgorithmOutput, cant create DataFrame"
             )
         merged = self.result_type.merge(self.results)  # type:ignore Error caused by union can be fixed with protocol but not worth it
-        return [x.to_df().drop_duplicates() for x in merged]
+        dfs = [x.to_df().drop_duplicates() for x in merged]
+        return dfs
+
+    def merge(self, other: AlgorithmOutput) -> AlgorithmOutput:
+        if self.result_type != other.result_type:
+            raise TypeError(
+                f"Cannot merge Algorithm Outputs of different types {self.result_type} and {other.result_type}"
+            )
+        results: list[T] = self.results + other.results
+        errors: list[ErrorOutput] = self.errors + other.errors
+        return AlgorithmOutput(results, errors, self.result_type)
+
+    @staticmethod
+    def merge_list(other_list: list[AlgorithmOutput]) -> AlgorithmOutput:
+        if len(other_list) == 0:
+            return AlgorithmOutput(results=[],errors=[],result_type=MFEOutput)#By default return an MFEOutput object if nothing is specified
+        if not all(other_list[0].result_type == x.result_type for x in other_list):
+            setted = {x.result_type for x in other_list}
+            raise TypeError(
+                f"Couldnt merge Algorithm outputs, different types: {setted!s}"
+            )
+        base = other_list[0]
+        for other in other_list:
+            base = base.merge(other)
+        return base

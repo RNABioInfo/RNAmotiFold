@@ -32,13 +32,6 @@ def get_cmdarguments() -> ScriptParameters:
     config = configparser.ConfigParser(allow_no_value=True)
     with open(RNAMOTIFOLD_DEFAULTS_CONFIG) as conf:
         config.read_file(conf)
-    ###workaround for allow_no_value setting "option = " to an empty string (which makes sense it's just inconvenient cause it looks weird in the defaults file)
-    for option in [
-        x
-        for x in config[config.default_section]
-        if config[config.default_section][x] == ""
-    ]:
-        config.set(config.default_section, option, None)
     # Configure parser and help message
     parser = argparse.ArgumentParser(
         prog="RNAmotiFold.py",
@@ -220,15 +213,16 @@ def get_cmdarguments() -> ScriptParameters:
         "-X",
         "--custom-hairpins",
         dest="custom_hairpins",
-        help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
+        help="Specify path to custom hairpin motif sequence csv file. File format: [sequence],[abbreviation][newline]. If set and no file is given, this adds nothing except in combination with -G, which removes all bulge motifs from predictions.",
         action=MotifFileCheck,
         default=config.get(config.default_section, "custom_hairpins"),
+        nargs="?"
     )
     parser.add_argument(
         "-Y",
         "--custom-internals",
         dest="custom_internals",
-        help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
+        help="Specify path to custom internal motif sequence csv file. File format: [sequenceA]$[sequenceB],[abbreviation][newline]. If set and no file is given, this adds nothing except in combination with -G, which removes all bulge motifs from predictions.",
         action=MotifFileCheck,
         default=config.get(config.default_section, "custom_internals"),
     )
@@ -236,7 +230,7 @@ def get_cmdarguments() -> ScriptParameters:
         "-Z",
         "--custom-bulges",
         dest="custom_bulges",
-        help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline]. Check the CSV files in RNAmotiFold/src/data/motifs/ for examples.",
+        help="Specify path to custom bulge motif sequence csv file. File format: [sequence],[abbreviation][newline]. If set and no file is given, this adds nothing except in combination with -G, which removes all bulge motifs from predictions.",
         action=MotifFileCheck,
         default=config.get(config.default_section, "custom_bulges"),
     )
@@ -271,7 +265,7 @@ def get_cmdarguments() -> ScriptParameters:
     ##############The line between script arguments and class args######
     parser.add_argument(
         "-w",
-        "--workers",
+        "--parallel-processes",
         help=f"Specify how many predictions should be done in parallel for inputs, default is {config.getint(config.default_section, 'workers')}",
         type=int,
         action=WorkerCheck,
@@ -401,7 +395,7 @@ def get_install_arguments() -> InstallParameters:
     )
     parser.add_argument(
         "-w",
-        "--workers",
+        "--parallel-processes",
         help="Specify how many algorithms may be compiled in parallel.",
         type=int,
         action=WorkerCheck,

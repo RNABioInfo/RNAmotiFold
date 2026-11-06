@@ -3,6 +3,7 @@ from pathlib import Path
 
 RNAMOTIFOLD_ROOT_DIR = Path(__file__).resolve().absolute().parent
 
+
 def _check_submodule(submodule: str) -> Path:
     SUBMOD_DIR = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, f"{submodule}")
     if len(list(SUBMOD_DIR.glob("*"))) == 0:
@@ -47,27 +48,17 @@ _RNAMOTIFOLD_MOTIFS_PATH: Path = Path.joinpath(
     "versions",
     "combined",
 )
-AVAILABLE_BINARIES: list[str] = [
-    "RNAmotiFold",
-    "RNAmoSh",
-    "RNAmotiCes",
-    "RNAmotiFoldMotmicro",
-    "RNAmoShMotmicro",
-    "RNAmotiCesMotmicro",
-    "RNAmotiFold_pfc",
-    "RNAmoSh_pfc",
-    "RNAmotiCes_pfc",
-    "RNAmotiFold_motmacro_pfc",
-    "RNAmoSh_motmacro_pfc",
-    "RNAmotiCes_motmacro_pfc",
-    "RNAmotiFold_subopt",
-    "RNAmoSh_subopt",
-    "RNAmotiCes_subopt",
-    "RNAmotiFold_motmacro_subopt",
-    "RNAmoSh_motmacro_subopt",
-    "RNAmotiCes_motmacro_subopt",
-    "RNAmotiAlign",
-]
+EMPTY_CSV_PATH = (
+    RNAMOTIFOLD_ROOT_DIR
+    / "RNALoops"
+    / "Misc"
+    / "Applications"
+    / "RNAmotiFold"
+    / "motifs"
+    / "versions"
+    / "empty.csv"
+)
+
 AVAILABLE_VERSIONS: list[str] = [
     x.name for x in _RNAMOTIFOLD_MOTIFS_PATH.iterdir() if x.is_dir()
 ]
