@@ -18,12 +18,17 @@ Tested on the following dependencies:
 ---
 
 # Setup
-The RNAmotiFold python wrapper requires the modified Bellman's GAP compiler [gapcM](https://github.com/RNABioInfo/gapcM), along with it's dependencies and a perl interpreter, to be installed. If the modified Bellman's GAP compiler or perl interpreter is not installed system wide it's location can be supplied using the --gapc_path/--perl_path option. Also if your GNU make is not installed system wide it can also be supplied with --make_path. If any of these are not supplied, the script will try to find them. RNAmotiFold is compatible with most UNIX systems, but it is not windows compatible. Unfortunately it is currently not available for Mac Systems, though a port might come in the future. No admin right are required for either the modified Bellman's GAP compiler or RNAmotiFold. These dependencies are only required on first use, they are no longer required after the installation of the algorithm binaries.
+The RNAmotiFold python wrapper requires the modified Bellman's GAP compiler [gapcM](https://github.com/RNABioInfo/gapcM), along with it's dependencies and a perl interpreter, to be installed. If the modified Bellman's GAP compiler or perl interpreter is not installed system wide it's location can be supplied using the --gapc_path/--perl_path option. Also if your GNU make is not installed system wide it can also be supplied with --make_path. If any of these are not supplied, the script will try to find them. RNAmotiFold is compatible with most UNIX systems, but it is not windows compatible. Unfortunately it is currently not available for Mac Systems, but a Docker file is provided to set up both the gapcM and RNAmotiFold. No admin right are required for either the modified Bellman's GAP compiler or RNAmotiFold. These dependencies are only required on first use, they are no longer required after the installation of the algorithm binaries.
 Installation Guide:
 
 0. Either directly install RNAmotiFold from PyPI or clone this repository with `git clone https://github.com/RNABioInfo/RNAmotiFold.git --recurse-submodules` and install it into your virtual environment with `pip install .` from the base `RNAmotiFold` directory. 
 1. The python wrapper will now be installed, but the compiled RNA secondary structure prediction algorithms are still missing. To set them up, run `RNAmotiFold_installer` on the command line  and supply the dependencies through their associated commandline arguments (e.g. path to your modified GAPC to `--gapcM` ). All three install dependencies are also searched for on your system if they are not supplied, using shutil.which and command -v {dependency}. Installation might take a minute, as all necessaryalgorithms are compiled at once. This process has to be done once whenever installing RNAmotiFold into a new environment, as everything is installed and kept locally.
 2. RNAmotiFold is now ready to use in the virtual environment it was installed in, either on the command line by directly calling `RNAmotiFold`, `RNAmotices`, `RNAmoSh`, or `RNAmotiAlign` or in your python scripts. Simply `import RNAmotiFold` and you will be able to call `RNAmotiFold.rnamotifold`, `RNAmotiFold.rnamotices`, `RNAmotiFold.rnamotices_pfc` and all the other algorithms directly from your script. 
+
+You can also use the provided Docker File for installation. Simply call:
+`docker build -t rnamotifold .`
+from inside the RNAmotiFold directory. Everything will be set  up from source in there and always uses the newest available versions of both RNAmotiFold and the gapcM.
+A downloadable image from DockerHub will also be available in the near future. 
 
 ---
 
