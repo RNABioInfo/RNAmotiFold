@@ -63,7 +63,8 @@ class ResultPFC(BaseResult):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, ResultPFC):
             return (
-                self.pfc_value == other.pfc_value
+                self.id == other.id
+                and self.pfc_value == other.pfc_value
                 and self.classifier == other.classifier
             )
         else:
@@ -125,7 +126,8 @@ class ResultMFE(BaseResult):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, ResultMFE):
             return (
-                self.free_energy == other.free_energy
+                self.id == other.id
+                and self.free_energy == other.free_energy
                 and self.motBracket == other.motBracket
                 and self.classifier == other.classifier
             )
@@ -155,7 +157,12 @@ class ResultMFE(BaseResult):
         return self.free_energy >= other.free_energy
 
     def __hash__(self) -> int:
-        return hash((self.free_energy, self.motBracket, self.classifier))
+        return hash((
+            self.id,
+            self.free_energy,
+            self.motBracket,
+            self.classifier,
+        ))
 
     @property
     def dot_bracket(self) -> str:
@@ -196,7 +203,8 @@ class ResultAlignment(BaseResult):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, ResultAlignment):
             return (
-                self.energy == other.energy
+                self.id == other.id
+                and self.energy == other.energy
                 and self.covariance == other.covariance
                 and self.overall_score == other.overall_score
                 and self.motif_score == other.motif_score
@@ -241,6 +249,7 @@ class ResultAlignment(BaseResult):
 
     def __hash__(self) -> int:
         return hash((
+            self.id,
             self.energy,
             self.covariance,
             self.overall_score,

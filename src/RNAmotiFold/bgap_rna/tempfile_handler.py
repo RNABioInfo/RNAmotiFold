@@ -7,7 +7,7 @@ from typing import ClassVar
 
 @dataclass
 class TempFileHandler:
-    TempFiles: ClassVar[list] = []
+    TempFiles: ClassVar[list[Path]] = []
 
     @staticmethod
     def write_temp_file(content: str) -> Path:
@@ -21,7 +21,7 @@ class TempFileHandler:
         ) as new_file:
             new_file.write(content)
             new_file.flush()
-            TempFileHandler.TempFiles.append(new_file.name)
+            TempFileHandler.TempFiles.append(Path(new_file.name).resolve())
             return Path(new_file.name)
 
     @staticmethod

@@ -1,9 +1,8 @@
-from numpy import float128
 import argparse
 import logging
 import subprocess
 from collections.abc import Sequence
-from os import W_OK, access, cpu_count
+from os import W_OK, access
 from pathlib import Path
 from sys import stderr
 from typing import Any
@@ -61,10 +60,16 @@ class MotifFileCheck(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, MotifFileCheck._motif_file_check_function(values))
+        setattr(
+            namespace,
+            self.dest,
+            MotifFileCheck._motif_file_check_function(values),
+        )
 
     @staticmethod
-    def _motif_file_check_function(value: str | Sequence[Any] | None) -> Path:
+    def _motif_file_check_function(
+        value: str | Sequence[Any] | None,
+    ) -> Path:
         if value is None or value == "":
             return RNAmotiFold.EMPTY_CSV_PATH
         if Path(str(value)).resolve().is_file():
@@ -125,48 +130,6 @@ class FloatCheck(argparse.Action):
             raise ValueError(
                 "Invalid Float Value, detected. Please set a value between 0 and 1"
             )
-
-
-class WorkerCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None,
-        option_string: str | None = None,
-    ) -> None:
-        setattr(namespace, self.dest, WorkerCheck.worker_check_function(values))
-
-    @staticmethod
-    def worker_check_function(
-        value: str | Sequence[Any] | None,
-    ) -> int:
-        """Checks if the given value is a valid number of CPU cores based on the number of available cpus from os.cpu_count, raises ValueError if not"""
-        cpus: int | None = cpu_count()
-        match value:
-            case str():
-                if int(value) < 0:
-                    raise ValueError("Can't set parallel processes to a negative")
-                if cpus is not None and int(value) > cpus:
-                    loggers.info(
-                        f"Given worker number exceeds detected cpu count, setting workers to {cpus!s}"
-                    )
-                    return round(int(cpus))
-                else:
-                    return int(value)
-            case Sequence() | None:
-                loggers.critical("Couldnt process input number of parallel processes")
-                if cpus is not None:
-                    loggers.critical(f"Setting number of cpus to {cpus!s}")
-                    return round(int(cpus))
-                else:
-                    loggers.critical(
-                        "Couldnt access number of CPUs either, playing it save and setting workers to 1"
-                    )
-                    return 1
 
 
 class MotifListCheck(argparse.Action):
@@ -333,35 +296,7 @@ class AlgorithmMatching(argparse.Action):
                 )
 
 
-class energyCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None | float,
-        option_string: str | None = None,
-    ) -> None:
-        setattr(namespace, self.dest, energyCheck._float_check_function(values))
-
-    @staticmethod
-    def _float_check_function(values: str | Sequence[Any] | None | float):
-        match values:
-            case None:
-                raise ValueError("Can't use energy parameters without setting a value")
-            case str():
-                if interval_check(0, 100, float(values)):
-                    return float(values)
-            case Sequence():
-                raise TypeError("Set energy value is a sequence ?")
-            case float():
-                if interval_check(0, 100, values):
-                    return values
-
-
-class gapcMCheck(argparse.Action):
+class PathCheck(argparse.Action):
     def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
         super().__init__(option_strings, dest, **kwargs)
 
@@ -372,58 +307,15 @@ class gapcMCheck(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        setattr(namespace, self.dest, gapcMCheck._gapcm_check_function(values))
-
-    @staticmethod
-    def _gapcm_check_function(
-        values: str | Sequence[Any] | None,
-    ) -> Path | None:
-        if isinstance(values, (Path, str)):
-            if Path(values).is_file():
-                try:
-                    version_check = subprocess.run(
-                        [f"{values}", "--version"],
-                        capture_output=True,
-                        check=True,
-                    )
-                except (
-                    subprocess.CalledProcessError,
-                    PermissionError,
-                ) as error:
-                    raise RuntimeError(
-                        "Unable to open file, check the above error for more information."
-                    ) from error
-                else:
-                    if "gapcM" in version_check.stdout.decode():
-                        return Path(values)
-                    else:
-                        raise RuntimeError(
-                            "The given file is not an instance of the modified Bellman's GAP compiler."
-                        )
-            else:
-                raise FileNotFoundError("The given file does not exist.")
-        else:
-            raise TypeError("Why is my value a Sequence ?")
+        setattr(namespace, self.dest, PathCheckFunction(values))
 
 
-class PerlCheck(argparse.Action):
-    def __init__(self, option_strings: str, dest: str, **kwargs: Any) -> None:
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None,
-        option_string: str | None = None,
-    ) -> None:
-        setattr(namespace, self.dest, PerlCheckFunction(values))
-
-
-def PerlCheckFunction(values: str | Sequence[Any] | None) -> Path | None:
-    if isinstance(values, str):
+def PathCheckFunction(
+    values: str | Sequence[Any] | Path | None,
+) -> Path | None:
+    if isinstance(values, (Path, str)):
         answer = subprocess.run([f"{values}", "-v"], capture_output=True, check=True)
-        if answer.returncode == 0 and "This is perl" in answer.stdout.decode():
+        if answer.returncode == 0:
             return Path(values).resolve()
         else:
-            raise RuntimeError("The given file is not a perl interpreter.")
+            raise RuntimeError(f"Set file could not be verified for {values!s}")

@@ -25,6 +25,11 @@ class MotifSource(IntEnum):
     ALL = 3
 
 
+class SubOptMode(StrEnum):
+    ABSOLUTE = "A"
+    PERCENT = "P"
+
+
 class MotifOrientation(IntEnum):
     FORWARD = 1
     REVERSE = 2

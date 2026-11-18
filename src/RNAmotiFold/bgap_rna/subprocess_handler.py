@@ -27,12 +27,6 @@ from RNAmotiFold.results.outputs import (
 logger = logging.getLogger(__name__)
 
 
-def create_subprocess_handler(
-    params: ScriptParameters,
-) -> SubprocessHandler:
-    return make_handler(params.workers, params.output, params.alg_type)
-
-
 def make_handler(
     max_procs: int,
     output: Path | None,
@@ -168,13 +162,13 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
                         if not isinstance(x, ErrorOutput)
                     ]
                 )  # type:ignore Can be fixed with protocol but it gets too complicated and not worth it
-                if no_print:
-                    continue
-                else:
-                    for element in merged:
-                        writing_started = element.write_results(
-                            writing_started, output_file_path
-                        )
+                if no_print and output_file_path is None:
+                    continue  # If run from script no_print is true, but if the user wants to write the results they can if they set output path
+
+                for element in merged:
+                    writing_started = element.write_results(
+                        writing_started, output_file_path
+                    )
 
     def auto_run(
         self,
@@ -229,11 +223,22 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
                         [str(error.returncode)],
                     )
                     logger.error(answer)
+                    answer.write_results()
+                except OSError as os_err:
+                    answer = ErrorOutput(
+                        obj.id,
+                        " ".join(call),
+                        str(os_err.strerror),
+                        [str(os_err.errno)],
+                    )
+                    logger.error(answer)
+                    answer.write_results()
                 returnlist.append(answer)
-                if no_print:
+                if no_print and self.output_path is None:
                     pass
                 else:
-                    initiated = answer.write_results(initiated, self.output_path)
+                    if not isinstance(answer, ErrorOutput):
+                        initiated = answer.write_results(initiated, self.output_path)
         return returnlist
 
     def _multi_run(
@@ -245,8 +250,10 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
         manager = multiprocessing.Manager()
         input_q: multiprocessing.Queue[tuple[list[str], str] | None] = manager.Queue()  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
+        i = 0
         for record in inputs:
             for call in record.call_list:
+                i += 1
                 input_q.put(CallandID(call, record.id))
 
         # First we set up  a listener with a connection to the main process
@@ -266,11 +273,14 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
         listening.start()
 
         # Now we make a pool of workers and
-        pool = multiprocessing.Pool(self.max_processes)
+        if i < self.max_processes:
+            pool = multiprocessing.Pool(i)
+        else:
+            pool = multiprocessing.Pool(self.max_processes)
         workers: list[multiprocessing.pool.AsyncResult[Any]] = []
         for _ in range(
             self.max_processes
-        ):  # Populate the pool with worker functions, each doing nothing but getting items from the input queue and processing them
+        ):  # Populate the pool with worker functions, each gets items from the input queue and processes them
             work = pool.apply_async(
                 SubprocessHandler._worker,
                 (input_q, listener_q, self.result_type),

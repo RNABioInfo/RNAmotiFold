@@ -189,21 +189,36 @@ class PFCOutput(GenericOutput[ResultPFC]):
                 stderr=stderr,
             )
 
+    # Separate write results for PFC outputs which always prints the header before each new results --> PFC results are always separate!
+    def write_results(
+        self, initiated: bool = False, destination: Path | None = None
+    ) -> Literal[True]:
+        """Header and results written with this function will be in csv format using the classwide results.separator variable"""
+        if destination is not None:
+            io_dest = destination.open("a+")
+        else:
+            io_dest = sys.stdout
+        try:
+            for err in self.stderr:
+                if len(err.strip()) > 0:
+                    logger.warning(self.id + ": " + err.strip())
+            if not initiated:
+                logger.debug("Starting result writing")
+            print(self.results[0].header, file=io_dest)
+            for result_obj in self.results:
+                print(result_obj.tsv, file=io_dest)
+        finally:
+            if destination is not None:
+                io_dest.close()
+        return True
+
     @classmethod
     def merge(
         cls: type[PFCOutput],
         items: list[PFCOutput],
     ) -> list[PFCOutput]:
         """PFC postprocessing for Single Motif mode pfc predictions filtering cases where only one motif was found"""
-        if len(items) == 0:
-            return []
-        returnlist: list[PFCOutput] = []
-        checklist: list[str] = []
-        for output in items:
-            if str(output) not in checklist and len(output.results) > 1:
-                checklist.append(str(output))
-                returnlist.append(output)
-        return returnlist
+        return items
 
     def to_df(self) -> DataFrame:
         return (
@@ -296,12 +311,22 @@ class ErrorOutput(GenericOutput[ResultError]):
     def to_df(self) -> DataFrame:
         return pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
 
+    def write_results(
+        self, initiated: bool = False, destination: Path | None = None
+    ) -> Literal[True]:
+        for element in self.results:
+            print(element, file=sys.stderr, flush=True)
+        return True
+
 
 @dataclass
 class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
     results: list[T]
     errors: list[ErrorOutput]
     result_type: type[T]
+
+    def __str__(self):
+        return "\n".join(str(result) for result in self.results)
 
     @classmethod
     def from_list(
@@ -318,6 +343,8 @@ class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
             )
         merged = self.result_type.merge(self.results)  # type:ignore Error caused by union can be fixed with protocol but not worth it
         dfs = [x.to_df().drop_duplicates() for x in merged]
+        if len(dfs) == 1:
+            return dfs[0]
         return dfs
 
     def merge(self, other: AlgorithmOutput) -> AlgorithmOutput:
@@ -332,7 +359,9 @@ class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
     @staticmethod
     def merge_list(other_list: list[AlgorithmOutput]) -> AlgorithmOutput:
         if len(other_list) == 0:
-            return AlgorithmOutput(results=[],errors=[],result_type=MFEOutput)#By default return an MFEOutput object if nothing is specified
+            return AlgorithmOutput(
+                results=[], errors=[], result_type=MFEOutput
+            )  # By default return an MFEOutput object if nothing is specified
         if not all(other_list[0].result_type == x.result_type for x in other_list):
             setted = {x.result_type for x in other_list}
             raise TypeError(
