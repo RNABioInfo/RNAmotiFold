@@ -9,11 +9,9 @@ If you have any questions please reach out to me through my public email address
 
 --- 
 # Dependencies
-Tested on the following dependencies:
- + Modified Bellman's GAP compiler gapcM == 2026.10.22
- + perl interpreter == perl v5.38.2
- + Python interpreter == Python 3.12.3
- + ubuntu == 24.04
+Requires:
+ + Modified Bellman's GAP compiler gapcM == 2626.10.22
+ + Python >= 3.12.3
 
 ---
 
