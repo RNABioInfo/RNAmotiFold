@@ -1,3 +1,4 @@
 [submodule "src/RNAmotiFold/RNALoops"]
 	path = src/RNAmotiFold/RNALoops
 	url = https://github.com/RNABioInfo/RNALoops.git
+	branch = minimal

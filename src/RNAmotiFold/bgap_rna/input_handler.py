@@ -1,369 +1,359 @@
-from typing import Literal, Any, ClassVar
-from dataclasses import dataclass
-from _collections_abc import Generator
-from pathlib import Path
-import Bio.SeqIO.FastaIO, Bio.SeqIO, Bio.SeqIO.QualityIO
-import Bio.Align
-from Bio.SeqRecord import SeqRecord
+from __future__ import annotations
+
 import gzip
-import glob
-import tempfile
-from os import remove
 import logging
+from abc import ABC, abstractmethod
+from collections import Counter
+from collections.abc import Generator
+from dataclasses import dataclass
+from pathlib import Path
+from typing import IO, ClassVar, Self
+
+import Bio.Align
+import Bio.SeqIO
+import Bio.SeqIO.FastaIO
+import Bio.SeqIO.QualityIO
+from Bio.SeqRecord import SeqRecord
+from RNAmotiFold.bgap_rna.call_handler import MainCall
+from RNAmotiFold.bgap_rna.motif_handler import MotifCall
+from RNAmotiFold.bgap_rna.tempfile_handler import TempFileHandler
+from RNAmotiFold.Misc.EnumTypes import ProcessType
 
 logger = logging.getLogger(__name__)
 
 
-# List flattening
-def flatten(xss: list[list[Any]]) -> list[Any]:
-    """
-    Used to flatten a lists of lists into a single list
-    """
+class InputException(Exception):
+    def __init__(
+        self,
+        input_obj_id: str,
+        msg="Exception raised during creation of Algorithm Inputs",
+    ):
+        self.input_obj = input_obj_id
+        self.msg = msg
+        super().__init__(self.msg)
 
-    return [x for xs in xss for x in xs]
+    def __str__(self):
+        return f"Error during processing of {self.input_obj}: {self.msg}"
+
+
+class AlgorithmInput(ABC):
+    test_string: ClassVar[str] = ""
+
+    def __init__(self, id, sequence):
+        self.id: str = id
+        self.sequence: str = sequence
+        self.input: list[str] = [sequence]
+
+    @classmethod
+    def from_strings(cls, input_str: str, input_id: str) -> Self:
+        return cls(sequence=input_str, id=input_id)
+
+    def _check_sequence(self, id: str, sequence: str) -> str:
+        sequence = sequence.replace("t", "u")
+        sequence = sequence.replace("T", "U")
+        sequence = sequence.replace("-", "_")
+        test_list = [
+            (idx, char)
+            for idx, char in enumerate(sequence)
+            if char not in self.test_string
+        ]
+        if len(test_list) > 0:
+            raise InputException(
+                id,
+                f"Found irregular characters in sequence {id}: {','.join([f'Position {elem[0]}:{elem[1]}' for elem in test_list])}",
+            )
+        return sequence
+
+    @classmethod
+    @abstractmethod
+    def _parse_file(cls, file_obj: IO, filetype: str) -> Generator: ...
+
+    @classmethod
+    def from_seqrecord(cls, record: Bio.SeqIO.SeqRecord):
+        if record.id is None:
+            id = "N/A"
+        else:
+            id = record.id
+        return cls(str(record.seq), id)
+
+    @classmethod
+    @abstractmethod
+    def from_alignmentrecord(
+        cls, record: Bio.Align.MultipleSeqAlignment, id: str
+    ) -> Self: ...
+
+
+class SingleAlgorithmInput(AlgorithmInput):
+    test_string: ClassVar[str] = "AUCGuagcNn"
+
+    def __init__(self, sequence: str, id: str = "N/A"):
+        self.id = id
+        self.sequence = self._check_sequence(id, sequence)
+        self.input: list[str] = [self.sequence]
+
+    @classmethod
+    def _parse_file(
+        cls, file_obj: IO, filetype: str
+    ) -> Generator[SingleAlgorithmInput]:
+        objs: (
+            Bio.SeqIO.FastaIO.FastaIterator
+            | Bio.SeqIO.QualityIO.FastqPhredIterator
+            | Generator[SeqRecord, None, None]
+        ) = Bio.SeqIO.parse(file_obj, filetype)
+        for obj in objs:
+            yield SingleAlgorithmInput.from_seqrecord(obj)
+
+    @classmethod
+    def from_alignmentrecord(
+        cls, record: Bio.Align.MultipleSeqAlignment, id: str
+    ) -> Self:
+        raise InputException(
+            id,
+            "Couldnt create Single Sequence Algorithm input objects from Multiple Sequence alignment",
+        )
+
+
+class AlignmentAlgorithmInput(AlgorithmInput):
+    test_string: ClassVar[str] = "AUCGuacgNn#-_"
+
+    def __init__(self, sequence: str, id: str = "N/A"):
+        self.id = id
+        self.sequence = self._check_sequence(id, sequence)
+        if AlignmentAlgorithmInput.test_equal_lengths(sequence):
+            self.input: list[str] = [
+                "-f",
+                str(TempFileHandler.write_temp_file(self.sequence)),
+            ]
+        else:
+            raise InputException(id, "Not all input sequences are of equal length.")
+
+    @staticmethod
+    def test_equal_lengths(test_string: str, divider: str = "#") -> bool:
+        strings = test_string.split(divider)
+        return all(len(strings[0]) == len(x) for x in strings)
+
+    @classmethod
+    def from_alignmentrecord(
+        cls, record: Bio.Align.MultipleSeqAlignment, id: str
+    ) -> Self:
+        CONCATER = "#"
+        return cls(CONCATER.join([str(x) for x in record]), id)
+
+    @classmethod
+    def _parse_file(
+        cls, file_obj: IO, filetype: str
+    ) -> Generator[AlignmentAlgorithmInput]:
+        alignments = Bio.Align.parse(file_obj, filetype)
+        for alignment in alignments:
+            yield AlignmentAlgorithmInput.from_alignmentrecord(
+                alignment,
+                file_obj.name.split("/")[-1].split(".")[0],  # get file name from path
+            )
 
 
 @dataclass
-class AlgorithmInput:
-    tmp_files: ClassVar[list[Path]] = []
-    _id: str | None
-    input_str: str
-    process_type: Literal["ali", "single"]
-    _call: str = ""
-
-    @staticmethod
-    def cleanup_temps():
-        """Removes temporary files created for RNAmotiAlign"""
-        if len(AlgorithmInput.tmp_files) > 0:
-            logger.debug(
-                f"Cleaning up input temp files {AlgorithmInput.tmp_files}"
-            )
-            for file in AlgorithmInput.tmp_files:
-                remove(file)
+class ReadyAlgorithmInput:
+    input_obj: SingleAlgorithmInput | AlignmentAlgorithmInput
+    base_call: MainCall
+    motif_calls: list[MotifCall]
 
     @property
-    def runtime_call(self) -> str:
-        """Creates runtime call of object by combining its call and input_str"""
-        if self.call == "":
-            raise ValueError(
-                "No call set yet for this algorithm input object"
-            )
-        if self.process_type == "ali":
-            tmp = tempfile.NamedTemporaryFile(
-                mode="w+b",
-                delete=False,
-                delete_on_close=False,
-                suffix=".txt",
-            )
-            logger.info(
-                f"Writing alignment folding input {self.id} to temp file {tmp.name}"
-            )
-            tmp.write(self.input_str.encode())
-            AlgorithmInput.tmp_files.append(Path(tmp.name))
-            return " ".join([self.call, "-f", f" {tmp.name}"])
+    def id(self) -> str:
+        return self.input_obj.id
+
+    @property
+    def call_list(self) -> list[list[str]]:
+        if len(self.motif_calls) == 0:
+            return [self.base_call.to_list() + self.input_obj.input]
+
+        calls = [[*self.base_call.to_list(), *x.call] for x in self.motif_calls]
+        full_calls = [x + self.input_obj.input for x in calls]
+        return full_calls
+
+    @property
+    def call_count(self) -> int:
+        if len(self.motif_calls) == 0:
+            return 1
         else:
-            return " ".join([self.call, self.input_str])
-
-    @property
-    def call(self) -> str:
-        return self._call
-
-    @call.setter
-    def call(self, new_call: str) -> None:
-        self._call = new_call
-
-    @property
-    def id(self):
-        if self._id is None:
-            return "N/A"
-        else:
-            return self._id
+            return len(self.motif_calls)
 
     @classmethod
-    def from_generators(
+    def create_ready_input(
         cls,
-        process_type: Literal["ali", "single"],
-        input_generator: Any,
-    ) -> list["AlgorithmInput"]:
-        """Classmethod to create list of algroithm inputs (concated alignment sequences or individual mfe prediction sequences), depending on the process type
-        given to the input handler by the bgap object.
-        """
-        returnlist: list[AlgorithmInput] = []
-        match process_type:
-            case "ali":
-                for alignment in input_generator:
-                    try:
-                        seqs = [
-                            x.replace("-", "_")
-                            .replace("T", "U")
-                            .replace("t", "u")
-                            .upper()
-                            for x in alignment
-                        ]
-                        for seq in seqs:
-                            if any(
-                                c not in "NAUCGTnaucgt+_-#"
-                                for c in set(seq)
-                            ):
-                                raise ValueError(
-                                    "Input was neither a viable file path nor a viable RNA or DNA sequence"
-                                )
-                    except:
-                        raise TypeError(
-                            "Couldn't convert sequences from DNA to RNA"
-                        )
-                    if all(len(item) == len(seqs[0]) for item in seqs):
-                        concat = "#".join(seqs)
-                        returnlist.append(
-                            AlgorithmInput(
-                                "N/A", concat, process_type=process_type
-                            )
-                        )
-                    else:
-                        raise ValueError(
-                            "Not all sequences have the same length in your alignment, can't process input"
-                        )
-            case "single":
-                for sequence in input_generator:
-                    returnlist.append(
-                        AlgorithmInput(
-                            _id=sequence.id,
-                            input_str=str(sequence.seq),
-                            process_type=process_type,
-                        )
-                    )
-            case _:
-                raise ValueError(
-                    "Unknown state detected during algorithm input generation"
-                )
-        return returnlist
+        pre_algorithm_input: SingleAlgorithmInput | AlignmentAlgorithmInput,
+        base_call: MainCall,
+        motif_calls: list[MotifCall],
+    ) -> ReadyAlgorithmInput:
+        return cls(pre_algorithm_input, base_call, motif_calls)
 
 
-class InputHandler:
-    """Class to manage inputs, takes the chosen algorithm, the given inputs etc into account and creates calls from them"""
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self._index < len(self.user_input):
-            item = self.user_input[self._index]
-            self._index += 1
-            return item
-        else:
-            self._index = 0
-            raise StopIteration
-
-    def __init__(
-        self,
-        process_type: Literal["single", "ali"],
-        user_input: str | None,
-    ) -> None:
-        self.process_type: Literal["single"] | Literal["ali"] = (
-            process_type
+def get_input(
+    base_call: MainCall,
+    motif_subcalls: list[MotifCall],
+    process_type: ProcessType,
+    input: str | Bio.SeqIO.SeqRecord | Bio.Align.MultipleSeqAlignment | Path,
+    id: str = "N/A",
+):
+    inputs = _read_input(base_call, motif_subcalls, process_type, input, id)
+    IDs = Counter([x.id for x in inputs])
+    duplicate_ids = [key for key in IDs if IDs[key] > 1]
+    if any(duplicate_ids):
+        raise InputException(
+            ", ".join(duplicate_ids),
+            "Duplicate IDs found in input, can't process",
         )
-        if user_input is not None:
-            self.user_input: list[AlgorithmInput] = (
-                InputHandler.read_input(process_type, user_input)
-            )
-        self._index = 0
-        logger.debug(f"Created input handler: {vars(self)}")
+    return inputs
 
-    @staticmethod
-    def read_input(
-        process_type: Literal["single", "ali"],
-        user_input: str,
-        id: str = "N/A",
-    ) -> list[AlgorithmInput]:
-        """Read input given by user and tries to determine if it's a file, a directory or just a single sequence.
-        I really wanted to strictly type this but the number of different possible iterators make it basically impossible.
-        This will always return a list of Iterators, even if there is only on MSA or seq in the file, we take care of that after."
-        """
-        logger.debug("Attempting to read input")
-        try:
-            pathd = Path(
-                user_input.strip()
-            )  # If this one doesn't work then it's also not a directory
 
-            if pathd.resolve().is_file():
-                logger.debug("Input recognized as file, reading now")
-                result = [
-                    InputHandler._read_input_file(pathd, process_type)
-                ]
-                logger.debug(
-                    "Input file read worked, generating algorithm inputs"
-                )
-                return flatten(
-                    [
-                        AlgorithmInput.from_generators(process_type, x)
-                        for x in result
-                    ]
-                )
-            elif pathd.resolve().is_dir():
-                logger.debug("Input recognized as folder, parsing now")
-                result = [
-                    InputHandler._read_input_file(
-                        pathd / Path(file), process_type
-                    )
-                    for file in glob.glob("*", root_dir=pathd)
-                ]
-                logger.debug(
-                    "Folder parsing successfull, generating algorithm inputs"
-                )
-                return flatten(
-                    [
-                        AlgorithmInput.from_generators(process_type, x)
-                        for x in result
-                    ]
-                )
-        except OSError as e:
-            raise e
-        except ValueError as e:
-            raise e
-        else:  # Processing of raw sequence inputs
-            if process_type == "ali":
-                teststring: str = "NAUCGTnaucgt_#"
-                if not InputHandler.test_equal_lengths(user_input):
-                    raise ValueError(
-                        "Not all strings in your alignment have the same lengths, can't process"
-                    )
-
-            else:
-                teststring: str = "NAUCGTnaucgt"
-            if any(
-                c not in teststring for c in set(user_input.strip())
-            ):
-                raise ValueError(
-                    "Input was neither a viable file path nor a viable RNA or DNA sequence"
-                )
-
-        # No error was raised so we can assume that it is not a directory or file in the system but it is a viable sequence
-        return [
-            AlgorithmInput(
-                _id=id,
-                input_str=user_input.strip(),
-                process_type=process_type,
-            )
-        ]
-
-    @staticmethod
-    def test_equal_lengths(test_string: str, divider: str = "#"):
-        strings = test_string.split(divider)
-        base_length = len(strings[0])
-        return all(len(x) == base_length for x in strings)
-
-    @staticmethod
-    def script_read_input(
-        process_type: Literal["single", "ali"],
-        user_input: (
-            str | SeqRecord | Path | list[SeqRecord] | list[str]
-        ),
-        id: str = "N/A",
-    ):
-        match user_input:
-            case str():
-                return InputHandler.read_input(
-                    process_type, user_input, id
-                )
-            case Path():
-                return InputHandler.read_input(
-                    process_type, str(user_input), id
-                )
-            case SeqRecord():
+def _read_input(
+    base_call: MainCall,
+    motif_subcalls: list[MotifCall],
+    process_type: ProcessType,
+    input: str | Bio.SeqIO.SeqRecord | Bio.Align.MultipleSeqAlignment | Path,
+    id: str = "N/A",
+) -> list[ReadyAlgorithmInput]:
+    match process_type:
+        case ProcessType.SINGLE:
+            AlgorithmInputType = SingleAlgorithmInput
+        case ProcessType.ALIGNMENT:
+            AlgorithmInputType = AlignmentAlgorithmInput
+    match input:
+        case str():
+            pathd = Path(input)
+            if pathd.exists():
                 return [
-                    AlgorithmInput(
-                        _id=user_input.id,
-                        input_str=str(user_input.seq),
-                        process_type=process_type,
-                    )
+                    ReadyAlgorithmInput.create_ready_input(x, base_call, motif_subcalls)
+                    for x in _parse_path(pathd, AlgorithmInputType)
                 ]
-            case list():
-                if all(isinstance(x, str) for x in user_input):
-                    return flatten(
-                        [InputHandler.read_input(process_type, x, id) for x in user_input]  # type: ignore
-                    )
-                elif all(isinstance(x, SeqRecord) for x in user_input):
-                    return [
-                        AlgorithmInput(_id=x.id, input_str=str(x.seq), process_type=process_type)  # type: ignore
-                        for x in user_input
-                    ]
-                else:
-                    raise ValueError("Unknown type in input detected")
-            case _:
-                raise ValueError("Couldnt parse input")
-
-    # Read input file
-    @staticmethod
-    def _read_input_file(
-        file_path: Path, process_type: Literal["single", "ali"]
-    ) -> (
-        Bio.SeqIO.FastaIO.FastaIterator
-        | Bio.SeqIO.QualityIO.FastqPhredIterator
-        | Generator[SeqRecord, None, None]
-    ):
-        zipped, filetype = InputHandler._find_filetype(file_path)
-        if (
-            process_type == "ali"
-        ):  # Either parse it with the Align parser if we're doing alignments or with the SeqIO if we're doing MFE/PFC calculations
-            parse_func = Bio.Align.parse  # type: ignore
-        else:
-            parse_func = Bio.SeqIO.parse  # type: ignore
-        if not zipped:
-            for option in filetype:
+            else:
                 try:
-                    logger.debug(
-                        f"Recognized input {file_path} as not compressed, reading as {option} file."
-                    )
-                    return parse_func(file_path, option)  # type: ignore Both of these ignores are because of funky typing on parse from Bio
-                except:
-                    pass
-        else:
-            with gzip.open(file_path, "rt") as handle:
-                for option in filetype:
-                    try:
-                        logger.debug(
-                            f"Recognized input {file_path} as compressed, decrompressing and reading as {option} file"
+                    return [
+                        ReadyAlgorithmInput.create_ready_input(
+                            AlgorithmInputType.from_strings(input, id),
+                            base_call,
+                            motif_subcalls,
                         )
-                        return parse_func(handle, option)  # type: ignore
-                    except:
-                        pass
-        raise NotImplementedError(
-            "Could not read given input file, probably because the given file type is not implemented. Try a different one or write up an issue on GitHub!"
+                    ]
+                except InputException as exc:
+                    raise InputException(
+                        id,
+                        f"Input is neither a valid RNA sequence nor an existing path: {input!r}",
+                    ) from exc
+        case Bio.SeqIO.SeqRecord():
+            return [
+                ReadyAlgorithmInput.create_ready_input(
+                    AlgorithmInputType.from_seqrecord(input),
+                    base_call,
+                    motif_subcalls,
+                )
+            ]
+        case Bio.Align.MultipleSeqAlignment():
+            return [
+                ReadyAlgorithmInput.create_ready_input(
+                    AlgorithmInputType.from_alignmentrecord(input, id),
+                    base_call,
+                    motif_subcalls,
+                )
+            ]
+        case Path():
+            return [
+                ReadyAlgorithmInput.create_ready_input(x, base_call, motif_subcalls)
+                for x in _parse_path(input, AlgorithmInputType)
+            ]
+
+
+def _parse_path(
+    user_input: Path,
+    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
+    if user_input.is_file():
+        return _read_file(user_input, AlgorithmInputType)
+    elif user_input.is_dir():
+        return _read_dir(user_input, AlgorithmInputType)
+    else:
+        raise OSError(
+            "Given Path could not be identified as either a directory or a file"
         )
 
-    # Finds File type based on file ending
-    @staticmethod
-    def _find_filetype(file_path: Path) -> tuple[bool, list[str]]:
-        """Function for determining file type and zip status of user input, if file suffix is unknown this will try to use the suffix as a argument for BioSeqIO parse"""
-        if (
-            file_path.suffixes[-1] == ".gz"
-            or file_path.suffixes[-1] == ".zip"
-        ):
+
+def _read_file(
+    user_input: Path,
+    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
+    (zipped, potential_filetypes) = _find_filetype(user_input)
+    if zipped:
+        open_funct = gzip.open
+    else:
+        open_funct = open
+    with open_funct(user_input, "rt") as handle:
+        for filetype in potential_filetypes:
+            handle.seek(0)
+            try:
+                inputs = list(AlgorithmInputType._parse_file(handle, filetype))
+            except (TypeError, OSError, ValueError):
+                logger.info(
+                    f"Filetype {filetype} couldnt be used to parse file {user_input!s}, trying other options..."
+                )
+                continue
+            if inputs:
+                return inputs
+    raise InputException(
+        str(user_input),
+        f"Couldn't be processed using recognized filetypes: {', '.join(potential_filetypes)}",
+    )
+
+
+def _read_dir(
+    user_input: Path,
+    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
+    inputs: list = []
+    for child in user_input.rglob("*.*"):
+        if child.is_file():
+            try:
+                inputs.extend(_read_file(child, AlgorithmInputType))
+            except InputException as e:
+                logger.warning(e)
+                continue
+    return inputs
+
+
+def _find_filetype(file_path: Path) -> tuple[bool, list[str]]:
+    """Function for determining file type and zip status of user input, if file suffix is unknown this will try to use the suffix as a argument for BioSeqIO parse"""
+    try:
+        if not file_path.exists():
+            raise FileNotFoundError(f"Could not find set input file {file_path}")
+        if file_path.suffixes[-1] == ".gz":
             file_extension = file_path.suffixes[-2]
             input_zipped = True
         else:
             file_extension = file_path.suffixes[-1]
             input_zipped = False
-        match file_extension:
-            case (
-                ".fasta"
-                | ".fas"
-                | ".fa"
-                | ".fna"
-                | ".ffn"
-                | ".faa"
-                | ".mpfa"
-                | ".frn"
-                | ".txt"
-                | ".fsa"
-            ):
-                filetype = ["fasta", "emboss", "tabular"]
-            case ".fastq" | ".fq":
-                filetype = ["fastq"]
-            case ".stk" | ".stockholm" | ".sto":
-                filetype = ["stockholm"]
-            case "phy":
-                filetype = ["phylip"]
-            case _:
-                filetype = [file_extension]
-        return (input_zipped, filetype)
+    except IndexError:
+        raise InputException(
+            str(file_path),
+            "Couldn't correctly access file endings, please add appropriate suffix for you filetype",
+        )
+    match file_extension:
+        case (
+            ".fasta"
+            | ".fas"
+            | ".fa"
+            | ".fna"
+            | ".ffn"
+            | ".faa"
+            | ".mpfa"
+            | ".frn"
+            | ".txt"
+            | ".fsa"
+        ):
+            filetype = ["fasta", "emboss", "tabular"]
+        case ".fastq" | ".fq":
+            filetype = ["fastq"]
+        case ".stk" | ".stockholm" | ".sto":
+            filetype = ["stockholm"]
+        case ".phy":
+            filetype = ["phylip"]
+        case _:
+            filetype = [file_extension]
+    return (input_zipped, filetype)

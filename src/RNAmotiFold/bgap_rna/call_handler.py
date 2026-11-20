@@ -1,8 +1,24 @@
-from pathlib import Path
-from typing import Literal
-from RNAmotiFold.input.parameters import ScriptParameters
-from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 import logging
+from dataclasses import dataclass
+from decimal import Decimal
+from pathlib import Path
+
+from RNAmotiFold.input.parameters import ScriptParameters
+from RNAmotiFold.Misc.EnumTypes import (
+    AlgorithmType,
+    AllowLonelyBP,
+    MotifOrientation,
+    MotifSource,
+    ShapeLevel,
+)
+from RNAmotiFold.Misc.ValueObjects import (
+    SubOptEnergy,
+    fraction,
+    limited_temperature,
+    pos_int,
+)
+
+from RNAmotiFold import RNAMOTIFOLD_ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -12,333 +28,126 @@ logger = logging.getLogger(__name__)
 # These are: motif_source, motif_orientation, kvalue, hishape_mode, shape_level, energy
 
 
-class CallHandler:
-    """Main class for creating the call to the RNAmotiFold, RNAmotiCes and RNAmotiAlign binaries. Creates the correct binary name, algorithm path and organizes commandline arguments"""
+def _set_algorithm_path(algorithm_binary: str) -> Path:
+    path = RNAMOTIFOLD_ROOT_DIR / "bin" / algorithm_binary
+    logger.debug(f"Set algorithm path as {path}")
+    return path
 
-    def __repr__(self):
-        classname = type(self).__name__
-        k, v = zip(*self.__dict__.items())
-        together: list[str] = []
-        for i in range(0, len(v)):
-            together.append(
-                "{key}={value!r}".format(key=k[i], value=v[i])
+
+def _set_algorithm_binary(
+    algorithm: AlgorithmType,
+    subopt: bool,
+    pfc: bool,
+    basepairs: AllowLonelyBP,
+) -> str:
+    if algorithm == AlgorithmType.RNAMOTIALIGN:
+        if subopt or pfc:
+            raise NotImplementedError(
+                "RNAmotiAlign is not available with subopt or partition function implementations"
             )
-        return f"{classname}({', '.join(together)})"
+        return "RNAmotiAlign"
+    match (basepairs, subopt, pfc):
+        case (2, False, False):
+            alg = algorithm + "Motmicro"
+        case (2, True, False):
+            alg = algorithm + "_motmacro_subopt"
+        case (2, False, True):
+            alg = algorithm + "_motmacro_pfc"
+        case (1, False, False) | (0, False, False):
+            alg = algorithm
+        case (1, True, False) | (0, True, False):
+            alg = algorithm + "_subopt"
+        case (1, False, True) | (0, False, True):
+            alg = algorithm + "_pfc"
+        case _:
+            raise ValueError(
+                "The algorithm you specified does not exist, please revisit your arguments."
+            )
+    logger.debug(f"Set algorithm binary as {alg}")
+    return alg
 
-    def __str__(self) -> str:
-        return self.call
 
-    @classmethod
-    def from_script_parameters(cls, params: ScriptParameters):
-        obj = cls(
-            alg=params.algorithm,
-            motif_source=params.motif_source,
-            motif_orientation=params.motif_orientation,
-            kvalue=params.kvalue,
-            shape_level=params.shape_level,
-            energy=params.energy,
-            pfc=params.pfc,
-            low_prob_filter=params.low_prob_filter,
-            temperature=params.temperature,
-            energy_percent=params.energy_percent,
-            allowLonelyBasepairs=params.basepairs,
-            subopt=params.subopt,
-            weight=params.motif_weight,
-            fraction=params.motif_fraction,
-            version=params.version,
+@dataclass
+class MainCall:
+    algorithm_path: Path
+    runtime_dict: dict[str, str]
+
+    def to_list(self) -> list[str]:
+        arguments = [str(self.algorithm_path)]
+        for k, v in self.runtime_dict.items():
+            if v is not None:
+                arguments.extend([k, str(v)])
+        return arguments
+
+
+# I should really make this function just take the parameters and then have a wrapper
+# For Calling it from ScriptParams or Prediction Objects
+
+
+def make_main_call(
+    motif_source: MotifSource,
+    motif_orientation: MotifOrientation,
+    temperature: limited_temperature,
+    version: str,
+    pfc: bool,
+    subopt: bool,
+    subopt_opts: SubOptEnergy,
+    low_prob_filter: fraction,
+    kvalue: pos_int,
+    algorithm: AlgorithmType,
+    shape_level: ShapeLevel,
+    motif_weight: Decimal,
+    motif_fraction: fraction,
+    basepairs: AllowLonelyBP,
+) -> MainCall:
+    """Automatic call setter. The function checks the set algorithm and builds a call string based on it."""
+
+    runtime_dictionary: dict[str, str] = {
+        "-Q": str(motif_source),
+        "-b": str(motif_orientation),
+        "-t": str(temperature),
+        "-v": str(version),
+    }
+    # Only one of these will be activate at a time
+    if subopt:
+        runtime_dictionary[subopt_opts.commandline_parameter] = str(
+            subopt_opts.subopt_energy
         )
-        logger.debug(f"Created bgap obj {str(obj)} from {vars(params)}")
-        return obj
+    elif pfc:
+        runtime_dictionary["-F"] = str(low_prob_filter)
+    else:
+        runtime_dictionary["-k"] = str(kvalue)
 
-    def __init__(
-        self,
-        alg: Literal[
-            "RNAmotiFold", "RNAmoSh", "RNAmotiCes", "RNAmotiAlign"
-        ] = "RNAmotiFold",
-        motif_source: int = 1,
-        motif_orientation: Literal[1, 2, 3] = 1,
-        kvalue: int = 5,
-        shape_level: int = 3,
-        energy: float | None = None,
-        temperature: float = 37.0,
-        energy_percent: float = 5.0,
-        allowLonelyBasepairs: Literal[0, 1, 2] = 0,
-        subopt: bool = False,
-        pfc: bool = False,
-        low_prob_filter: float = 0.000001,
-        fast_mode: bool = False,
-        weight: float = 1.0,
-        fraction: float = 0.7,
-        version: str = "4_10",
-    ):
-        self.subopt = subopt
-        self.pfc = pfc
-        self.low_probability_filter = low_prob_filter
-        self.motif_source = motif_source
-        self.motif_orientation = motif_orientation
-        self.kvalue = kvalue
-        self.shape_level = shape_level
-        self.absolute_energy = energy
-        self.temperature = temperature
-        self.energy_percent = energy_percent
-        self.allowLonelyBasepairs = allowLonelyBasepairs
-        self.algorithm = alg  # Set algorithm after all the other parameters since it depends on some of them (like pfc,subopt and allowlonelybasepairs)
-        # Custom motif variables, custom_X is for the filepaths to the .csv files, replace_X is for if the customs should append to or replace the underlying motifs from RNA3D or Rfam
-        self.motif_weighting = weight
-        self.motif_fraction = fraction
-        self.version = version
+    if algorithm == AlgorithmType.RNAMOSH:
+        runtime_dictionary["-q"] = str(shape_level)
+    if algorithm == AlgorithmType.RNAMOTIALIGN:
+        runtime_dictionary["-W"] = str(motif_weight)
+        runtime_dictionary["-D"] = str(motif_fraction)
+    if basepairs in [AllowLonelyBP.NO_LP, AllowLonelyBP.ALL_LP]:
+        runtime_dictionary["-u"] = str(basepairs)
+    algorithm_binary = _set_algorithm_binary(
+        algorithm, subopt, pfc, basepairs
+    )
+    mc = MainCall(_set_algorithm_path(algorithm_binary), runtime_dictionary)
+    logger.debug(f"Set call as {' '.join(mc.to_list())}")
+    return mc
 
-    @property
-    def process_type(self) -> Literal["single", "ali"]:
-        match self.algorithm:
-            case "RNAmotiAlign":
-                progtype = "ali"
-            case "RNAmotiFold" | "RNAmoSh" | "RNAmotiCes":
-                progtype = "single"
-            case _:
-                raise ValueError(
-                    "Could not identify process type as single folding or alignment folding, check your set algorithm"
-                )
-        logger.debug("Set process type as " + progtype)
-        return progtype
 
-    @property
-    def custom_call(self):
-        return self._custom_call
-
-    @custom_call.setter
-    def custom_call(self, call: str):
-        self._custom_call = call
-
-    @custom_call.deleter
-    def custom_call(self):
-        del self._custom_call
-
-    @property
-    def temperature(self):
-        return self._temperature
-
-    @temperature.setter
-    def temperature(self, temp: float):
-        if not -273 < temp < 100:
-            raise ValueError(
-                "Temperature has to be between -273 and 100 Kelvin."
-            )
-        self._temperature = temp
-
-    @property
-    def energy_percent(self):
-        return self._energy_perc
-
-    @energy_percent.setter
-    def energy_percent(self, range: float | None):
-        if range is not None:
-            if range > 0:
-                self._energy_perc = range
-            else:
-                raise ValueError("Energy range cannot be below 0.")
-        elif range is None:
-            self._energy_perc = range
-
-    @property
-    def allowLonelyBasepairs(self):
-        return self._allowLonelyBasepairs
-
-    @allowLonelyBasepairs.setter
-    def allowLonelyBasepairs(self, val: Literal[0, 1, 2]):
-        if val in [0, 1, 2]:
-            self._allowLonelyBasepairs = val
-        else:
-            raise ValueError(
-                "Allow lonely base pairs can only be set to 0 (no lonely base pairs), 1 (allow all lonely base pairs),2 (allow lonely base pairs around motifs only)"
-            )
-
-    # Choose motif source, 1 = RNA 3D Motif Atlas, 2 = RMFam, 3 = Both
-    @property
-    def motif_source(self):
-        return self._motif_source
-
-    @motif_source.setter
-    def motif_source(self, Q: int):
-        if Q in [1, 2, 3]:
-            self._motif_source = Q
-        else:
-            raise ValueError(
-                "Motif source can only be 1 = RNA 3D Motif Atlas , 2 = RMfam , 3 = Both"
-            )
-
-    # Choose motif orientation, 1 = 5'->3' only, 2 = 3'->5' only, 3= both
-    @property
-    def motif_orientation(self) -> Literal[1, 2, 3]:
-        return self._motif_orientation
-
-    @motif_orientation.setter
-    def motif_orientation(self, b: Literal[1, 2, 3]):
-        if b in [1, 2, 3]:
-            self._motif_orientation: (
-                Literal[1] | Literal[2] | Literal[3]
-            ) = b
-        else:
-            raise ValueError(
-                "Motif direction can only be 1 = 5'->3' , 2 = 3'->5' , 3 = Both."
-            )
-
-    # Set shape abstraction level, viable inputs are 1-5
-    @property
-    def shape_level(self):
-        return self._shape_level
-
-    @shape_level.setter
-    def shape_level(self, q: int):
-        if q in [1, 2, 3, 4, 5]:
-            self._shape_level = q
-        else:
-            raise ValueError(
-                "Shape level can only be set to levels 5 (most abstract) - 1 (least abstract)."
-            )
-
-    # Set energy range for suboptimal candidate calcualtions
-    @property
-    def absolute_energy(self):
-        return self._energy
-
-    @absolute_energy.setter
-    def absolute_energy(self, e: float | None):
-        if e is None:
-            self._energy = None
-        else:
-            if float(e) >= 0:
-                self._energy = e
-            else:
-                raise ValueError("Energy range cannot be lower than 0.")
-
-    # Set kvalue fpr kbest and kbacktracing
-    @property
-    def kvalue(self):
-        return self._kvalue
-
-    @kvalue.setter
-    def kvalue(self, k: int):
-        if k > 0:
-            self._kvalue = k
-        else:
-            raise ValueError("Kvalue cannot be 0 or lower.")
-
-    @property
-    def low_probability_filter(self):
-        return self._low_probability_filter
-
-    @low_probability_filter.setter
-    def low_probability_filter(self, value: float):
-        if 0 <= value < 1:
-            self._low_probability_filter = value
-        else:
-            raise ValueError(
-                "Probability filter cannot be below 0 or above 1"
-            )
-
-    # Finds path to your chosen algorithm, if it does not exist i attempts to compile the algorithm
-    @property
-    def algorithm_path(self):
-        path = RNAMOTIFOLD_ROOT_DIR / "bin" / self.algorithm_binary
-        logger.debug(f"Set algorithm path as {path}")
-        return path
-
-    # Builds the algorithm binary name from the set parameters
-    @property
-    def algorithm_binary(self) -> str:
-        if self.algorithm == "RNAmotiAlign":
-            if self.subopt or self.pfc:
-                raise NotImplementedError(
-                    "RNAmotiAlign is not available with subopt or partition function implementations"
-                )
-            return "RNAmotiAlign"
-        match (self.allowLonelyBasepairs, self.subopt, self.pfc):
-            case (2, False, False):
-                alg = self.algorithm + "Motmicro"
-            case (2, True, False):
-                alg = self.algorithm + "_motmacro_subopt"
-            case (2, False, True):
-                alg = self.algorithm + "_motmacro_pfc"
-            case (1, False, False) | (0, False, False):
-                alg = self.algorithm
-            case (1, True, False) | (0, True, False):
-                alg = self.algorithm + "_subopt"
-            case (1, False, True) | (0, False, True):
-                alg = self.algorithm + "_pfc"
-            case _:
-                raise ValueError(
-                    "The algorithm you specified does not exist, please revisit your arguments."
-                )
-        logger.debug(f"Set algorithm binary as {alg}")
-        return alg
-
-    @property
-    def custom_bulges(self) -> Path | None:
-        return self._custom_bulges
-
-    @custom_bulges.setter
-    def custom_bulges(self, path: str | Path | None) -> None:
-        if path is not None:
-            if Path(path).is_file():
-                self._custom_bulges = Path(path)
-            else:
-                raise FileNotFoundError(
-                    "Unabled to find specified custom bulges file, please check the file path"
-                )
-        else:
-            self._custom_bulges = None
-
-    @property
-    def call(self):
-        """Automatic call setter, if a custom_call is set this will always return the custom_call. The function checks the set algorithm and builds a call string based on it."""
-        if hasattr(self, "custom_call"):
-            return self.custom_call
-        runtime_dictionary: dict[
-            str, str | int | float | None | Path
-        ] = {
-            "-Q": self.motif_source,
-            "-b": self.motif_orientation,
-            "-t": self.temperature,
-            "-v": self.version,
-        }
-        if self.subopt:
-            # Ordering here is important, the last one is always used so to keep -e overwriting -c this is necessary
-            runtime_dictionary["-c"] = self.energy_percent
-            runtime_dictionary["-e"] = self.absolute_energy
-        elif self.pfc:
-            runtime_dictionary["-F"] = self.low_probability_filter
-        else:
-            runtime_dictionary["-k"] = self.kvalue
-
-        if self.algorithm == "RNAmoSh":
-            runtime_dictionary["-q"] = self.shape_level
-        if self.algorithm == "RNAmotiAlign":
-            runtime_dictionary["-W"] = self.motif_weighting
-            runtime_dictionary["-D"] = self.motif_fraction
-        if self.allowLonelyBasepairs in [0, 1]:
-            runtime_dictionary["-u"] = self.allowLonelyBasepairs
-        arguments = [
-            "{key} {value}".format(
-                key=x,
-                value=y,
-            )
-            for x, y in runtime_dictionary.items()
-            if y is not None
-        ]
-
-        seq_free_call = " ".join(
-            [
-                str(self.algorithm_path),
-                " ".join(arguments),
-                "",
-            ]  # "/usr/bin/time"
-        )  # Creates call string without a sequence
-        logger.debug(f"Set call as {seq_free_call}")
-        return seq_free_call
-
-    @call.setter
-    def call(self):
-        raise ValueError(
-            "Please use the custom_call property so set a custom call."
-        )
+def main_call_from_script_params(rt_args: ScriptParameters) -> MainCall:
+    """Automatic call setter from ScriptParameters. The function checks the set algorithm and builds a call string based on it."""
+    return make_main_call(
+        rt_args.motif_source,
+        rt_args.motif_orientation,
+        rt_args.temperature,
+        rt_args.version,
+        rt_args.pfc,
+        rt_args.subopt,
+        rt_args.subopt_opts,
+        rt_args.low_prob_filter,
+        rt_args.kvalue,
+        rt_args.algorithm,
+        rt_args.shape_level,
+        rt_args.motif_weight,
+        rt_args.motif_fraction,
+        rt_args.basepairs,
+    )

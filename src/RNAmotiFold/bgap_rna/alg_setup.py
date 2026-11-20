@@ -1,39 +1,46 @@
-import multiprocessing.pool
-import shutil
-from pathlib import Path
+from __future__ import annotations
+
 import configparser
-import subprocess
 import logging
 import multiprocessing
-import RNAmotiFold
+import multiprocessing.pool
+import shutil
+import subprocess
+from pathlib import Path
+from typing import NamedTuple
+
 import RNAmotiFold.input.dependency_finder
+from RNAmotiFold.Misc.ValueObjects import pos_int
+
+import RNAmotiFold
 
 logger = logging.getLogger(__name__)
 
 
-class _AlgorithmCompilation:
+class CompilationResult(NamedTuple):
+    success: bool
+    obj: _AlgorithmCompilation
+    stderr: str = ""
 
+
+class _AlgorithmCompilation:
     def __init__(
         self,
         algorithm: str,
-        gapc_path: Path | None = None,
+        gapcM_path: Path | None = None,
         perl_path: Path | None = None,
         make_path: Path | None = None,
     ):
         self.algorithm: str = algorithm
         self.compiled: bool = False
-        self._gapc_path: Path | None = gapc_path
+        self._gapcM_path: Path | None = gapcM_path
         self._perl_path: Path | None = perl_path
         self._make_path: Path | None = make_path
 
-    def move(self, source_dir: Path, destination_dir: Path):
-        logger.debug(
-            f"Moving {self.algorithm} from {source_dir} to {destination_dir}"
-        )
+    def move(self, source_dir: Path, destination_dir: Path) -> None:
+        logger.debug(f"Moving {self.algorithm} from {source_dir} to {destination_dir}")
         source_file: Path = source_dir.joinpath(self.algorithm)
-        destination_file: Path = destination_dir.joinpath(
-            self.algorithm
-        )
+        destination_file: Path = destination_dir.joinpath(self.algorithm)
         shutil.move(source_file, destination_file)
 
     @property
@@ -88,106 +95,55 @@ class _AlgorithmCompilation:
     @property
     def compile_call(self) -> list[str]:
         call: list[str] = []
-        call.append(str(self.gapc_path.resolve()))
-        call.extend(self.algorithm_options)
-        call.append("-i")
-        call.append(f"{self.algorithm}")
-        call.append("-o")
-        call.append(f"{self.algorithm}.cc")
-        call.append(self.gap_file)
+        call.append(str(self.gapcM_path.resolve()))
+        call.extend(
+            (
+                *self.algorithm_options,
+                "-i",
+                f"{self.algorithm}",
+                "-o",
+                f"{self.algorithm}.cc",
+                self.gap_file,
+            )
+        )
         return call
 
     @property
     def add_options_call(self) -> list[str]:
         call: list[str] = []
-        call.append(str(self.perl_path.resolve()))
-        perlscript_path: str = str(
-            Path("Misc") / "Applications" / "addRNAoptions.pl"
-        )
+        perlscript_path: str = str(Path("Misc") / "Applications" / "addRNAoptions.pl")
         makefile_path = f"{self.algorithm}.mf"
-        call.append(perlscript_path)
-        call.append(makefile_path)
-        call.append("0")
+        call.extend(
+            (
+                str(self.perl_path.resolve()),
+                perlscript_path,
+                makefile_path,
+                "0",
+            )
+        )
         return call
 
     @property
     def make_call(self) -> list[str]:
         call: list[str] = []
-        call.append(str(self.make_path.resolve()))
-        call.append("-f")
-        call.append(f"{self.algorithm}.mf")
+        call.extend(
+            (
+                str(self.make_path.resolve()),
+                "-f",
+                f"{self.algorithm}.mf",
+            )
+        )
         return call
 
-    def compile_self(self):
-        try:
-            transpile_status = subprocess.run(
-                self.compile_call,
-                check=True,
-                cwd=RNAmotiFold.RNALOOPS_PATH,
-            )
-        except subprocess.CalledProcessError as e:
-            raise e
-        if transpile_status.returncode == 0:
-            try:
-                add_options = subprocess.run(
-                    self.add_options_call,
-                    check=True,
-                    cwd=RNAmotiFold.RNALOOPS_PATH,
-                )
-            except subprocess.CalledProcessError as e:
-                raise e
-        else:
-            raise ValueError(
-                f"Transpilation subprocess ended with non-zero status {transpile_status.returncode}"
-            )
-        if add_options.returncode == 0:
-            try:
-                making_file = subprocess.run(
-                    self.make_call,
-                    check=True,
-                    cwd=RNAmotiFold.RNALOOPS_PATH,
-                )
-            except subprocess.CalledProcessError as e:
-                raise e
-        else:
-            raise ValueError(
-                f"RNA option adding subprocess ended with non-zero status {transpile_status.returncode}"
-            )
-        if making_file.returncode == 0:
-            filenames = [
-                f"{self.algorithm}{x}"
-                for x in [
-                    ".mf",
-                    ".o",
-                    ".d",
-                    ".cc",
-                    ".hh",
-                    "_main.cc",
-                    "_main.o",
-                    "_main.d",
-                ]
-            ]
-            generated_files = [
-                RNAmotiFold.RNALOOPS_PATH.joinpath(x).resolve()
-                for x in filenames
-            ]
-            for file in generated_files:
-                file.unlink()
-            return True
-        else:
-            raise ValueError(
-                f"File maing subprocess ended with non-zero status {making_file.returncode}"
-            )
-
     @property
-    def gapc_path(self) -> Path:
+    def gapcM_path(self) -> Path:
         if (
-            self._gapc_path is None
+            self._gapcM_path is None
         ):  # If nothing was set we check if we can find the dependency
-            self._gapc_path = RNAmotiFold.input.dependency_finder.find(
-                "gapc"
+            self._gapcM_path = RNAmotiFold.input.dependency_finder.find(
+                "gapcM"
             )  # This raises Errors if the dependency is not found
-        return self._gapc_path
+        return self._gapcM_path
 
     @property
     def perl_path(self) -> Path:
@@ -202,61 +158,111 @@ class _AlgorithmCompilation:
     @property
     def make_path(self) -> Path:
         if self._make_path is None:
-            self._make_path = RNAmotiFold.input.dependency_finder.find(
-                "make"
-            )
+            self._make_path = RNAmotiFold.input.dependency_finder.find("make")
         return self._make_path
 
 
+def work_func(comp_obj: _AlgorithmCompilation) -> CompilationResult:
+    try:
+        subprocess.run(
+            comp_obj.compile_call,
+            check=True,
+            cwd=RNAmotiFold.RNALOOPS_PATH,
+            capture_output=True,
+        )
+        logger.debug(f"gapcM compile for {comp_obj.algorithm} successful")
+        subprocess.run(
+            comp_obj.add_options_call,
+            check=True,
+            cwd=RNAmotiFold.RNALOOPS_PATH,
+            capture_output=True,
+        )
+        logger.debug(
+            f"Adding RNA options to make file for {comp_obj.algorithm} successful"
+        )
+        subprocess.run(
+            comp_obj.make_call,
+            check=True,
+            cwd=RNAmotiFold.RNALOOPS_PATH,
+            capture_output=True,
+        )
+        logger.debug(f"Making file for {comp_obj.algorithm} successful")
+        return CompilationResult(True, comp_obj)
+    except subprocess.CalledProcessError as exc:
+        logger.debug(
+            f"Error raised during compilation of {comp_obj.algorithm}: {exc.stderr}"
+        )
+        return CompilationResult(False, comp_obj, exc.stderr)
+    finally:
+        filenames = [
+            f"{comp_obj.algorithm}{x}"
+            for x in [
+                ".mf",
+                ".o",
+                ".d",
+                ".cc",
+                ".hh",
+                "_main.cc",
+                "_main.o",
+                "_main.d",
+            ]
+        ]
+        generated_files: list[Path] = [
+            RNAmotiFold.RNALOOPS_PATH.joinpath(x).resolve() for x in filenames
+        ]
+        for file in generated_files:
+            if file.exists():
+                file.unlink()
+
+
+def worker_init():
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s:%(processName)s:%(levelname)s:%(message)s",
+        force=True,
+    )
+
+
 def setup_algorithms(
-    gapc_path: Path | None,
+    gapcM_path: Path | None,
     perl_path: Path | None,
     make_path: Path | None,
     algorithms: list[str],
-    poolboys: int,
+    poolboys: pos_int,
 ) -> bool:
     compilation_list: list[_AlgorithmCompilation] = []
     # Create and list AlgorithmCompilation Objects for each algorithm we want to compile
     for algorithm in algorithms:
-        new_obj = _AlgorithmCompilation(
-            algorithm, gapc_path, perl_path, make_path
-        )
+        new_obj = _AlgorithmCompilation(algorithm, gapcM_path, perl_path, make_path)
         compilation_list.append(new_obj)
 
-    if poolboys > len(
-        compilation_list
-    ):  # If we need less workers than available we set the number of workers to the number of algorithms to compile
-        poolboys = len(compilation_list)
-
     The_Pool = multiprocessing.Pool(
-        processes=poolboys
+        processes=poolboys,
+        initializer=worker_init,
     )  # Create the pool of workers
-    joblist: list[multiprocessing.pool.AsyncResult[bool]] = []
+    joblist: list[multiprocessing.pool.AsyncResult[CompilationResult]] = []
 
-    compilation_success_list: list[bool] = []
     for job in compilation_list:
-        obj = The_Pool.apply_async(work_func, (job,))
+        obj: multiprocessing.pool.AsyncResult[CompilationResult] = The_Pool.apply_async(
+            work_func, (job,)
+        )
         joblist.append(obj)
     The_Pool.close()
     The_Pool.join()
-    for obj in joblist:
-        compilation_success_list.append(obj.successful())
-    if all(compilation_success_list):
-        logger.info("All compilations successfull, moving binaries...")
-        for comp_obj in compilation_list:
-            comp_obj.move(
-                RNAmotiFold.RNALOOPS_PATH, RNAmotiFold.RNAMOTIFOLD_BIN
+    results = [obj.get() for obj in joblist]
+    failed = [obj for obj in results if not obj.success]
+    if any(failed):
+        for fail in failed:
+            logger.critical(
+                rf"Errors occured during compilation of {fail.obj.algorithm}: {fail.stderr}"
             )
+        return False
+    else:
+        cleared = [obj.obj for obj in results if obj.success]
+        logger.info("All compilations successfull, moving binaries...")
+        for comp_obj in cleared:
+            comp_obj.move(RNAmotiFold.RNALOOPS_PATH, RNAmotiFold.RNAMOTIFOLD_BIN)
         return True
-    return False
-
-
-def work_func(comp_obj: _AlgorithmCompilation):
-    try:
-        comp_obj.compile_self()
-        return True
-    except subprocess.CalledProcessError as error:
-        raise error
 
 
 def get_dependency(
@@ -269,58 +275,47 @@ def get_dependency(
     if path is None or path == "":
         return RNAmotiFold.input.dependency_finder.find(dependency)
     else:
-        return Path(
-            configurer.get(
-                configurer.default_section, f"{dependency}_path"
-            )
-        )
+        return Path(configurer.get(configurer.default_section, f"{dependency}_path"))
 
 
 def main(
     algorithms: list[str],
-    gapc_path: Path | None,
+    gapcM_path: Path | None,
     perl_path: Path | None,
     make_path: Path | None,
     workers: int,
-):
+) -> int:
     """main setup function that checks for the gap compiler, installs it if necessary, fetches newest motif sequences and (re)compiles all preset algorithms (RNAmotiFold, RNAmoSh, RNAmotiCes)"""
     config = configparser.ConfigParser(allow_no_value=True)
-    with open(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG, "r+") as of:
-        config.read_file(
-            of, source=str(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG)
-        )
+    with open(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG, "r+") as of:
+        config.read_file(of, source=str(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG))
     # Ensure we have some GAPC path set somewhere
-    if gapc_path is None:
-        gapc_path = get_dependency(
-            config, "gapc"
-        )
+    if gapcM_path is None:
+        gapcM_path = get_dependency(config, "gapcM")
 
     if perl_path is None:
-        perl_path = get_dependency(
-            config, "perl"
-        )
+        perl_path = get_dependency(config, "perl")
 
     if make_path is None:
-        make_path = get_dependency(
-            config, "make"
-        )
+        make_path = get_dependency(config, "make")
 
     logger.info(
-        f"Using gapc at {gapc_path}, perl at {perl_path}, and make at {make_path}"
+        f"Using gapcM at {gapcM_path}, perl at {perl_path}, and make at {make_path}"
     )
     done = setup_algorithms(
-        gapc_path, perl_path, make_path, algorithms, workers
+        gapcM_path, perl_path, make_path, algorithms, pos_int(workers)
     )
     if done:
-        config.set(config.default_section, "gapc_path", str(gapc_path))
+        config.set(config.default_section, "gapcM_path", str(gapcM_path))
         config.set(config.default_section, "perl_path", str(perl_path))
         config.set(config.default_section, "make_path", str(make_path))
-        with open(RNAmotiFold.RNAMOTIFOLD_PATHS_CONFIG, "w+") as of:
+        with open(RNAmotiFold.RNAMOTIFOLD_INSTALL_CONFIG, "w+") as of:
             config.write(of)
-        logger.info(
-            "Algorithms are all set up, you can now use RNAmotiFold"
-        )
+        logger.info("Algorithms are all set up, you can now use RNAmotiFold")
+        return 0
     else:
         logger.critical(
             "Something went wrong compiling the RNAmotiFold algorithms, please check outputs"
         )
+        return 1
+

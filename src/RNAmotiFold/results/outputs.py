@@ -1,38 +1,32 @@
+from __future__ import annotations
+
+import logging
+import sys
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from dataclasses import dataclass
+from io import StringIO
+from pathlib import Path
+from typing import Literal, Self
+
+import pandas
+from pandas import DataFrame
+from RNAmotiFold.Misc.EnumTypes import LoopType
+from RNAmotiFold.Misc.Helpers import flatten
 from RNAmotiFold.results.results import (
-    ResultPFC,
-    ResultMFE,
+    BaseResult,
     ResultAlignment,
     ResultError,
-    BaseResult,
+    ResultMFE,
+    ResultPFC,
 )
-from collections.abc import Iterator
-from typing import Generic, TypeVar, Literal, Any
-import sys
-from io import StringIO
-import pandas
-import logging
-from abc import abstractmethod, ABC
-from dataclasses import dataclass
-
-from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
 # Typing for AlgorithmOutputs:
 
-T = TypeVar("T", ResultMFE, ResultPFC, ResultAlignment, ResultError)
 
-
-# List flattening
-def _flatten(xss: list[list[Any]]) -> list[Any]:
-    """
-    Used to flatten a lists of lists into a single list
-    """
-
-    return [x for xs in xss for x in xs]
-
-
-class GenericOutput(ABC, Generic[T]):
+class GenericOutput[T: (BaseResult)](ABC):
     """Generic AlgorithmOutput class to inherit from with MFE/PFC/Alignment Subclasses"""
 
     def __iter__(self) -> Iterator[T]:
@@ -47,22 +41,9 @@ class GenericOutput(ABC, Generic[T]):
         self._index = 0
         raise StopIteration
 
-    @classmethod
-    @abstractmethod
-    def merge(
-        cls, items: list["GenericOutput[T]"]
-    ) -> list["GenericOutput[T]"]:
-        """Merge outputs and return a list of outputs."""
-        ...
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         classname = type(self).__name__
-        k, v = zip(*self.__dict__.items())
-        together: list[str] = []
-        for i in range(0, len(v)):
-            together.append(
-                "{key}={value!r}".format(key=k[i], value=v[i])
-            )
+        together = [f"{key}={value!r}" for key, value in self.__dict__.items()]
         return f"{classname}({', '.join(together)})"
 
     def __init__(
@@ -70,7 +51,7 @@ class GenericOutput(ABC, Generic[T]):
         name: str,
         results: list[T],
         stderr: list[str],
-        motif: Literal["hairpin", "internal", "bulge", "all"] = "all",
+        motif: LoopType = LoopType.ALL,
     ) -> None:
         self.id: str = name
         self.results: list[T] = results
@@ -95,26 +76,43 @@ class GenericOutput(ABC, Generic[T]):
                 self._stderr = []
 
     # If not initiated function writes a header and then all it's results as csv
-    def write_results(self, initiated: bool = False) -> Literal[True]:
+    def write_results(
+        self, initiated: bool = False, destination: Path | None = None
+    ) -> Literal[True]:
         """Header and results written with this function will be in csv format using the classwide results.separator variable"""
-        for err in self.stderr:
-            if len(err.strip()) > 0:
-                logger.warning(self.id + ": " + err.strip())
-        if not initiated:
-            logger.debug("Starting result writing")
-            sys.stdout.write(self.results[0].header + "\n")
-        for result_obj in self.results:
-            sys.stdout.write(result_obj.tsv + "\n")
+        if destination is not None:
+            io_dest = destination.open("a+")
+        else:
+            io_dest = sys.stdout
+        try:
+            for err in self.stderr:
+                if len(err.strip()) > 0:
+                    logger.warning(self.id + ": " + err.strip())
+            if not initiated:
+                logger.debug("Starting result writing")
+                print(self.results[0].header, file=io_dest)
+            for result_obj in self.results:
+                print(result_obj.tsv, file=io_dest)
+        finally:
+            if destination is not None:
+                io_dest.close()
         return True
 
     def __str__(self) -> str:
         header = self.results[0].header
         body = "\n".join(x.tsv for x in self.results)
-        return "\n".join([header, body])
+        return f"{header}\n{body}"
 
     @abstractmethod
     def to_df(self) -> DataFrame:
         """Turns Algorithm output into pandas dataframes for easy analysis and integration"""
+        ...
+
+    @classmethod
+    @abstractmethod
+    def merge[subT: (MFEOutput, PFCOutput, AlignmentOutput)](
+        cls: type[subT], items: list[subT]
+    ) -> list[subT]: ...
 
 
 class MFEOutput(GenericOutput[ResultMFE]):
@@ -123,49 +121,42 @@ class MFEOutput(GenericOutput[ResultMFE]):
         name: str,
         result: str | list[ResultMFE],
         stderr: list[str],
-    ):
+    ) -> None:
         if isinstance(result, list):
-            super().__init__(
-                name=name, results=sorted(result), stderr=stderr
-            )
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split: list[str] = result.strip().split("\n")
             reslist_mfe: list[ResultMFE] = []
             for output in split:
-                res_mfe: ResultMFE = ResultMFE.from_string(
-                    name, result_string=output
-                )
+                res_mfe: ResultMFE = ResultMFE.from_string(name, result_string=output)
                 reslist_mfe.append(res_mfe)
             reslist_mfe.sort()
-            super().__init__(
-                name=name, results=sorted(reslist_mfe), stderr=stderr
-            )
+            super().__init__(name=name, results=sorted(reslist_mfe), stderr=stderr)
 
     @classmethod
     def merge(
-        cls: type[GenericOutput[ResultMFE]],
-        items: list[GenericOutput[ResultMFE]],
-    ) -> list[GenericOutput[ResultMFE]]:
+        cls: type[MFEOutput],
+        items: list[MFEOutput],
+    ) -> list[MFEOutput]:
         """Quick merge function for a list of algorithm outputs, no checks are built in whether they all have the same ID or anything so be careful what you input"""
+        if len(items) == 0:
+            return []
         logger.debug(f"Merging results for {items[0].id}")
         result_set: set[ResultMFE] = set()
         for obj in items:
-            for res in obj.results:
-                result_set.add(res)
+            result_set.update(obj.results)
         result_list: list[ResultMFE] = list(result_set)
         return [
             cls(
                 items[0].id,
                 result_list,
-                stderr=_flatten([x.stderr for x in items]),
+                stderr=flatten([x.stderr for x in items]),
             )
         ]
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(
-                StringIO(str(self)), sep=BaseResult.separator
-            )
+            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
             .sort_values(by=["id", "free_energy"])
             .reindex()
         )
@@ -177,17 +168,13 @@ class PFCOutput(GenericOutput[ResultPFC]):
         name: str,
         result: str | list[ResultPFC],
         stderr: list[str],
-    ):
+    ) -> None:
         if isinstance(result, list):
-            super().__init__(
-                name=name, results=sorted(result), stderr=stderr
-            )
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split = result.strip().split("\n")
             reslist_pfc: list[ResultPFC] = []
-            pfc_sum = float(
-                sum([float(x.split("|")[1]) for x in split])
-            )
+            pfc_sum = float(sum(float(x.split("|")[1]) for x in split))
             for output in split:
                 res_pfc: ResultPFC = ResultPFC.from_string(
                     id=name, result_string=output, pfc_sum=pfc_sum
@@ -202,28 +189,41 @@ class PFCOutput(GenericOutput[ResultPFC]):
                 stderr=stderr,
             )
 
+    # Separate write results for PFC outputs which always prints the header before each new results --> PFC results are always separate!
+    def write_results(
+        self, initiated: bool = False, destination: Path | None = None
+    ) -> Literal[True]:
+        """Header and results written with this function will be in csv format using the classwide results.separator variable"""
+        if destination is not None:
+            io_dest = destination.open("a+")
+        else:
+            io_dest = sys.stdout
+        try:
+            for err in self.stderr:
+                if len(err.strip()) > 0:
+                    logger.warning(self.id + ": " + err.strip())
+            if not initiated:
+                logger.debug("Starting result writing")
+            print(self.results[0].header, file=io_dest)
+            for result_obj in self.results:
+                print(result_obj.tsv, file=io_dest)
+        finally:
+            if destination is not None:
+                io_dest.close()
+        return True
+
     @classmethod
     def merge(
-        cls: type[GenericOutput[ResultPFC]],
-        items: list[GenericOutput[ResultPFC]],
-    ) -> list[GenericOutput[ResultPFC]]:
+        cls: type[PFCOutput],
+        items: list[PFCOutput],
+    ) -> list[PFCOutput]:
         """PFC postprocessing for Single Motif mode pfc predictions filtering cases where only one motif was found"""
-        returnlist: list[GenericOutput[ResultPFC]] = []
-        checklist: list[str] = []
-        for output in items:
-            if str(output) not in checklist and len(output.results) > 1:
-                checklist.append(str(output))
-                returnlist.append(output)
-        return returnlist
+        return items
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(
-                StringIO(str(self)), sep=BaseResult.separator
-            )
-            .sort_values(
-                by=["id", "probability"], ascending=[True, False]
-            )
+            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+            .sort_values(by=["id", "probability"], ascending=[True, False])
             .reindex()
         )
 
@@ -234,11 +234,9 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
         name: str,
         result: str | list[ResultAlignment],
         stderr: list[str],
-    ):
+    ) -> None:
         if isinstance(result, list):
-            super().__init__(
-                name=name, results=sorted(result), stderr=stderr
-            )
+            super().__init__(name=name, results=sorted(result), stderr=stderr)
         else:
             split = result.strip().split("\n")
             reslist_ali: list[ResultAlignment] = []
@@ -248,119 +246,128 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
                 )
                 reslist_ali.append(res_ali)
             reslist_ali.sort()
-            super().__init__(
-                name=name, results=sorted(reslist_ali), stderr=stderr
-            )
+            super().__init__(name=name, results=sorted(reslist_ali), stderr=stderr)
 
     @classmethod
     def merge(
-        cls: type[GenericOutput[ResultAlignment]],
-        items: list[GenericOutput[ResultAlignment]],
-    ) -> list[GenericOutput[ResultAlignment]]:
+        cls: type[AlignmentOutput],
+        items: list[AlignmentOutput],
+    ) -> list[AlignmentOutput]:
+        if len(items) == 0:
+            return []
         result_set: set[ResultAlignment] = set()
         for obj in items:
-            for res in obj.results:
-                result_set.add(res)
+            result_set.update(obj.results)
         result_list: list[ResultAlignment] = list(result_set)
         return [
             cls(
                 items[0].id,
                 result_list,
-                stderr=_flatten([x.stderr for x in items]),
+                stderr=flatten([x.stderr for x in items]),
             )
         ]
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(
-                StringIO(str(self)), sep=BaseResult.separator
-            )
+            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
             .sort_values(by=["id", "overall_score"])
             .reindex()
         )
 
 
 class ErrorOutput(GenericOutput[ResultError]):
-
     def __init__(
         self,
         name: str,
+        call: str,
         result: str | list[ResultError],
         stderr: list[str],
-    ):
+    ) -> None:
         if isinstance(result, list):
-            return super().__init__(
-                name=name, results=result, stderr=stderr
-            )
+            super().__init__(name=name, results=result, stderr=stderr)
+            self.call = call
         else:
             relist_error: list[ResultError] = []
             relist_error.append(ResultError.from_string(name, result))
-            super().__init__(
-                name=name, results=relist_error, stderr=stderr
-            )
+            super().__init__(name=name, results=relist_error, stderr=stderr)
+            self.call = call
+
+    def __str__(self):
+        return f"{self.id} exited with exit code {self.error_code}. Error(s): {','.join([err.error for err in self.results])}"
+
+    @property
+    def error_code(self) -> str:
+        return self.stderr[0]
 
     @classmethod
     def merge(
-        cls: type[GenericOutput[ResultError]],
-        items: list[GenericOutput[ResultError]],
-    ) -> list[GenericOutput[ResultError]]:
+        cls: type[ErrorOutput],
+        items: list[ErrorOutput],
+    ) -> list[ErrorOutput]:
+        if len(items) == 0:
+            return []
         return list(items)
 
-    def write_results(self, initiated: bool = False) -> Literal[True]:
-        if not initiated:
-            sys.stderr.write(
-                f"Encountered issue during processing of {self.id}:"
-            )
-        for i in range(len(self.results)):
-            sys.stderr.write(f"{self.stderr[i]}: {self.results[i]}")
-        return True
-
     def to_df(self) -> DataFrame:
-        return pandas.read_csv(
-            StringIO(str(self)), sep=BaseResult.separator
-        )
+        return pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+
+    def write_results(
+        self, initiated: bool = False, destination: Path | None = None
+    ) -> Literal[True]:
+        for element in self.results:
+            print(element, file=sys.stderr, flush=True)
+        return True
 
 
 @dataclass
-class AlgorithmOutput:
-    results: list[MFEOutput | AlignmentOutput | PFCOutput]
+class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
+    results: list[T]
     errors: list[ErrorOutput]
+    result_type: type[T]
 
-    @classmethod
-    def from_single(
-        cls,
-        result: MFEOutput | ErrorOutput | AlignmentOutput | PFCOutput,
-    ):
-        if isinstance(result, ErrorOutput):
-            return cls(results=[], errors=[result])
-        return cls(results=[result], errors=[])
+    def __str__(self):
+        return "\n".join(str(result) for result in self.results)
 
     @classmethod
     def from_list(
-        cls,
-        result_list: (
-            list[MFEOutput | ErrorOutput]
-            | list[AlignmentOutput | ErrorOutput]
-            | list[PFCOutput | ErrorOutput]
-        ),
-    ):
-        only_results: list[MFEOutput | AlignmentOutput | PFCOutput] = [
-            x for x in result_list if not isinstance(x, ErrorOutput)
-        ]
-        only_errors: list[ErrorOutput] = [
-            x for x in result_list if isinstance(x, ErrorOutput)
-        ]
-        return cls(results=only_results, errors=only_errors)
+        cls, result_list: list[T | ErrorOutput], result_type: type[T]
+    ) -> Self:
+        only_errors = [x for x in result_list if isinstance(x, ErrorOutput)]
+        only_results = [x for x in result_list if isinstance(x, result_type)]
+        return cls(only_results, only_errors, result_type)
 
-    def to_df(self) -> list[pandas.DataFrame]:
-        if not self.results:
+    def to_df(self) -> list[pandas.DataFrame] | pandas.DataFrame:
+        if len(self.results) == 0:
             raise ValueError(
                 "Results are empty in AlgorithmOutput, cant create DataFrame"
             )
-        output = type(self.results[0])
-        if all(type(x) is output for x in self.results):
-            merged = output.merge(self.results)  # type: ignore This throws a type error due to the generics not lining upwith the Output types, it works and is probably a lot more work that it is worth to fix, especially since its just a typing error.
-            return [x.to_df().drop_duplicates() for x in merged]
-        raise ValueError(
-            "Different algorithms in the same AlgorithmOutput detected, can't merge"
-        )
+        merged = self.result_type.merge(self.results)  # type:ignore Error caused by union can be fixed with protocol but not worth it
+        dfs = [x.to_df().drop_duplicates() for x in merged]
+        if len(dfs) == 1:
+            return dfs[0]
+        return dfs
+
+    def merge(self, other: AlgorithmOutput) -> AlgorithmOutput:
+        if self.result_type != other.result_type:
+            raise TypeError(
+                f"Cannot merge Algorithm Outputs of different types {self.result_type} and {other.result_type}"
+            )
+        results: list[T] = self.results + other.results
+        errors: list[ErrorOutput] = self.errors + other.errors
+        return AlgorithmOutput(results, errors, self.result_type)
+
+    @staticmethod
+    def merge_list(other_list: list[AlgorithmOutput]) -> AlgorithmOutput:
+        if len(other_list) == 0:
+            return AlgorithmOutput(
+                results=[], errors=[], result_type=MFEOutput
+            )  # By default return an MFEOutput object if nothing is specified
+        if not all(other_list[0].result_type == x.result_type for x in other_list):
+            setted = {x.result_type for x in other_list}
+            raise TypeError(
+                f"Couldnt merge Algorithm outputs, different types: {setted!s}"
+            )
+        base = other_list[0]
+        for other in other_list:
+            base = base.merge(other)
+        return base
