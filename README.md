@@ -10,7 +10,7 @@ If you have any questions please reach out to me through my public email address
 --- 
 # Dependencies
 Requires:
- + Modified Bellman's GAP compiler gapcM == 2626.10.22
+ + Modified Bellman's GAP compiler gapcM >= 2026.10.22
  + Python >= 3.12.3
 
 ---
