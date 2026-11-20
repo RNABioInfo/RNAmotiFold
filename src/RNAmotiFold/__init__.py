@@ -29,8 +29,14 @@ try:
         raise ImportError("Submodule RNALoops was not correctly cloned.")
     _motifs = _importlib.module_from_spec(_spec)
     _spec.loader.exec_module(_motifs)
-except ImportError as e:
-    print(e)
+except ImportError:
+    raise ModuleNotFoundError(
+        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAMOTIFOLD_ROOT_DIR}"
+    )
+except FileNotFoundError:
+    raise ModuleNotFoundError(
+        f"Submodule was not correctly cloned. If you didn't clone this repo with --recurse-submodules run git submodule update --init --recursive from {RNAMOTIFOLD_ROOT_DIR}"
+    )
 
 
 _RNAMOTIFOLD_CONFIG_DIR: Path = Path.joinpath(RNAMOTIFOLD_ROOT_DIR, "configs")
