@@ -7,11 +7,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Literal, Self
+from typing import Generic, Literal, TypeVar
 
 import pandas
 from pandas import DataFrame
-from RNAmotiFold.Misc.EnumTypes import LoopType
 from RNAmotiFold.Misc.Helpers import flatten
 from RNAmotiFold.results.results import (
     BaseResult,
@@ -24,9 +23,11 @@ from RNAmotiFold.results.results import (
 logger = logging.getLogger(__name__)
 
 # Typing for AlgorithmOutputs:
+T = TypeVar("T", bound=BaseResult)
+MergeOutput = TypeVar("MergeOutput", bound="GenericOutput")
 
 
-class GenericOutput[T: (BaseResult)](ABC):
+class GenericOutput(ABC, Generic[T]):
     """Generic AlgorithmOutput class to inherit from with MFE/PFC/Alignment Subclasses"""
 
     def __iter__(self) -> Iterator[T]:
@@ -43,7 +44,9 @@ class GenericOutput[T: (BaseResult)](ABC):
 
     def __repr__(self) -> str:
         classname = type(self).__name__
-        together = [f"{key}={value!r}" for key, value in self.__dict__.items()]
+        together = [
+            f"{key}={value!r}" for key, value in self.__dict__.items()
+        ]
         return f"{classname}({', '.join(together)})"
 
     def __init__(
@@ -51,12 +54,10 @@ class GenericOutput[T: (BaseResult)](ABC):
         name: str,
         results: list[T],
         stderr: list[str],
-        motif: LoopType = LoopType.ALL,
     ) -> None:
         self.id: str = name
         self.results: list[T] = results
         self.stderr = stderr
-        self.motif_type = motif
         self._index = 0
 
     @property
@@ -110,9 +111,9 @@ class GenericOutput[T: (BaseResult)](ABC):
 
     @classmethod
     @abstractmethod
-    def merge[subT: (MFEOutput, PFCOutput, AlignmentOutput)](
-        cls: type[subT], items: list[subT]
-    ) -> list[subT]: ...
+    def merge(
+        cls: type[MergeOutput], items: list[MergeOutput]
+    ) -> list[MergeOutput]: ...
 
 
 class MFEOutput(GenericOutput[ResultMFE]):
@@ -123,15 +124,21 @@ class MFEOutput(GenericOutput[ResultMFE]):
         stderr: list[str],
     ) -> None:
         if isinstance(result, list):
-            super().__init__(name=name, results=sorted(result), stderr=stderr)
+            super().__init__(
+                name=name, results=sorted(result), stderr=stderr
+            )
         else:
             split: list[str] = result.strip().split("\n")
             reslist_mfe: list[ResultMFE] = []
             for output in split:
-                res_mfe: ResultMFE = ResultMFE.from_string(name, result_string=output)
+                res_mfe: ResultMFE = ResultMFE.from_string(
+                    name, result_string=output
+                )
                 reslist_mfe.append(res_mfe)
             reslist_mfe.sort()
-            super().__init__(name=name, results=sorted(reslist_mfe), stderr=stderr)
+            super().__init__(
+                name=name, results=sorted(reslist_mfe), stderr=stderr
+            )
 
     @classmethod
     def merge(
@@ -156,7 +163,8 @@ class MFEOutput(GenericOutput[ResultMFE]):
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+            pandas
+            .read_csv(StringIO(str(self)), sep=BaseResult.separator)
             .sort_values(by=["id", "free_energy"])
             .reindex()
         )
@@ -170,7 +178,9 @@ class PFCOutput(GenericOutput[ResultPFC]):
         stderr: list[str],
     ) -> None:
         if isinstance(result, list):
-            super().__init__(name=name, results=sorted(result), stderr=stderr)
+            super().__init__(
+                name=name, results=sorted(result), stderr=stderr
+            )
         else:
             split = result.strip().split("\n")
             reslist_pfc: list[ResultPFC] = []
@@ -222,7 +232,8 @@ class PFCOutput(GenericOutput[ResultPFC]):
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+            pandas
+            .read_csv(StringIO(str(self)), sep=BaseResult.separator)
             .sort_values(by=["id", "probability"], ascending=[True, False])
             .reindex()
         )
@@ -236,7 +247,9 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
         stderr: list[str],
     ) -> None:
         if isinstance(result, list):
-            super().__init__(name=name, results=sorted(result), stderr=stderr)
+            super().__init__(
+                name=name, results=sorted(result), stderr=stderr
+            )
         else:
             split = result.strip().split("\n")
             reslist_ali: list[ResultAlignment] = []
@@ -246,7 +259,9 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
                 )
                 reslist_ali.append(res_ali)
             reslist_ali.sort()
-            super().__init__(name=name, results=sorted(reslist_ali), stderr=stderr)
+            super().__init__(
+                name=name, results=sorted(reslist_ali), stderr=stderr
+            )
 
     @classmethod
     def merge(
@@ -269,7 +284,8 @@ class AlignmentOutput(GenericOutput[ResultAlignment]):
 
     def to_df(self) -> DataFrame:
         return (
-            pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+            pandas
+            .read_csv(StringIO(str(self)), sep=BaseResult.separator)
             .sort_values(by=["id", "overall_score"])
             .reindex()
         )
@@ -309,7 +325,9 @@ class ErrorOutput(GenericOutput[ResultError]):
         return list(items)
 
     def to_df(self) -> DataFrame:
-        return pandas.read_csv(StringIO(str(self)), sep=BaseResult.separator)
+        return pandas.read_csv(
+            StringIO(str(self)), sep=BaseResult.separator
+        )
 
     def write_results(
         self, initiated: bool = False, destination: Path | None = None
@@ -319,21 +337,30 @@ class ErrorOutput(GenericOutput[ResultError]):
         return True
 
 
+AlgorithmResult = TypeVar(
+    "AlgorithmResult", MFEOutput, PFCOutput, AlignmentOutput
+)
+
+
 @dataclass
-class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
-    results: list[T]
+class AlgorithmOutput(Generic[AlgorithmResult]):
+    results: list[AlgorithmResult]
     errors: list[ErrorOutput]
-    result_type: type[T]
+    result_type: type[AlgorithmResult]
 
     def __str__(self):
         return "\n".join(str(result) for result in self.results)
 
     @classmethod
     def from_list(
-        cls, result_list: list[T | ErrorOutput], result_type: type[T]
-    ) -> Self:
+        cls,
+        result_list: list[AlgorithmResult | ErrorOutput],
+        result_type: type[AlgorithmResult],
+    ) -> AlgorithmOutput:
         only_errors = [x for x in result_list if isinstance(x, ErrorOutput)]
-        only_results = [x for x in result_list if isinstance(x, result_type)]
+        only_results = [
+            x for x in result_list if isinstance(x, result_type)
+        ]
         return cls(only_results, only_errors, result_type)
 
     def to_df(self) -> list[pandas.DataFrame] | pandas.DataFrame:
@@ -347,22 +374,28 @@ class AlgorithmOutput[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
             return dfs[0]
         return dfs
 
-    def merge(self, other: AlgorithmOutput) -> AlgorithmOutput:
+    def merge(
+        self, other: AlgorithmOutput[AlgorithmResult]
+    ) -> AlgorithmOutput[AlgorithmResult]:
         if self.result_type != other.result_type:
             raise TypeError(
                 f"Cannot merge Algorithm Outputs of different types {self.result_type} and {other.result_type}"
             )
-        results: list[T] = self.results + other.results
+        results: list[AlgorithmResult] = self.results + other.results
         errors: list[ErrorOutput] = self.errors + other.errors
         return AlgorithmOutput(results, errors, self.result_type)
 
     @staticmethod
-    def merge_list(other_list: list[AlgorithmOutput]) -> AlgorithmOutput:
+    def merge_list(
+        other_list: list[AlgorithmOutput[AlgorithmResult]],
+    ) -> AlgorithmOutput[AlgorithmResult]:
         if len(other_list) == 0:
-            return AlgorithmOutput(
-                results=[], errors=[], result_type=MFEOutput
-            )  # By default return an MFEOutput object if nothing is specified
-        if not all(other_list[0].result_type == x.result_type for x in other_list):
+            raise RuntimeError(
+                "Couldn't merge results, result list is empty"
+            )
+        if not all(
+            other_list[0].result_type == x.result_type for x in other_list
+        ):
             setted = {x.result_type for x in other_list}
             raise TypeError(
                 f"Couldnt merge Algorithm outputs, different types: {setted!s}"

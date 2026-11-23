@@ -11,7 +11,7 @@ If you have any questions please reach out to me through my public email address
 # Dependencies
 Requires:
  + Modified Bellman's GAP compiler gapcM >= 2026.10.22
- + Python >= 3.12.3
+ + Python >= 3.10
 
 ---
 
@@ -38,4 +38,3 @@ A downloadable image from DockerHub will also be available in the near future.
 + When using RNAmotiFold in a Python script, the return type of the algorithm will be of type AlgorithmOutput which features a method (to_df) to convert your results directly into pandas dataframes! This will always return a list of DataFrames, though it will usually only contain one. The only case where there are multiple DataFrames here is when using any partition function algorithm with the Single Motif Mode. To read more on this refer to our publication: [INSERT RELEASE PUBLICATION HERE]
 + By default, results are piped to stdout and log messages to stderr. You can either pipe them manually with ``>`` and ``2>`` or with the ``RNAmotiFold.py`` commandline parameters ``-o [path to result destination file]`` and ``--logfile [path to log destination file]``
 + Beware `RNAmotiAlign` has not yet been peer reviewed or published and it is still WIP!
-+ RNAmotiFold v1.0.5 and later are only compatible with gapcM version 2026.10.22 and later. If you are using RNAmotiFold v1.0.4 or earlier use gapcM version from 2026.09.30 or earlier!

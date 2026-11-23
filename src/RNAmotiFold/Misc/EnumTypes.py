@@ -1,19 +1,19 @@
-from enum import IntEnum, StrEnum
+from enum import Enum, IntEnum
 
 
-class ProcessType(StrEnum):
+class ProcessType(Enum):
     ALIGNMENT = "ali"
     SINGLE = "single"
 
 
-class AlgorithmType(StrEnum):
+class AlgorithmType(Enum):
     RNAMOTIFOLD = "RNAmotiFold"
     RNAMOTICES = "RNAmotiCes"
     RNAMOSH = "RNAmoSh"
     RNAMOTIALIGN = "RNAmotiAlign"
 
 
-class PredictionType(StrEnum):
+class PredictionType(Enum):
     MFE = "mfe"
     PFC = "pfc"
     ALI = "ali"
@@ -25,7 +25,7 @@ class MotifSource(IntEnum):
     ALL = 3
 
 
-class SubOptMode(StrEnum):
+class SubOptMode(Enum):
     ABSOLUTE = "A"
     PERCENT = "P"
 
@@ -50,19 +50,19 @@ class AllowLonelyBP(IntEnum):
     MOTIF_LP = 2
 
 
-class LoopType(StrEnum):
+class LoopType(Enum):
     HAIRPIN = "hairpin"
     INTERNAL = "internal"
     BULGE = "bulge"
     ALL = "all"
 
 
-class MotifOrigin(StrEnum):
+class MotifOrigin(Enum):
     DEFAULT = "default"
     CUSTOM = "custom"
 
 
-class AvailableBinaries(StrEnum):
+class AvailableBinaries(Enum):
     RNAMOTIFOLD = "RNAmotiFold"
     RNAMOSH = "RNAmoSh"
     RNAMOTICES = "RNAmotiCes"

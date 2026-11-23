@@ -48,17 +48,17 @@ def _set_algorithm_binary(
         return "RNAmotiAlign"
     match (basepairs, subopt, pfc):
         case (2, False, False):
-            alg = algorithm + "Motmicro"
+            alg = algorithm.value + "Motmicro"
         case (2, True, False):
-            alg = algorithm + "_motmacro_subopt"
+            alg = algorithm.value + "_motmacro_subopt"
         case (2, False, True):
-            alg = algorithm + "_motmacro_pfc"
+            alg = algorithm.value + "_motmacro_pfc"
         case (1, False, False) | (0, False, False):
-            alg = algorithm
+            alg = algorithm.value
         case (1, True, False) | (0, True, False):
-            alg = algorithm + "_subopt"
+            alg = algorithm.value + "_subopt"
         case (1, False, True) | (0, False, True):
-            alg = algorithm + "_pfc"
+            alg = algorithm.value + "_pfc"
         case _:
             raise ValueError(
                 "The algorithm you specified does not exist, please revisit your arguments."
@@ -103,8 +103,8 @@ def make_main_call(
     """Automatic call setter. The function checks the set algorithm and builds a call string based on it."""
 
     runtime_dictionary: dict[str, str] = {
-        "-Q": str(motif_source),
-        "-b": str(motif_orientation),
+        "-Q": str(motif_source.value),
+        "-b": str(motif_orientation.value),
         "-t": str(temperature),
         "-v": str(version),
     }
@@ -124,7 +124,7 @@ def make_main_call(
         runtime_dictionary["-W"] = str(motif_weight)
         runtime_dictionary["-D"] = str(motif_fraction)
     if basepairs in [AllowLonelyBP.NO_LP, AllowLonelyBP.ALL_LP]:
-        runtime_dictionary["-u"] = str(basepairs)
+        runtime_dictionary["-u"] = str(basepairs.value)
     algorithm_binary = _set_algorithm_binary(
         algorithm, subopt, pfc, basepairs
     )

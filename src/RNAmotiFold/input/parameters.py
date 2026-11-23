@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import logging
 from argparse import Namespace
 from configparser import ConfigParser
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import ClassVar, Self
+from typing import ClassVar
 
 from Bio import SeqRecord
 from Bio.Align import MultipleSeqAlignment
@@ -27,7 +29,7 @@ class InstallParameters:
     force: bool
 
     @classmethod
-    def from_namespace(cls, args: Namespace) -> Self:
+    def from_namespace(cls, args: Namespace) -> InstallParameters:
         return cls(
             gapcM_path=args.gapcM_path,
             perl_path=args.perl_path,
@@ -99,7 +101,7 @@ class ScriptParameters:
             return PredictionType.MFE
 
     @classmethod
-    def from_argparser(cls, args: Namespace) -> Self:
+    def from_argparser(cls, args: Namespace) -> ScriptParameters:
         if args.output:
             outpath = Path(args.output)
         else:
@@ -109,7 +111,9 @@ class ScriptParameters:
         else:
             logfile_path = None
         if args.energy is not None:
-            subopt_set = SubOptEnergy(pos_decimal(args.energy), SubOptMode.ABSOLUTE)
+            subopt_set = SubOptEnergy(
+                pos_decimal(args.energy), SubOptMode.ABSOLUTE
+            )
         elif args.energy_percent is not None:
             subopt_set = SubOptEnergy(
                 pos_decimal(args.energy_percent), SubOptMode.PERCENT
@@ -152,7 +156,7 @@ class ScriptParameters:
     @classmethod
     def from_configparser(
         cls, confs: ConfigParser, section_name: str = "VARIABLES"
-    ) -> Self:
+    ) -> ScriptParameters:
         confs.set(
             section_name,
             "algorithm",
@@ -190,11 +194,15 @@ class ScriptParameters:
         logger.debug(f"Read config as {confs}")
 
         if confs.get(section_name, "custom_hairpins"):
-            custom_hairpins = Path(confs.get(section_name, "custom_hairpins"))
+            custom_hairpins = Path(
+                confs.get(section_name, "custom_hairpins")
+            )
         else:
             custom_hairpins = None
         if confs.get(section_name, "custom_internals"):
-            custom_internals = Path(confs.get(section_name, "custom_internals"))
+            custom_internals = Path(
+                confs.get(section_name, "custom_internals")
+            )
         else:
             custom_internals = None
         if confs.get(section_name, "custom_bulges"):
@@ -222,28 +230,48 @@ class ScriptParameters:
                 confs.get(section_name, "algorithm")
             ),
             subopt=confs.getboolean(section_name, "subopt"),
-            motif_source=MotifSource(confs.getint(section_name, "motif_source")),
-            motif_orientation=confs.getint(section_name, "motif_orientation"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
+            motif_source=MotifSource(
+                confs.getint(section_name, "motif_source")
+            ),
+            motif_orientation=confs.getint(
+                section_name, "motif_orientation"
+            ),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             kvalue=pos_int(confs.getint(section_name, "kvalue")),
-            shape_level=ShapeLevel(confs.getint(section_name, "shape_level")),
+            shape_level=ShapeLevel(
+                confs.getint(section_name, "shape_level")
+            ),
             subopt_opts=subopt_set,
-            temperature=limited_temperature(confs.get(section_name, "temperature")),
+            temperature=limited_temperature(
+                confs.get(section_name, "temperature")
+            ),
             basepairs=confs.getint(section_name, "basepairs"),  # type: ignore Idk how to "get literal" but it is in the conf and arg checks for these to only be 1,2,3
             pfc=confs.getboolean(section_name, "pfc"),
-            low_prob_filter=fraction(confs.getfloat(section_name, "low_prob_filter")),
+            low_prob_filter=fraction(
+                confs.getfloat(section_name, "low_prob_filter")
+            ),
             custom_hairpins=custom_hairpins,
             custom_internals=custom_internals,
             custom_bulges=custom_bulges,
-            replace_hairpins=confs.getboolean(section_name, "replace_hairpins"),
-            replace_internals=confs.getboolean(section_name, "replace_internals"),
+            replace_hairpins=confs.getboolean(
+                section_name, "replace_hairpins"
+            ),
+            replace_internals=confs.getboolean(
+                section_name, "replace_internals"
+            ),
             replace_bulges=confs.getboolean(section_name, "replace_bulges"),
             loglevel=confs.get(section_name, "loglevel"),
             logfile=logpath,
             workers=pos_int(confs.getint(section_name, "workers")),
             separator=confs.get(section_name, "separator"),
             version=confs.get(section_name, "version"),
-            single_motif_mode=confs.getboolean(section_name, "single_motif_mode"),
+            single_motif_mode=confs.getboolean(
+                section_name, "single_motif_mode"
+            ),
             motif_list=confs.get(section_name, "motifs"),
-            motif_weight=Decimal(confs.getfloat(section_name, "motif_weight")),
-            motif_fraction=fraction(confs.getfloat(section_name, "motif_fraction")),
+            motif_weight=Decimal(
+                confs.getfloat(section_name, "motif_weight")
+            ),
+            motif_fraction=fraction(
+                confs.getfloat(section_name, "motif_fraction")
+            ),
         )

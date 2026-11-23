@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, ClassVar, Self
+from typing import IO, ClassVar
 
 import Bio.Align
 import Bio.SeqIO
@@ -39,14 +39,9 @@ class InputException(Exception):
 class AlgorithmInput(ABC):
     test_string: ClassVar[str] = ""
 
-    def __init__(self, id, sequence):
+    def __init__(self, id, sequence: str):
         self.id: str = id
-        self.sequence: str = sequence
-        self.input: list[str] = [sequence]
-
-    @classmethod
-    def from_strings(cls, input_str: str, input_id: str) -> Self:
-        return cls(sequence=input_str, id=input_id)
+        self.sequence: str = self._check_sequence(id, sequence)
 
     def _check_sequence(self, id: str, sequence: str) -> str:
         sequence = sequence.replace("t", "u")
@@ -69,26 +64,29 @@ class AlgorithmInput(ABC):
     def _parse_file(cls, file_obj: IO, filetype: str) -> Generator: ...
 
     @classmethod
-    def from_seqrecord(cls, record: Bio.SeqIO.SeqRecord):
-        if record.id is None:
-            id = "N/A"
-        else:
-            id = record.id
-        return cls(str(record.seq), id)
+    @abstractmethod
+    def from_seqrecord(
+        cls, record: Bio.SeqIO.SeqRecord
+    ) -> AlgorithmInput: ...
 
     @classmethod
     @abstractmethod
     def from_alignmentrecord(
         cls, record: Bio.Align.MultipleSeqAlignment, id: str
-    ) -> Self: ...
+    ) -> AlgorithmInput: ...
+
+    @classmethod
+    @abstractmethod
+    def from_strings(
+        cls, input_str: str, input_id: str
+    ) -> AlgorithmInput: ...
 
 
 class SingleAlgorithmInput(AlgorithmInput):
     test_string: ClassVar[str] = "AUCGuagcNn"
 
     def __init__(self, sequence: str, id: str = "N/A"):
-        self.id = id
-        self.sequence = self._check_sequence(id, sequence)
+        super().__init__(id, sequence)
         self.input: list[str] = [self.sequence]
 
     @classmethod
@@ -106,26 +104,43 @@ class SingleAlgorithmInput(AlgorithmInput):
     @classmethod
     def from_alignmentrecord(
         cls, record: Bio.Align.MultipleSeqAlignment, id: str
-    ) -> Self:
+    ) -> SingleAlgorithmInput:
         raise InputException(
             id,
             "Couldnt create Single Sequence Algorithm input objects from Multiple Sequence alignment",
         )
+
+    @classmethod
+    def from_seqrecord(
+        cls, record: Bio.SeqIO.SeqRecord
+    ) -> SingleAlgorithmInput:
+        if record.id is None:
+            id = "N/A"
+        else:
+            id = record.id
+        return cls(str(record.seq), id)
+
+    @classmethod
+    def from_strings(
+        cls, input_str: str, input_id: str
+    ) -> SingleAlgorithmInput:
+        return cls(sequence=input_str, id=input_id)
 
 
 class AlignmentAlgorithmInput(AlgorithmInput):
     test_string: ClassVar[str] = "AUCGuacgNn#-_"
 
     def __init__(self, sequence: str, id: str = "N/A"):
-        self.id = id
-        self.sequence = self._check_sequence(id, sequence)
+        super().__init__(id, sequence)
         if AlignmentAlgorithmInput.test_equal_lengths(sequence):
             self.input: list[str] = [
                 "-f",
                 str(TempFileHandler.write_temp_file(self.sequence)),
             ]
         else:
-            raise InputException(id, "Not all input sequences are of equal length.")
+            raise InputException(
+                id, "Not all input sequences are of equal length."
+            )
 
     @staticmethod
     def test_equal_lengths(test_string: str, divider: str = "#") -> bool:
@@ -135,7 +150,7 @@ class AlignmentAlgorithmInput(AlgorithmInput):
     @classmethod
     def from_alignmentrecord(
         cls, record: Bio.Align.MultipleSeqAlignment, id: str
-    ) -> Self:
+    ) -> AlignmentAlgorithmInput:
         CONCATER = "#"
         return cls(CONCATER.join([str(x) for x in record]), id)
 
@@ -147,8 +162,26 @@ class AlignmentAlgorithmInput(AlgorithmInput):
         for alignment in alignments:
             yield AlignmentAlgorithmInput.from_alignmentrecord(
                 alignment,
-                file_obj.name.split("/")[-1].split(".")[0],  # get file name from path
+                file_obj.name.split("/")[-1].split(".")[
+                    0
+                ],  # get file name from path
             )
+
+    @classmethod
+    def from_seqrecord(
+        cls, record: Bio.SeqIO.SeqRecord
+    ) -> AlignmentAlgorithmInput:
+        if record.id is None:
+            id = "N/A"
+        else:
+            id = record.id
+        return cls(str(record.seq), id)
+
+    @classmethod
+    def from_strings(
+        cls, input_str: str, input_id: str
+    ) -> AlignmentAlgorithmInput:
+        return cls(sequence=input_str, id=input_id)
 
 
 @dataclass
@@ -166,7 +199,9 @@ class ReadyAlgorithmInput:
         if len(self.motif_calls) == 0:
             return [self.base_call.to_list() + self.input_obj.input]
 
-        calls = [[*self.base_call.to_list(), *x.call] for x in self.motif_calls]
+        calls = [
+            [*self.base_call.to_list(), *x.call] for x in self.motif_calls
+        ]
         full_calls = [x + self.input_obj.input for x in calls]
         return full_calls
 
@@ -191,7 +226,10 @@ def get_input(
     base_call: MainCall,
     motif_subcalls: list[MotifCall],
     process_type: ProcessType,
-    input: str | Bio.SeqIO.SeqRecord | Bio.Align.MultipleSeqAlignment | Path,
+    input: str
+    | Bio.SeqIO.SeqRecord
+    | Bio.Align.MultipleSeqAlignment
+    | Path,
     id: str = "N/A",
 ):
     inputs = _read_input(base_call, motif_subcalls, process_type, input, id)
@@ -209,7 +247,10 @@ def _read_input(
     base_call: MainCall,
     motif_subcalls: list[MotifCall],
     process_type: ProcessType,
-    input: str | Bio.SeqIO.SeqRecord | Bio.Align.MultipleSeqAlignment | Path,
+    input: str
+    | Bio.SeqIO.SeqRecord
+    | Bio.Align.MultipleSeqAlignment
+    | Path,
     id: str = "N/A",
 ) -> list[ReadyAlgorithmInput]:
     match process_type:
@@ -222,7 +263,9 @@ def _read_input(
             pathd = Path(input)
             if pathd.exists():
                 return [
-                    ReadyAlgorithmInput.create_ready_input(x, base_call, motif_subcalls)
+                    ReadyAlgorithmInput.create_ready_input(
+                        x, base_call, motif_subcalls
+                    )
                     for x in _parse_path(pathd, AlgorithmInputType)
                 ]
             else:
@@ -257,14 +300,18 @@ def _read_input(
             ]
         case Path():
             return [
-                ReadyAlgorithmInput.create_ready_input(x, base_call, motif_subcalls)
+                ReadyAlgorithmInput.create_ready_input(
+                    x, base_call, motif_subcalls
+                )
                 for x in _parse_path(input, AlgorithmInputType)
             ]
 
 
 def _parse_path(
     user_input: Path,
-    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+    AlgorithmInputType: type[
+        SingleAlgorithmInput | AlignmentAlgorithmInput
+    ],
 ) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
     if user_input.is_file():
         return _read_file(user_input, AlgorithmInputType)
@@ -278,7 +325,9 @@ def _parse_path(
 
 def _read_file(
     user_input: Path,
-    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+    AlgorithmInputType: type[
+        SingleAlgorithmInput | AlignmentAlgorithmInput
+    ],
 ) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
     (zipped, potential_filetypes) = _find_filetype(user_input)
     if zipped:
@@ -289,7 +338,9 @@ def _read_file(
         for filetype in potential_filetypes:
             handle.seek(0)
             try:
-                inputs = list(AlgorithmInputType._parse_file(handle, filetype))
+                inputs = list(
+                    AlgorithmInputType._parse_file(handle, filetype)
+                )
             except (TypeError, OSError, ValueError):
                 logger.info(
                     f"Filetype {filetype} couldnt be used to parse file {user_input!s}, trying other options..."
@@ -305,7 +356,9 @@ def _read_file(
 
 def _read_dir(
     user_input: Path,
-    AlgorithmInputType: type[SingleAlgorithmInput | AlignmentAlgorithmInput],
+    AlgorithmInputType: type[
+        SingleAlgorithmInput | AlignmentAlgorithmInput
+    ],
 ) -> list[SingleAlgorithmInput | AlignmentAlgorithmInput]:
     inputs: list = []
     for child in user_input.rglob("*.*"):
@@ -322,7 +375,9 @@ def _find_filetype(file_path: Path) -> tuple[bool, list[str]]:
     """Function for determining file type and zip status of user input, if file suffix is unknown this will try to use the suffix as a argument for BioSeqIO parse"""
     try:
         if not file_path.exists():
-            raise FileNotFoundError(f"Could not find set input file {file_path}")
+            raise FileNotFoundError(
+                f"Could not find set input file {file_path}"
+            )
         if file_path.suffixes[-1] == ".gz":
             file_extension = file_path.suffixes[-2]
             input_zipped = True

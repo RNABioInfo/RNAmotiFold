@@ -8,7 +8,7 @@ import os
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, NamedTuple, Self
+from typing import Any, Generic, NamedTuple, TypeVar
 
 from RNAmotiFold.bgap_rna.input_handler import (
     ReadyAlgorithmInput,
@@ -25,6 +25,8 @@ from RNAmotiFold.results.outputs import (
 )
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", MFEOutput, PFCOutput, AlignmentOutput)
 
 
 def make_handler(
@@ -46,7 +48,7 @@ class CallandID(NamedTuple):
     id: str
 
 
-class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
+class SubprocessHandler(Generic[T]):
     """Class to manage subprocesses for running RNAmotiFold algorithms."""
 
     def __init__(
@@ -62,7 +64,9 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
         self.result_type = result_type
 
     @classmethod
-    def from_script_parameters(cls, params: ScriptParameters, type: type[T]) -> Self:
+    def from_script_parameters(
+        cls, params: ScriptParameters, type: type[T]
+    ) -> SubprocessHandler:
         return cls(params.workers, params.output, type)
 
     @staticmethod
@@ -131,7 +135,9 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
         When all workers are done, signaled by the sentinel None in the Queue which comes from the main process, terminates and sends a list of result objects to back.
         """
         none_counter = 0
-        output_dict: defaultdict[str, list[T | ErrorOutput]] = defaultdict(list)
+        output_dict: defaultdict[str, list[T | ErrorOutput]] = defaultdict(
+            list
+        )
         writing_started = False
         while True:
             try:
@@ -155,13 +161,11 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
             if isinstance(result, ErrorOutput):
                 result.write_results()
             if len(output_dict[result.id]) == calls_per_input:
-                merged = typer.merge(
-                    [
-                        x
-                        for x in output_dict[result.id]
-                        if not isinstance(x, ErrorOutput)
-                    ]
-                )  # type:ignore Can be fixed with protocol but it gets too complicated and not worth it
+                merged = typer.merge([
+                    x
+                    for x in output_dict[result.id]
+                    if not isinstance(x, ErrorOutput)
+                ])  # type:ignore Can be fixed with protocol but it gets too complicated and not worth it
                 if no_print and output_file_path is None:
                     continue  # If run from script no_print is true, but if the user wants to write the results they can if they set output path
 
@@ -176,9 +180,12 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
         no_print: bool,
     ) -> AlgorithmOutput:
         if len(inputs) == 0:
-            raise RuntimeError("No input objects provided to auto run function")
+            raise RuntimeError(
+                "No input objects provided to auto run function"
+            )
         if (
-            len(inputs) * inputs[0].call_count > 1 and self.max_processes > 1
+            len(inputs) * inputs[0].call_count > 1
+            and self.max_processes > 1
         ):  # If either isnt we dont do parallel
             logger.debug(
                 "Recognized multiple inputs, creating worker pool and running in parallel"
@@ -188,7 +195,9 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
                 self.result_type,
             )
         else:
-            logger.debug("Recognized only one input, running in single process mode")
+            logger.debug(
+                "Recognized only one input, running in single process mode"
+            )
             return AlgorithmOutput.from_list(
                 self._single_run(inputs, no_print), self.result_type
             )
@@ -238,7 +247,9 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
                     pass
                 else:
                     if not isinstance(answer, ErrorOutput):
-                        initiated = answer.write_results(initiated, self.output_path)
+                        initiated = answer.write_results(
+                            initiated, self.output_path
+                        )
         return returnlist
 
     def _multi_run(
@@ -248,7 +259,9 @@ class SubprocessHandler[T: (MFEOutput, PFCOutput, AlignmentOutput)]:
     ) -> list[T | ErrorOutput]:
         # Set Up Everything for a multiprocessed run, first make a multiprocessing manager and fill the worker queue with inputs
         manager = multiprocessing.Manager()
-        input_q: multiprocessing.Queue[tuple[list[str], str] | None] = manager.Queue()  # type: ignore Because Queue has type Any
+        input_q: multiprocessing.Queue[tuple[list[str], str] | None] = (
+            manager.Queue()
+        )  # type: ignore Because Queue has type Any
         listener_q = manager.Queue()
         i = 0
         for record in inputs:
