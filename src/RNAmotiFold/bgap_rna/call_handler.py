@@ -104,7 +104,7 @@ def make_main_call(
 
     runtime_dictionary: dict[str, str] = {
         "-Q": str(motif_source.value),
-        "-b": str(motif_orientation),
+        "-b": str(motif_orientation.value),
         "-t": str(temperature),
         "-v": str(version),
     }
