@@ -12,7 +12,6 @@ class TempFileHandler:
     @staticmethod
     def write_temp_file(content: str) -> Path:
         with tempfile.NamedTemporaryFile(
-            delete_on_close=False,
             delete=False,
             encoding="utf-8",
             suffix=".txt",

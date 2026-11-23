@@ -124,7 +124,7 @@ def make_main_call(
         runtime_dictionary["-W"] = str(motif_weight)
         runtime_dictionary["-D"] = str(motif_fraction)
     if basepairs in [AllowLonelyBP.NO_LP, AllowLonelyBP.ALL_LP]:
-        runtime_dictionary["-u"] = str(basepairs)
+        runtime_dictionary["-u"] = str(basepairs.value)
     algorithm_binary = _set_algorithm_binary(
         algorithm, subopt, pfc, basepairs
     )

@@ -212,7 +212,6 @@ class SubprocessHandler(Generic[T]):
         initiated = False
         for obj in input_objs:
             for call in obj.call_list:
-                print(call)
                 try:
                     subprocess_output = subprocess.run(
                         call,
