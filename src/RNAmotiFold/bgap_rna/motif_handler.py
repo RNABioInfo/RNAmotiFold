@@ -4,7 +4,7 @@ import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Self
+from typing import NamedTuple
 
 from RNAmotiFold.bgap_rna.tempfile_handler import TempFileHandler
 from RNAmotiFold.Misc.EnumTypes import LoopType, MotifOrigin
@@ -37,13 +37,17 @@ class MotifSet:
     loop_type: LoopType
 
     @classmethod
-    def from_list(cls, motlist: list[Motif]) -> Self:
+    def from_list(cls, motlist: list[Motif]) -> MotifSet:
         types = {x.loop_type for x in motlist}
         if len(types) > 1:
-            raise ValueError("Motifs of different loop types grouped together")
+            raise ValueError(
+                "Motifs of different loop types grouped together"
+            )
         abbreviations = {x.abbreviation for x in motlist}
         if len(abbreviations) > 1:
-            raise ValueError("Motifs of different abberviations grouped together")
+            raise ValueError(
+                "Motifs of different abberviations grouped together"
+            )
         return cls(
             motif_list=motlist,
             abbreviation=abbreviations.pop(),
@@ -67,7 +71,7 @@ class PotentialMotif:
     abbreviation: str
 
     @classmethod
-    def from_motif_file_line(cls, line: str) -> Self:
+    def from_motif_file_line(cls, line: str) -> PotentialMotif:
         split = line.split(",")
         if len(split) != 2:
             raise ValueError(
@@ -92,7 +96,7 @@ class Motif:
     @classmethod
     def from_string(
         cls, motif_file_line: str, loop_type: LoopType, origin: MotifOrigin
-    ) -> Self:
+    ) -> Motif:
         """Creates a Motif object from a string, the string should be in the format of 'sequence,abbreviation'"""
         mot = PotentialMotif.from_motif_file_line(motif_file_line)
         match loop_type:
@@ -111,7 +115,7 @@ class Motif:
     @classmethod
     def from_file(
         cls, file_path: Path, loop_type: LoopType, origin: MotifOrigin
-    ) -> Iterator[Self]:
+    ) -> Iterator[Motif]:
         """Creates a Motif object from a file, the file should be in the format of 'sequence,abbreviation' per line"""
         with open(file_path, "r") as motif_file:
             for line in motif_file:

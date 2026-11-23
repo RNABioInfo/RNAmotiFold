@@ -1,9 +1,38 @@
+from __future__ import annotations
+
 import logging
 import re
 from dataclasses import dataclass
-from typing import NamedTuple, Self
+from typing import NamedTuple
 
 logger = logging.getLogger("results")
+
+
+class alignment_score(NamedTuple):
+    energy: float
+    covariance: float
+    motif: float
+    overall: float
+
+    @classmethod
+    def from_string(cls, score_string: str) -> alignment_score:
+        nums = [
+            float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", score_string)
+        ]
+        return cls(
+            overall=nums[0],
+            energy=nums[1],
+            covariance=nums[2],
+            motif=nums[3],
+        )
+
+    def to_string(self, sep: str) -> str:
+        return sep.join([
+            str(self.overall),
+            str(self.energy),
+            str(self.covariance),
+            str(self.motif),
+        ])
 
 
 class BaseResult:
@@ -80,22 +109,22 @@ class ResultPFC(BaseResult):
                 f"Cannot compare result_pfc with {type(other)}"
             )
 
-    def __lt__(self, other: "ResultPFC") -> bool:
+    def __lt__(self, other: ResultPFC) -> bool:
         return self.pfc_value < other.pfc_value
 
-    def __le__(self, other: "ResultPFC") -> bool:
+    def __le__(self, other: ResultPFC) -> bool:
         return self.pfc_value <= other.pfc_value
 
-    def __gt__(self, other: "ResultPFC") -> bool:
+    def __gt__(self, other: ResultPFC) -> bool:
         return self.pfc_value > other.pfc_value
 
-    def __ge__(self, other: "ResultPFC") -> bool:
+    def __ge__(self, other: ResultPFC) -> bool:
         return self.pfc_value >= other.pfc_value
 
     @classmethod
     def from_string(
         cls, id: str, result_string: str, pfc_sum: float
-    ) -> Self:
+    ) -> ResultPFC:
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -144,16 +173,16 @@ class ResultMFE(BaseResult):
                 f"Cannot compare result_mfe with {type(other)}"
             )
 
-    def __lt__(self, other: "ResultMFE") -> bool:
+    def __lt__(self, other: ResultMFE) -> bool:
         return self.free_energy < other.free_energy
 
-    def __le__(self, other: "ResultMFE") -> bool:
+    def __le__(self, other: ResultMFE) -> bool:
         return self.free_energy <= other.free_energy
 
-    def __gt__(self, other: "ResultMFE") -> bool:
+    def __gt__(self, other: ResultMFE) -> bool:
         return self.free_energy > other.free_energy
 
-    def __ge__(self, other: "ResultMFE") -> bool:
+    def __ge__(self, other: ResultMFE) -> bool:
         return self.free_energy >= other.free_energy
 
     def __hash__(self) -> int:
@@ -175,7 +204,7 @@ class ResultMFE(BaseResult):
         self._dot_bracket = structure_string
 
     @classmethod
-    def from_string(cls, id: str, result_string: str) -> Self:
+    def from_string(cls, id: str, result_string: str) -> ResultMFE:
         split_result = result_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -224,20 +253,20 @@ class ResultAlignment(BaseResult):
                 f"Cannot compare result_alignment with {type(other)}"
             )
 
-    def __lt__(self, other: "ResultAlignment") -> bool:
+    def __lt__(self, other: ResultAlignment) -> bool:
         return self.overall_score < other.overall_score
 
-    def __le__(self, other: "ResultAlignment") -> bool:
+    def __le__(self, other: ResultAlignment) -> bool:
         return self.overall_score <= other.overall_score
 
-    def __gt__(self, other: "ResultAlignment") -> bool:
+    def __gt__(self, other: ResultAlignment) -> bool:
         return self.overall_score > other.overall_score
 
-    def __ge__(self, other: "ResultAlignment") -> bool:
+    def __ge__(self, other: ResultAlignment) -> bool:
         return self.overall_score >= other.overall_score
 
     @classmethod
-    def from_string(cls, id: str, results_string: str) -> Self:
+    def from_string(cls, id: str, results_string: str) -> ResultAlignment:
         split_result = results_string.strip().split("|")
         split_stripped_results = [x.strip() for x in split_result]
         return cls(
@@ -259,33 +288,6 @@ class ResultAlignment(BaseResult):
         ))
 
 
-class alignment_score(NamedTuple):
-    energy: float
-    covariance: float
-    motif: float
-    overall: float
-
-    @classmethod
-    def from_string(cls, score_string: str) -> Self:
-        nums = [
-            float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", score_string)
-        ]
-        return cls(
-            overall=nums[0],
-            energy=nums[1],
-            covariance=nums[2],
-            motif=nums[3],
-        )
-
-    def to_string(self, sep: str) -> str:
-        return sep.join([
-            str(self.overall),
-            str(self.energy),
-            str(self.covariance),
-            str(self.motif),
-        ])
-
-
 @dataclass
 class ResultError(BaseResult):
     def __init__(self, id: str, errstr: str) -> None:
@@ -293,5 +295,5 @@ class ResultError(BaseResult):
         self.error = errstr
 
     @classmethod
-    def from_string(cls, id: str, errstr: str) -> Self:
+    def from_string(cls, id: str, errstr: str) -> ResultError:
         return cls(id=id, errstr=errstr)

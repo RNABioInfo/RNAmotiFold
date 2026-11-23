@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Self
+from typing import Any
 
 from RNAmotiFold.Misc.EnumTypes import SubOptMode
 from RNAmotiFold.Misc.Helpers import interval_check
@@ -23,7 +23,7 @@ class SubOptEnergy:
 
 
 class limited_temperature(float):
-    def __new__(cls, value: Any) -> Self:
+    def __new__(cls, value: Any) -> float:
         val = float(value)
         if interval_check(0, 100, val):
             return super().__new__(cls, val)
@@ -31,7 +31,7 @@ class limited_temperature(float):
 
 
 class fraction(float):
-    def __new__(cls, value: Any) -> Self:
+    def __new__(cls, value: Any) -> float:
         val = float(value)
         if interval_check(0, 1, val):
             return super().__new__(cls, val)
@@ -39,7 +39,7 @@ class fraction(float):
 
 
 class pos_int(int):
-    def __new__(cls, value: Any) -> Self:
+    def __new__(cls, value: Any) -> int:
         val = int(value)
         if val > 0:
             return super().__new__(cls, val)
@@ -47,7 +47,7 @@ class pos_int(int):
 
 
 class pos_float(float):
-    def __new__(cls, value: Any) -> Self:
+    def __new__(cls, value: Any) -> float:
         val = float(value)
         if val >= 0:
             return super().__new__(cls, val)
@@ -55,7 +55,7 @@ class pos_float(float):
 
 
 class pos_decimal(Decimal):
-    def __new__(cls, value: Any) -> Self:
+    def __new__(cls, value: Any) -> Decimal:
         val = Decimal(value)
         if val >= 0:
             return super().__new__(cls, val)
